@@ -41,6 +41,9 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
       - uses: android-actions/setup-android@v3
       - name: Install Android SDK
         shell: bash
@@ -57,9 +60,7 @@ jobs:
             chmod +x gradlew
             ./gradlew --version
           else
-            echo "No Gradle wrapper; using Gradle 8.9"
-            sudo apt-get update
-            sudo apt-get install -y gradle
+            echo "No Gradle wrapper; using Gradle 8.9 from setup-gradle"
             gradle --version
           fi
       - name: Build debug APK
