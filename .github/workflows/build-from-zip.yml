@@ -48,7 +48,7 @@ jobs:
           import pathlib, re, sys
           p = pathlib.Path(sys.argv[1])
           s = p.read_text()
-          new_id = "com.alkamel.net.app"
+          new_id = "com.mohammedkamel.alkamelnet.portal2026"
           pattern = r'(?m)^(\s*applicationId\s*(?:=\s*)?).*$'
           updated, count = re.subn(pattern, lambda m: m.group(1) + '"' + new_id + '"', s)
           if count != 1:
