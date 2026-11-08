@@ -7,7 +7,7 @@ on:
       - '**.zip'
       - '.github/workflows/build-from-zip.yml'
 permissions:
-  contents: read
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -83,9 +83,19 @@ jobs:
           test -s "$APK"
           mkdir -p "$GITHUB_WORKSPACE/output"
           cp "$APK" "$GITHUB_WORKSPACE/output/Alkamel-Net-debug.apk"
-      - uses: actions/upload-artifact@v4
+      - name: Publish APK as GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: alkamel-net-build-${{ github.run_number }}
+          name: Alkamel-Net build ${{ github.run_number }}
+          files: output/Alkamel-Net-debug.apk
+          fail_on_unmatched_files: true
+          generate_release_notes: false
+      - name: Upload optional Actions artifact
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: Alkamel-Net-APK
           path: output/Alkamel-Net-debug.apk
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7
