@@ -2,9 +2,9 @@ name: Extract and Build Alkamel-Net APK
 on:
   workflow_dispatch:
   push:
-    branches: [main, master]
+    branches: [main]
     paths:
-      - 'Alkamel-Net-Source-Portal-Integration.zip'
+      - '**.zip'
       - '.github/workflows/build-from-zip.yml'
 permissions:
   contents: read
@@ -13,43 +13,65 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Locate and extract source archive
+      - name: Diagnose uploaded archive
         shell: bash
         run: |
           set -euxo pipefail
-          ZIP_FILE="Alkamel-Net-Source-Portal-Integration.zip"
-          if [ ! -f "$ZIP_FILE" ]; then
-            ZIP_FILE="$(find . -maxdepth 3 -type f -iname '*.zip' ! -path './.git/*' -print -quit)"
-          fi
-          test -n "$ZIP_FILE"
-          test -s "$ZIP_FILE"
+          echo "Repository files:"
+          find . -maxdepth 3 -type f -not -path './.git/*' -printf '%p (%s bytes)\n'
+          ZIP_FILE="$(find . -maxdepth 4 -type f -iname '*.zip' ! -path './.git/*' -print -quit)"
+          test -n "$ZIP_FILE" || { echo "::error::No ZIP archive found in repository"; exit 1; }
+          echo "Using archive: $ZIP_FILE"
+          ls -lh "$ZIP_FILE"
+          file "$ZIP_FILE"
+          unzip -t "$ZIP_FILE"
           mkdir -p extracted
           unzip -q "$ZIP_FILE" -d extracted
+          echo "Extracted files:"
+          find extracted -maxdepth 5 -type f | head -200
           SETTINGS="$(find extracted -type f \( -name settings.gradle.kts -o -name settings.gradle \) -print -quit)"
-          test -n "$SETTINGS"
+          test -n "$SETTINGS" || { echo "::error::ZIP extracted but settings.gradle(.kts) was not found"; exit 1; }
           PROJECT_DIR="$(dirname "$SETTINGS")"
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-          test -f "$PROJECT_DIR/app/build.gradle.kts" -o -f "$PROJECT_DIR/app/build.gradle"
-          echo "Project root: $PROJECT_DIR"
+          test -f "$PROJECT_DIR/app/build.gradle.kts" -o -f "$PROJECT_DIR/app/build.gradle" || { echo "::error::Android app module build.gradle not found"; exit 1; }
+          echo "Detected project root: $PROJECT_DIR"
+          echo "Gradle files:"
+          find "$PROJECT_DIR" -maxdepth 3 -type f \( -name '*gradle*' -o -name 'gradle-wrapper.properties' \) -print
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
       - uses: android-actions/setup-android@v3
-      - name: Install Android SDK packages and accept licenses
+      - name: Install Android SDK
         shell: bash
         run: |
+          set -euxo pipefail
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+      - name: Prepare Gradle
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cd "$PROJECT_DIR"
+          if [ -f gradlew ]; then
+            chmod +x gradlew
+            ./gradlew --version
+          else
+            echo "No Gradle wrapper; using Gradle 8.9"
+            sudo apt-get update
+            sudo apt-get install -y gradle
+            gradle --version
+          fi
       - name: Build debug APK
         shell: bash
         run: |
           set -euxo pipefail
           cd "$PROJECT_DIR"
-          gradle --no-daemon --stacktrace :app:assembleDebug
+          if [ -f gradlew ]; then
+            ./gradlew --no-daemon --stacktrace :app:assembleDebug
+          else
+            gradle --no-daemon --stacktrace :app:assembleDebug
+          fi
       - name: Verify and upload APK
         shell: bash
         run: |
