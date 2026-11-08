@@ -37,6 +37,25 @@ jobs:
           echo "Detected project root: $PROJECT_DIR"
           echo "Gradle files:"
           find "$PROJECT_DIR" -maxdepth 3 -type f \( -name '*gradle*' -o -name 'gradle-wrapper.properties' \) -print
+      - name: Set unique application package ID
+        shell: bash
+        run: |
+          set -euxo pipefail
+          GRADLE_FILE="$PROJECT_DIR/app/build.gradle.kts"
+          if [ ! -f "$GRADLE_FILE" ]; then GRADLE_FILE="$PROJECT_DIR/app/build.gradle"; fi
+          test -f "$GRADLE_FILE"
+          python3 - "$GRADLE_FILE" <<'PY'
+          import pathlib, re, sys
+          p = pathlib.Path(sys.argv[1])
+          s = p.read_text()
+          new_id = "com.alkamel.net.app"
+          pattern = r'(?m)^([ \\t]*applicationId\\s*(?:=\\s*)?)[\\"\\']([^\\"\\']+)[\\"\\']'
+          updated, count = re.subn(pattern, lambda m: m.group(1) + '"' + new_id + '"', s)
+          if count != 1:
+              raise SystemExit(f"Expected exactly one applicationId entry, found {count}; refusing unsafe edit")
+          p.write_text(updated)
+          print(f"Updated applicationId to {new_id}")
+          PY
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
