@@ -2,7 +2,7 @@ name: Extract and Build Alkamel-Net APK
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, master]
     paths:
       - 'Alkamel-Net-Source-Portal-Integration.zip'
       - '.github/workflows/build-from-zip.yml'
@@ -13,18 +13,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Extract uploaded source archive
+      - name: Locate and extract source archive
         shell: bash
         run: |
-          set -euo pipefail
-          test -s Alkamel-Net-Source-Portal-Integration.zip
+          set -euxo pipefail
+          ZIP_FILE="Alkamel-Net-Source-Portal-Integration.zip"
+          if [ ! -f "$ZIP_FILE" ]; then
+            ZIP_FILE="$(find . -maxdepth 3 -type f -iname '*.zip' ! -path './.git/*' -print -quit)"
+          fi
+          test -n "$ZIP_FILE"
+          test -s "$ZIP_FILE"
           mkdir -p extracted
-          unzip -q Alkamel-Net-Source-Portal-Integration.zip -d extracted
-          project="$(find extracted -name settings.gradle.kts -o -name settings.gradle | head -n 1)"
-          test -n "$project"
-          project_dir="$(dirname "$project")"
-          echo "PROJECT_DIR=$project_dir" >> "$GITHUB_ENV"
-          test -f "$project_dir/app/build.gradle.kts" || test -f "$project_dir/app/build.gradle"
+          unzip -q "$ZIP_FILE" -d extracted
+          SETTINGS="$(find extracted -type f \\( -name settings.gradle.kts -o -name settings.gradle \\) -print -quit)"
+          test -n "$SETTINGS"
+          PROJECT_DIR="$(dirname "$SETTINGS")"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          test -f "$PROJECT_DIR/app/build.gradle.kts" -o -f "$PROJECT_DIR/app/build.gradle"
+          echo "Project root: $PROJECT_DIR"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -33,27 +39,25 @@ jobs:
         with:
           gradle-version: '8.9'
       - uses: android-actions/setup-android@v3
-      - name: Install Android SDK
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
-      - name: Build APK
+      - name: Install Android SDK packages and accept licenses
         shell: bash
         run: |
-          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+      - name: Build debug APK
+        shell: bash
+        run: |
+          set -euxo pipefail
           cd "$PROJECT_DIR"
-          if [ -f gradlew ]; then
-            chmod +x gradlew
-            ./gradlew --no-daemon --stacktrace :app:assembleDebug
-          else
-            gradle --no-daemon --stacktrace :app:assembleDebug
-          fi
-      - name: Collect APK
+          gradle --no-daemon --stacktrace :app:assembleDebug
+      - name: Verify and upload APK
         shell: bash
         run: |
-          set -euo pipefail
-          apk="$PROJECT_DIR/app/build/outputs/apk/debug/app-debug.apk"
-          test -s "$apk"
-          mkdir -p output
-          cp "$apk" output/Alkamel-Net-debug.apk
+          set -euxo pipefail
+          APK="$PROJECT_DIR/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          mkdir -p "$GITHUB_WORKSPACE/output"
+          cp "$APK" "$GITHUB_WORKSPACE/output/Alkamel-Net-debug.apk"
       - uses: actions/upload-artifact@v4
         with:
           name: Alkamel-Net-APK
