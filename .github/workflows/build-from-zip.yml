@@ -1,4 +1,4 @@
-name: Extract and Build Alkamel-Net APK
+name: Extract and Build Alkamel-Net APK v1.2.0
 on:
   workflow_dispatch:
   push:
