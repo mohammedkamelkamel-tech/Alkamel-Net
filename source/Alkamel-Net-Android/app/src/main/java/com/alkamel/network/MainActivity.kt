@@ -929,7 +929,7 @@ class MainActivity : Activity() {
 
     inner class Bridge {
         @JavascriptInterface fun onAdsUpdated(newImages: Int) {
-            if (newImages > 0 && !appInForeground) {
+            if (newImages > 0) {
                 postEventNotification("إعلان جديد في شبكة الكامل", "تمت إضافة $newImages صورة جديدة إلى قسم الإعلانات والعروض.", 48120)
             }
         }
