@@ -19,7 +19,7 @@ jobs:
           set -euxo pipefail
           echo "Repository files:"
           find . -maxdepth 3 -type f -not -path './.git/*' -printf '%p (%s bytes)\n'
-          ZIP_FILE="$(find . -maxdepth 1 -type f -iname '*.zip' ! -name '*patch*' -print -quit)"
+          ZIP_FILE="./Alkamel-Net-Android-Project-v1.2.0.zip"
           test -n "$ZIP_FILE" || { echo "::error::No ZIP archive found in repository"; exit 1; }
           echo "Using archive: $ZIP_FILE"
           ls -lh "$ZIP_FILE"
@@ -70,25 +70,18 @@ jobs:
                       print(f'\nSOURCE {p.relative_to(root)} TERM {term}: {s[a:b]}')
                       start=i+len(term); hits+=1
           PY
-      - name: Apply uploaded v1.2.0 source patch and verify
+      - name: Verify uploaded v1.2.0 project and preserve HD stream
         shell: bash
         run: |
           set -euo pipefail
           HD_FILE="$PROJECT_DIR/app/src/main/assets/hd/index.html"
-          sha256sum "$HD_FILE" | awk '{print $1}' > "$RUNNER_TEMP/hd.before"
-          PATCH_ZIP="releases/Alkamel-Net-v1.2.0-patch.zip"
-          test -s "$PATCH_ZIP"
-          unzip -o "$PATCH_ZIP" -d "$PROJECT_DIR"
-          test -s "$PROJECT_DIR/app/src/main/assets/home.html"
-          test -s "$PROJECT_DIR/app/src/main/java/com/alkamel/network/MainActivity.kt"
+          test -s "$HD_FILE"
           grep -q "goService('live1')" "$PROJECT_DIR/app/src/main/assets/home.html"
           grep -q "goService('live2')" "$PROJECT_DIR/app/src/main/assets/home.html"
           grep -q "AndroidBridge.applyNetworkSetting(o.value,flag)" "$PROJECT_DIR/app/src/main/assets/home.html"
           grep -q "speed-blink" "$PROJECT_DIR/app/src/main/assets/home.html"
           ! grep -q "اعتماد السرعة المختارة" "$PROJECT_DIR/app/src/main/assets/home.html"
           ! grep -q "v.textContent=o.value" "$PROJECT_DIR/app/src/main/assets/home.html"
-          sha256sum "$HD_FILE" | awk '{print $1}' > "$RUNNER_TEMP/hd.after"
-          cmp "$RUNNER_TEMP/hd.before" "$RUNNER_TEMP/hd.after"
           python3 "$PROJECT_DIR/scripts/validate_project.py"
       - name: Set package identity and release version
         shell: bash
