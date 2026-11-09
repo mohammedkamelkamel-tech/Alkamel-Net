@@ -185,14 +185,32 @@ jobs:
           cd "$(dirname "$PROJECT_DIR")"
           zip -qr "$GITHUB_WORKSPACE/output/Alkamel-Net-Android-Project.zip" "$(basename "$PROJECT_DIR")" -x '*/.gradle/*' '*/build/*' '*/.idea/*' '*/local.properties'
           test -s "$GITHUB_WORKSPACE/output/Alkamel-Net-Android-Project.zip"
-      - name: Publish APK as GitHub Release
+      - name: Create single package with APK and project
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cd "$GITHUB_WORKSPACE/output"
+          test -s Alkamel-Net-debug.apk
+          test -s Alkamel-Net-Android-Project.zip
+          mkdir -p Alkamel-Net-Package
+          cp Alkamel-Net-debug.apk Alkamel-Net-Package/
+          cp Alkamel-Net-Android-Project.zip Alkamel-Net-Package/
+          cat > Alkamel-Net-Package/اقرأني.txt <<'EOF'
+          الكامل-نت
+          يحتوي هذا الملف على:
+          1- Alkamel-Net-debug.apk : ملف تثبيت التطبيق.
+          2- Alkamel-Net-Android-Project.zip : ملفات مشروع Android المعدل.
+          فك ضغط هذا الملف أولاً، ثم ثبّت APK أو فك ضغط ملف المشروع للعمل عليه.
+          EOF
+          zip -qr Alkamel-Net-Full-Package.zip Alkamel-Net-Package
+          unzip -t Alkamel-Net-Full-Package.zip
+          test -s Alkamel-Net-Full-Package.zip
+      - name: Publish APK and project in one ZIP
         uses: softprops/action-gh-release@v2
         with:
           tag_name: alkamel-net-build-${{ github.run_number }}
           name: Alkamel-Net build ${{ github.run_number }}
-          files: |
-            output/Alkamel-Net-debug.apk
-            output/Alkamel-Net-Android-Project.zip
+          files: output/Alkamel-Net-Full-Package.zip
           fail_on_unmatched_files: true
           generate_release_notes: false
       - name: Upload optional Actions artifact
