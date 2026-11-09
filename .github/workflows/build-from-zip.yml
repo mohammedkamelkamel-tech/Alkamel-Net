@@ -131,26 +131,39 @@ jobs:
           sha256sum "$HD_FILE" | awk '{print $1}' > "$RUNNER_TEMP/hd.after"
           cmp "$RUNNER_TEMP/hd.before" "$RUNNER_TEMP/hd.after"
           python3 "$PROJECT_DIR/scripts/validate_project.py"
-      - name: Set unique application package ID
-      - name: Set unique application package ID
+      - name: Set package identity and release version
         shell: bash
         run: |
           set -euxo pipefail
           GRADLE_FILE="$PROJECT_DIR/app/build.gradle.kts"
-          if [ ! -f "$GRADLE_FILE" ]; then GRADLE_FILE="$PROJECT_DIR/app/build.gradle"; fi
           test -f "$GRADLE_FILE"
           python3 - "$GRADLE_FILE" <<'PY'
-          import pathlib, re, sys
-          p = pathlib.Path(sys.argv[1])
-          s = p.read_text()
-          new_id = "com.mohammedkamel.alkamelnet.portal2026"
-          pattern = r'(?m)^(\s*applicationId\s*(?:=\s*)?).*$'
-          updated, count = re.subn(pattern, lambda m: m.group(1) + '"' + new_id + '"', s)
-          if count != 1:
-              raise SystemExit(f"Expected exactly one applicationId entry, found {count}; refusing unsafe edit")
-          p.write_text(updated)
-          print(f"Updated applicationId to {new_id}")
+          import pathlib,re,sys
+          p=pathlib.Path(sys.argv[1])
+          s=p.read_text()
+          s,n=re.subn(r'(?m)^(\s*applicationId\s*=\s*)"[^"]+"',r'\1"com.mohammedkamel.alkamelnet.portal2026"',s)
+          if n!=1: raise SystemExit(f"Expected one applicationId, found {n}")
+          s,n=re.subn(r'(?m)^(\s*versionCode\s*=\s*)\d+',r'\g<1>4',s)
+          if n!=1: raise SystemExit(f"Expected one versionCode, found {n}")
+          s,n=re.subn(r'(?m)^(\s*versionName\s*=\s*)"[^"]+"',r'\g<1>"1.2.0"',s)
+          if n!=1: raise SystemExit(f"Expected one versionName, found {n}")
+          p.write_text(s)
+          print("Application ID and version set to 1.2.0 (4)")
           PY
+      - name: Publish updated Android source in repository
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p source
+          rm -rf source/Alkamel-Net-Android
+          cp -a "$PROJECT_DIR" source/Alkamel-Net-Android
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add source/Alkamel-Net-Android
+          if ! git diff --cached --quiet; then
+            git commit -m "Publish Alkamel-Net Android source v1.2.0 [skip ci]"
+            git push origin HEAD:main
+          fi
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
