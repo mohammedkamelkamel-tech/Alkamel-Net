@@ -152,12 +152,22 @@ jobs:
           test -s "$APK"
           mkdir -p "$GITHUB_WORKSPACE/output"
           cp "$APK" "$GITHUB_WORKSPACE/output/Alkamel-Net-debug.apk"
+      - name: Package modified Android project
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/output"
+          cd "$(dirname "$PROJECT_DIR")"
+          zip -qr "$GITHUB_WORKSPACE/output/Alkamel-Net-Android-Project.zip" "$(basename "$PROJECT_DIR")" -x '*/.gradle/*' '*/build/*' '*/.idea/*' '*/local.properties'
+          test -s "$GITHUB_WORKSPACE/output/Alkamel-Net-Android-Project.zip"
       - name: Publish APK as GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: alkamel-net-build-${{ github.run_number }}
           name: Alkamel-Net build ${{ github.run_number }}
-          files: output/Alkamel-Net-debug.apk
+          files: |
+            output/Alkamel-Net-debug.apk
+            output/Alkamel-Net-Android-Project.zip
           fail_on_unmatched_files: true
           generate_release_notes: false
       - name: Upload optional Actions artifact
