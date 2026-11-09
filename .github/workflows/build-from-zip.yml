@@ -1,4 +1,4 @@
-name: Build Alkamel-Net APK from repository source v1.5.8
+name: Build Alkamel-Net APK from repository source v1.6.0
 on:
   workflow_dispatch:
   push:
@@ -103,9 +103,9 @@ jobs:
           s=p.read_text()
           s,n=re.subn(r'(?m)^(\s*applicationId\s*=\s*)"[^"]+"',r'\1"com.mohammedkamel.alkamelnet.portal2026"',s)
           if n!=1: raise SystemExit(f"Expected one applicationId, found {n}")
-          s,n=re.subn(r'(?m)^(\s*versionCode\s*=\s*)\d+',r'\g<1>42',s)
+          s,n=re.subn(r'(?m)^(\s*versionCode\s*=\s*)44',r'\g<1>42',s)
           if n!=1: raise SystemExit(f"Expected one versionCode, found {n}")
-          s,n=re.subn(r'(?m)^(\s*versionName\s*=\s*)"[^"]+"',r'\g<1>"1.5.8"',s)
+          s,n=re.subn(r'(?m)^(\s*versionName\s*=\s*)"1.6.0"',r'\g<1>"1.5.8"',s)
           if n!=1: raise SystemExit(f"Expected one versionName, found {n}")
           p.write_text(s)
           print("Application ID and version set to 1.5.9 (43)")
