@@ -50,4 +50,6 @@
 
 ## Launcher icon
 
+Current app release: 1.5.5 (version code 39).
+
 The Android launcher icon uses the approved multicolor `شبكة الكامل` artwork from `app/src/main/res/drawable-nodpi/ic_launcher.webp`.
