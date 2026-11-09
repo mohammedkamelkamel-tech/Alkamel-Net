@@ -30,8 +30,8 @@ s=s.replace(old_status,new_status,1)
 startup="refreshStatus();setInterval(refreshStatus,30000);window.appBack=()=>showPage('home');"
 if startup not in s: raise SystemExit("FAIL: startup sequence differs")
 s=s.replace(startup,"renderSpeeds();refreshStatus();setInterval(refreshStatus,30000);window.appBack=()=>showPage('home');",1)
-old_cb="""if(document.getElementById('speedNotice')){document.getElementById('speedNotice').textContent=\${JSONObject.quote(message)};document.getElementById('applySpeed').disabled=false;}if(document.getElementById('googleNotice'))document.getElementById('googleNotice').textContent=\${JSONObject.quote(message)};"""
-new_cb="""if(document.getElementById('speedNotice')){document.getElementById('speedNotice').textContent=\${JSONObject.quote(message)};if(\${success})setTimeout(function(){if(window.AndroidBridge)AndroidBridge.refresh();},1200);}if(document.getElementById('googleNotice'))document.getElementById('googleNotice').textContent=\${JSONObject.quote(message)};"""
+old_cb="""if(document.getElementById('speedNotice')){document.getElementById('speedNotice').textContent=${JSONObject.quote(message)};document.getElementById('applySpeed').disabled=false;}if(document.getElementById('googleNotice'))document.getElementById('googleNotice').textContent=${JSONObject.quote(message)};"""
+new_cb="""if(document.getElementById('speedNotice')){document.getElementById('speedNotice').textContent=${JSONObject.quote(message)};if(${success})setTimeout(function(){if(window.AndroidBridge)AndroidBridge.refresh();},1200);}if(document.getElementById('googleNotice'))document.getElementById('googleNotice').textContent=${JSONObject.quote(message)};"""
 if old_cb not in k: raise SystemExit("FAIL: native command callback differs")
 k=k.replace(old_cb,new_cb,1)
 hp.write_text(s,encoding="utf-8"); kp.write_text(k,encoding="utf-8")
