@@ -233,9 +233,23 @@
 #chatRoom .chat-bottom-dock .dock-btn{flex:0 0 38px!important;width:38px!important;height:38px!important;min-width:38px!important;min-height:38px!important;border-radius:12px!important;margin:0!important}
 #chatRoom .chat-bottom-dock .dock-btn svg{width:18px!important;height:18px!important}
 @media(max-width:380px){#chatRoom .chat-bottom-dock{gap:5px!important;padding:7px!important}#chatRoom .chat-bottom-dock .select{height:39px!important;min-height:39px!important;padding:8px 10px!important;font-size:11px!important}#chatRoom .chat-bottom-dock .dock-btn{flex-basis:35px!important;width:35px!important;height:35px!important;min-width:35px!important;min-height:35px!important;border-radius:10px!important}#chatRoom .chat-bottom-dock .dock-btn svg{width:17px!important;height:17px!important}}
+/* 1.4.8: MikroTik-hosted rotating advertisements */
+.ads-panel{padding:12px!important}
+.ads-slider{position:relative;width:100%;min-height:190px;aspect-ratio:16/10;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:15px;background:linear-gradient(145deg,#102c49,#071426);border:1px solid #ffffff18;touch-action:pan-y}
+.ads-image{display:block;width:100%;height:100%;max-height:58vh;object-fit:contain;position:absolute;inset:0;margin:auto;opacity:1;transition:opacity .22s ease}
+.ads-image[hidden]{display:none}
+.ads-loading{color:var(--muted);font-size:13px;text-align:center;padding:25px}
+.ads-arrow{position:absolute;top:50%;transform:translateY(-50%);z-index:2;width:34px;height:34px;border:1px solid #ffffff40;border-radius:50%;background:#071426bb;color:#fff;font:700 24px Tajawal;display:grid;place-items:center;line-height:1}
+.ads-arrow.prev{right:9px}.ads-arrow.next{left:9px}
+.ads-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 3px 0;color:var(--muted);font-size:12px}
+.ads-dots{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.ads-dot{width:7px;height:7px;padding:0;border:0;border-radius:50%;background:#60758d}
+.ads-dot.active{width:19px;border-radius:9px;background:var(--cyan)}
+@media(max-width:380px){.ads-slider{min-height:160px}.ads-arrow{width:30px;height:30px}}
 </style></head><body><main class="wrap">
 <header class="top"><div class="brand"><div class="logo">⌁</div><div><h1>الكامل-نت</h1><div class="sub">خدمات الشبكة في مكان واحد</div></div></div><div class="state" id="connection">● جارٍ التحقق</div></header>
 <section id="home" class="page active"><p class="intro">اختر القسم الذي تريد استخدامه</p><div class="grid">
+<button class="tile" onclick="openAds()"><div class="ico">▧</div><div><strong>الإعلانات والعروض</strong><br><small>أحدث الصور والعروض</small></div></button>
 <button class="tile" onclick="showPage('query')"><div class="ico">⌕</div><div><strong>الاستعلام</strong><br><small>بيانات الحساب والاتصال</small></div></button>
 <button class="tile" onclick="showPage('speed')"><div class="ico">ϟ</div><div><strong>سرعة الكرت الحالية</strong><br><small><span id="homeCurrentSpeed" class="speed-blink">يتم جلب السرعة…</span></small></div></button>
 <button class="tile" onclick="showPage('google')"><div class="ico">G</div><div><strong>تحديثات جوجل</strong><br><small><span id="homeGoogleStatus" class="status-blink">جارٍ التحقق من الحالة</span></small></div></button>
@@ -246,6 +260,7 @@
 <button class="tile" onclick="openChat()"><div class="ico">✉</div><div><strong>الدردشة</strong><br><small>محادثة داخل شبكة الكامل</small></div></button>
 <button class="tile" onclick="logout()"><div class="ico">↪</div><div><strong>تسجيل الخروج</strong><br><small>إنهاء جلسة الحساب</small></div></button>
 </div><div class="notice" id="homeNotice"></div></section>
+<section id="ads" class="page"><button class="back" onclick="showPage('home')">→ الرئيسية</button><h2 class="heading">الإعلانات والعروض</h2><div class="panel ads-panel"><div class="ads-slider" id="adsSlider"><div class="ads-loading" id="adsLoading">جارٍ تحميل الإعلانات من الشبكة…</div><img id="adsImage" class="ads-image" alt="إعلان من شبكة الكامل" draggable="false" hidden><button class="ads-arrow prev" id="adsPrev" type="button" aria-label="الصورة السابقة" hidden>‹</button><button class="ads-arrow next" id="adsNext" type="button" aria-label="الصورة التالية" hidden>›</button></div><div class="ads-footer"><span id="adsCounter">—</span><div id="adsDots" class="ads-dots" aria-label="اختيار الإعلان"></div></div><div class="notice" id="adsNotice" role="status" aria-live="polite"></div></div></section>
 <section id="query" class="page"><button class="back" onclick="showPage('home')">→ الرئيسية</button><h2 class="heading">بيانات المشترك</h2><div class="panel"><div class="row"><span class="key">رقم الكرت</span><b class="val" id="username">—</b></div><div class="row"><span class="key">حالة الاتصال</span><b class="val" id="status">—</b></div><div class="row"><span class="key">سرعة الكرت</span><b class="val" id="spes">—</b></div><div class="row"><span class="key">الوقت المتبقي</span><b class="val" id="timeleft">—</b></div><div class="row"><span class="key">مدة الاتصال</span><b class="val" id="uptime">—</b></div><div class="row"><span class="key">الرصيد المتبقي</span><b class="val" id="remain">—</b></div><div class="kvgrid"><div class="kv"><small>حجم التحميل</small><b id="download">—</b></div><div class="kv"><small>حجم الرفع</small><b id="upload">—</b></div></div><button class="btn" onclick="refreshStatus()">↻ تحديث البيانات</button><div class="notice" id="queryNotice"></div></div></section>
 <section id="speed" class="page"><button class="back" onclick="showPage('home')">→ الرئيسية</button><h2 class="heading">سرعة الكرت الحالية</h2><div class="panel"><div class="key">السرعة الحالية</div><div class="val" id="currentSpeed">يتم جلبها من بيانات الحساب…</div><div class="key" style="margin-top:18px">اختر السرعة المطلوبة</div><div id="speedOptions"></div><div class="notice" id="speedNotice">اختر السرعة وسيتم تطبيقها مباشرة.</div></div></section>
 <section id="google" class="page"><button class="back" onclick="showPage('home')">→ الرئيسية</button><h2 class="heading">تحديثات جوجل</h2><div class="panel"><div class="key">الحالة الحالية وفق ملفات الموقع</div><div class="val" id="googleStatus">غير محددة من بيانات حالة المشترك</div><div class="actions"><button id="googleEnable" class="btn secondary" onclick="googleAction('enabled')"><span class="google-choice"><i class="status-dot status-dot-on" aria-hidden="true"></i><span>مفعل</span></span></button><button id="googleDisable" class="btn secondary" onclick="googleAction('disabled')"><span class="google-choice"><i class="status-dot status-dot-off" aria-hidden="true"></i><span>غير مفعل</span></span></button></div><div class="notice" id="googleNotice">تُقرأ الحالة من قيمة spes التي يعيدها الموقع. تغيير الإعداد يستخدم إجراء الموقع الأصلي.</div></div></section>
@@ -258,7 +273,7 @@
 <footer class="foot">الكامل-نت · خدمات شبكة الكامل</footer></main>
 <script>
 const $=id=>document.getElementById(id);let lastData=null;
-function showPage(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(id).classList.add('active');if(id==='query')refreshStatus();if(id==='speed')renderSpeeds();}
+function showPage(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(id).classList.add('active');if(id==='query')refreshStatus();if(id==='speed')renderSpeeds();if(id==='ads')loadAds();}
 const internalServices={query:'http://k.com',rest1:'http://30.30.30.30:8096/web/index.html#!/home',rest2:'http://30.10.10.10/',live1:'http://30.30.30.30:8080/tv/',live2:'http://30.10.10.10:88/'};function go(url){if(window.AndroidBridge)AndroidBridge.openUrl(url);else location.href=url}function goService(key){if(internalServices[key])go(internalServices[key])}function logout(){if(window.AndroidBridge)AndroidBridge.logout()}function openHd(){if(window.AndroidBridge)AndroidBridge.openHd();else location.href='hd/index.html'}
 function player(pkg){const stream='http://10.10.10.10:8888/live/index.m3u8';if(window.AndroidBridge)AndroidBridge.externalPlayer(stream,pkg);else $('liveNotice').textContent='يتطلب فتح المشغل من تطبيق Android.'}
 function refreshStatus(){ $('queryNotice').textContent='جارٍ تحديث البيانات…';if(window.AndroidBridge){AndroidBridge.refresh();return}fetch('http://k.com/status?var=callBack').then(r=>r.json()).then(update).catch(()=>{$('queryNotice').textContent='تعذر الاتصال ببوابة الشبكة.'})}
@@ -285,6 +300,48 @@ if(spesParts.length>1){
 }$('timeleft').textContent=duration(d.session_time_left);$('uptime').textContent=duration(d.uptime);$('remain').textContent=bytes(Number(d.remain_bytes_total)*1.11);$('download').textContent=bytes(d.bytes_out);$('upload').textContent=bytes(d.bytes_in);$('queryNotice').textContent='تم تحديث بيانات الحساب من بوابة الشبكة';}
 window.onStatusData=update;window.refreshStatus=refreshStatus;
 let siteConfig=null,selectedSpeed=null;
+let adsImages=[],adsIndex=0,adsTimer=null,adsLoaded=false,adsLoading=false,adsTouchStartX=0;
+const ADS_BASE='http://k.com/772072056/';
+function renderAds(){
+ const img=$('adsImage'),dots=$('adsDots'),counter=$('adsCounter'),prev=$('adsPrev'),next=$('adsNext');
+ if(!img||!dots)return;
+ if(!adsImages.length){img.hidden=true;prev.hidden=true;next.hidden=true;counter.textContent='0 / 0';dots.innerHTML='';return;}
+ adsIndex=(adsIndex+adsImages.length)%adsImages.length;
+ img.hidden=false;img.src=adsImages[adsIndex];img.alt='الإعلان '+(adsIndex+1);
+ counter.textContent=(adsIndex+1)+' / '+adsImages.length;
+ prev.hidden=adsImages.length<2;next.hidden=adsImages.length<2;
+ dots.innerHTML='';
+ adsImages.forEach((url,i)=>{const b=document.createElement('button');b.type='button';b.className='ads-dot'+(i===adsIndex?' active':'');b.setAttribute('aria-label','عرض الإعلان '+(i+1));b.onclick=()=>showAd(i);dots.appendChild(b);});
+}
+function stopAdsTimer(){if(adsTimer){clearInterval(adsTimer);adsTimer=null;}}
+function startAdsTimer(){stopAdsTimer();if(adsImages.length>1)adsTimer=setInterval(()=>showAd(adsIndex+1),5000);}
+function showAd(index){if(!adsImages.length)return;adsIndex=(index+adsImages.length)%adsImages.length;renderAds();startAdsTimer();}
+async function loadAds(force){
+ if(adsLoading||(!force&&adsLoaded))return;
+ adsLoading=true;const note=$('adsNotice'),loading=$('adsLoading');
+ if(note)note.textContent='';if(loading){loading.hidden=false;loading.textContent='جارٍ تحميل الإعلانات من الميكروتك…';}
+ try{
+  const response=await fetch(ADS_BASE+'config.js',{cache:'no-store'});
+  if(!response.ok)throw new Error('config');
+  const source=await response.text();
+  const match=source.match(/"imageCount"\s*:\s*"?([0-9]+)"?/);
+  const enabled=source.match(/"imageV"\s*:\s*(true|false)/);
+  const count=match?Math.min(40,Math.max(0,Number(match[1]))):0;
+  if(!count||enabled&&enabled[1]==='false')throw new Error('disabled');
+  const candidates=Array.from({length:count},(_,i)=>ADS_BASE+'img/'+(i+1)+'.jpg');
+  const checks=await Promise.all(candidates.map(url=>new Promise(resolve=>{const test=new Image();test.onload=()=>resolve(url);test.onerror=()=>resolve(null);test.src=url+'?v='+Date.now();})));
+  adsImages=checks.filter(Boolean);adsIndex=0;adsLoaded=true;
+  if(loading)loading.hidden=true;
+  if(!adsImages.length)throw new Error('empty');
+  renderAds();startAdsTimer();
+ }catch(error){
+  adsImages=[];if(loading){loading.hidden=false;loading.textContent='تعذر تحميل صور الإعلانات من الميكروتك.';}
+  if(note)note.textContent='تأكد من اتصال الجهاز بالشبكة وتوفر الصور داخل مجلد 772072056/img.';
+  renderAds();
+ }finally{adsLoading=false;}
+}
+function openAds(){showPage('ads');loadAds();}
+
 function speedLabel(raw){
  const value=String(raw||'').split('|')[0].trim();
  if(!value)return 'غير محددة';
@@ -396,5 +453,8 @@ function leaveChatPage(){showPage('home');}
 function onChatServiceError(){const message='تعذر تشغيل خدمة الخلفية؛ قد يتوقف الاتصال عند إغلاق التطبيق.';if(chatPending){setChatJoinPending(true,message);}else{$('chatNotice').textContent=message;}}
 window.onLanChatPacket=receiveChatPacket;
 renderSpeeds();refreshStatus();setInterval(refreshStatus,30000);window.appBack=()=>showPage('home');
+const adsSlider=$('adsSlider');if(adsSlider){adsSlider.addEventListener('touchstart',e=>{adsTouchStartX=e.changedTouches[0].screenX;},{passive:true});adsSlider.addEventListener('touchend',e=>{const delta=e.changedTouches[0].screenX-adsTouchStartX;if(Math.abs(delta)>40)showAd(adsIndex+(delta<0?1:-1));},{passive:true});}
+$('adsPrev')?.addEventListener('click',()=>showAd(adsIndex-1));$('adsNext')?.addEventListener('click',()=>showAd(adsIndex+1));
+document.addEventListener('visibilitychange',()=>{if(document.hidden)stopAdsTimer();else if($('ads')?.classList.contains('active'))startAdsTimer();});
 </script><!-- Group chat shared timeline polish: build retry -->
 </body></html>
