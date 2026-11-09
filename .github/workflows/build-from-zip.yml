@@ -70,13 +70,23 @@ jobs:
                       print(f'\nSOURCE {p.relative_to(root)} TERM {term}: {s[a:b]}')
                       start=i+len(term); hits+=1
           PY
-      - name: Apply and verify portal UI fixes
+      - name: Apply uploaded v1.2.0 source patch and verify
         shell: bash
         run: |
           set -euo pipefail
           HD_FILE="$PROJECT_DIR/app/src/main/assets/hd/index.html"
           sha256sum "$HD_FILE" | awk '{print $1}' > "$RUNNER_TEMP/hd.before"
-          python3 scripts/patch_portal.py "$PROJECT_DIR"
+          PATCH_ZIP="releases/Alkamel-Net-v1.2.0-patch.zip"
+          test -s "$PATCH_ZIP"
+          unzip -o "$PATCH_ZIP" -d "$PROJECT_DIR"
+          test -s "$PROJECT_DIR/app/src/main/assets/home.html"
+          test -s "$PROJECT_DIR/app/src/main/java/com/alkamel/network/MainActivity.kt"
+          grep -q "goService('live1')" "$PROJECT_DIR/app/src/main/assets/home.html"
+          grep -q "goService('live2')" "$PROJECT_DIR/app/src/main/assets/home.html"
+          grep -q "AndroidBridge.applyNetworkSetting(o.value,flag)" "$PROJECT_DIR/app/src/main/assets/home.html"
+          grep -q "speed-blink" "$PROJECT_DIR/app/src/main/assets/home.html"
+          ! grep -q "اعتماد السرعة المختارة" "$PROJECT_DIR/app/src/main/assets/home.html"
+          ! grep -q "v.textContent=o.value" "$PROJECT_DIR/app/src/main/assets/home.html"
           sha256sum "$HD_FILE" | awk '{print $1}' > "$RUNNER_TEMP/hd.after"
           cmp "$RUNNER_TEMP/hd.before" "$RUNNER_TEMP/hd.after"
           python3 "$PROJECT_DIR/scripts/validate_project.py"
