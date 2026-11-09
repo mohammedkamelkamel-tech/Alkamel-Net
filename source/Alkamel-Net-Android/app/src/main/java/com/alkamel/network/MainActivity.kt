@@ -324,7 +324,7 @@ class MainActivity : Activity() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(keepAlive) else startService(keepAlive)
         } catch (e: Exception) {
             Log.e("AlkamelNet", "Unable to start background chat service", e)
-            runOnUiThread { if (::web.isInitialized && !web.isDestroyed) web.evaluateJavascript("window.onChatServiceError&&window.onChatServiceError();", null) }
+            runOnUiThread { if (::web.isInitialized && !isDestroyed) web.evaluateJavascript("window.onChatServiceError&&window.onChatServiceError();", null) }
         }
         if (!chatRunning.compareAndSet(false, true)) { sendLanPacket("presence", ""); return }
         chatExecutor.execute {
@@ -490,7 +490,7 @@ class MainActivity : Activity() {
                 }
                 activePlayer.setVolume(1.0f)
                 activePlayer.play()
-                runOnUiThread { if (::web.isInitialized && !web.isDestroyed) web.evaluateJavascript("window.onVoiceState&&window.onVoiceState('joined','');", null) }
+                runOnUiThread { if (::web.isInitialized && !isDestroyed) web.evaluateJavascript("window.onVoiceState&&window.onVoiceState('joined','');", null) }
 
                 voiceReceiveExecutor.execute {
                     val incoming = ByteArray(1200)
