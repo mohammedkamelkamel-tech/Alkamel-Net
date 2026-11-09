@@ -7,6 +7,13 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.media.AudioFormat
+import android.media.AudioRecord
+import android.media.AudioTrack
+import android.media.MediaRecorder
+import android.media.AudioManager
+import android.media.AudioAttributes
+import android.net.wifi.WifiManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -59,6 +66,15 @@ class MainActivity : Activity() {
     @Volatile private var chatNickname = ""
     private val chatId = java.util.UUID.randomUUID().toString()
     private val chatExecutor = Executors.newSingleThreadExecutor()
+    private val voiceExecutor = Executors.newSingleThreadExecutor()
+    private val voiceReceiveExecutor = Executors.newSingleThreadExecutor()
+    private val voiceRunning = AtomicBoolean(false)
+    private val voiceMuted = AtomicBoolean(false)
+    @Volatile private var voiceSocket: java.net.MulticastSocket? = null
+    @Volatile private var multicastLock: WifiManager.MulticastLock? = null
+    private val voiceGroup = InetAddress.getByName("239.10.10.10")
+    private val voicePort = 39128
+    private val voicePermissionRequest = 7412
     private var localFallbackAttempted = false
     private var pendingPageAfterHome: String? = null
     private val allowedHosts = setOf("k.com", "30.30.30.30", "30.10.10.10", "10.10.10.10")
@@ -327,6 +343,151 @@ class MainActivity : Activity() {
     }
     private fun stopLanChat() { chatRunning.set(false); chatSocket?.close(); chatSocket = null }
 
+
+    private fun requestVoiceRoom() {
+        runOnUiThread {
+            if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), voicePermissionRequest)
+            } else startVoiceRoom()
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == voicePermissionRequest) {
+            if (grantResults.isNotEmpty() && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) startVoiceRoom()
+            else web.evaluateJavascript("window.onVoiceState&&window.onVoiceState('error','لم تسمح باستخدام الميكروفون');", null)
+        }
+    }
+
+    private fun startVoiceRoom() {
+        if (!chatRunning.get()) {
+            web.evaluateJavascript("window.onVoiceState&&window.onVoiceState('error','ادخل الدردشة النصية أولاً');", null)
+            return
+        }
+        if (!voiceRunning.compareAndSet(false, true)) return
+        voiceMuted.set(false)
+        voiceExecutor.execute {
+            var recorder: AudioRecord? = null
+            var player: AudioTrack? = null
+            try {
+                val wifi = applicationContext.getSystemService(WIFI_SERVICE) as WifiManager
+                multicastLock = wifi.createMulticastLock("AlkamelNetVoice").apply { setReferenceCounted(false); acquire() }
+                val socket = java.net.MulticastSocket(null).apply {
+                    reuseAddress = true
+                    timeToLive = 1
+                    soTimeout = 200
+                    bind(java.net.InetSocketAddress(voicePort))
+                    joinGroup(voiceGroup)
+                }
+                voiceSocket = socket
+                val rate = 16000
+                val inputMask = AudioFormat.CHANNEL_IN_MONO
+                val outputMask = AudioFormat.CHANNEL_OUT_MONO
+                val encoding = AudioFormat.ENCODING_PCM_16BIT
+                val minIn = AudioRecord.getMinBufferSize(rate, inputMask, encoding)
+                val minOut = AudioTrack.getMinBufferSize(rate, outputMask, encoding)
+                if (minIn <= 0 || minOut <= 0) throw IllegalStateException("Audio device unavailable")
+                val frame = 640
+                recorder = AudioRecord.Builder()
+                    .setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
+                    .setAudioFormat(AudioFormat.Builder().setSampleRate(rate).setEncoding(encoding).setChannelMask(inputMask).build())
+                    .setBufferSizeInBytes(maxOf(minIn, frame * 4)).build()
+                player = AudioTrack.Builder()
+                    .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
+                    .setAudioFormat(AudioFormat.Builder().setSampleRate(rate).setEncoding(encoding).setChannelMask(outputMask).build())
+                    .setBufferSizeInBytes(maxOf(minOut, frame * 8)).setTransferMode(AudioTrack.MODE_STREAM).build()
+                val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
+                audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
+                @Suppress("DEPRECATION")
+                audioManager.isSpeakerphoneOn = true
+                recorder.startRecording()
+                player.play()
+                runOnUiThread { web.evaluateJavascript("window.onVoiceState&&window.onVoiceState('joined','');", null) }
+
+                voiceReceiveExecutor.execute {
+                    val incoming = ByteArray(1200)
+                    while (voiceRunning.get()) {
+                        try {
+                            val packet = DatagramPacket(incoming, incoming.size)
+                            socket.receive(packet)
+                            val end = (packet.offset until packet.offset + packet.length).firstOrNull { incoming[it] == 10 } ?: continue
+                            val sender = String(incoming, packet.offset, end - packet.offset, Charsets.UTF_8)
+                            if (sender == chatId) continue
+                            val start = end + 1
+                            val count = packet.offset + packet.length - start
+                            if (count > 0) {
+                                player.write(incoming, start, count)
+                                runOnUiThread { if (!isFinishing) web.evaluateJavascript("window.onVoiceActivity&&window.onVoiceActivity(\${JSONObject.quote(sender)});", null) }
+                            }
+                        } catch (_: SocketTimeoutException) { }
+                        catch (e: Exception) { if (voiceRunning.get()) Log.w("AlkamelNet", "Voice receive failed", e) }
+                    }
+                }
+
+                val pcm = ByteArray(frame)
+                val prefix = (chatId + "\n").toByteArray(Charsets.UTF_8)
+                val outgoing = ByteArray(prefix.size + frame)
+                System.arraycopy(prefix, 0, outgoing, 0, prefix.size)
+                var lastUi = 0L
+                while (voiceRunning.get()) {
+                    val count = recorder.read(pcm, 0, pcm.size)
+                    if (count <= 0) continue
+                    var energy = 0.0
+                    var i = 0
+                    while (i + 1 < count) {
+                        val sample = ((pcm[i + 1].toInt() shl 8) or (pcm[i].toInt() and 255)).toShort().toInt()
+                        energy += sample.toDouble() * sample.toDouble()
+                        i += 2
+                    }
+                    val rms = kotlin.math.sqrt(energy / (count / 2).coerceAtLeast(1))
+                    val speaking = !voiceMuted.get() && rms > 550.0
+                    if (!voiceMuted.get()) {
+                        System.arraycopy(pcm, 0, outgoing, prefix.size, count)
+                        socket.send(DatagramPacket(outgoing, prefix.size + count, voiceGroup, voicePort))
+                    }
+                    val now = System.currentTimeMillis()
+                    if (now - lastUi > 300) {
+                        val state = if (voiceMuted.get()) "muted" else if (speaking) "speaking" else "joined"
+                        runOnUiThread { if (!isFinishing) web.evaluateJavascript("window.onVoiceState&&window.onVoiceState(\${JSONObject.quote(state)},'');", null) }
+                        lastUi = now
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("AlkamelNet", "Voice room failed", e)
+                runOnUiThread { if (!isFinishing) web.evaluateJavascript("window.onVoiceState&&window.onVoiceState('error',\${JSONObject.quote(e.localizedMessage ?: "تعذر تشغيل الصوت")});", null) }
+            } finally {
+                voiceRunning.set(false)
+                try { recorder?.stop() } catch (_: Exception) { }
+                try { recorder?.release() } catch (_: Exception) { }
+                try { player?.stop() } catch (_: Exception) { }
+                try { player?.release() } catch (_: Exception) { }
+                voiceSocket?.let { try { it.leaveGroup(voiceGroup); it.close() } catch (_: Exception) { } }
+                voiceSocket = null
+                multicastLock?.let { try { if (it.isHeld) it.release() } catch (_: Exception) { } }
+                multicastLock = null
+                val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
+                audioManager.mode = AudioManager.MODE_NORMAL
+                @Suppress("DEPRECATION")
+                run { audioManager.isSpeakerphoneOn = false }
+            }
+        }
+    }
+
+    private fun setVoiceMute(muted: Boolean) {
+        voiceMuted.set(muted)
+        if (voiceRunning.get()) {
+            val state = if (muted) "muted" else "joined"
+            runOnUiThread { web.evaluateJavascript("window.onVoiceState&&window.onVoiceState(\${JSONObject.quote(state)},'');", null) }
+        }
+    }
+
+    private fun stopVoiceRoom() {
+        voiceRunning.set(false)
+        voiceSocket?.close()
+        voiceSocket = null
+    }
+
     private fun urlIsLocal(url: String?): Boolean = url?.startsWith("https://appassets.androidplatform.net/assets/") == true
 
     private fun loadHomeFallback(reason: String) {
@@ -401,7 +562,10 @@ class MainActivity : Activity() {
     inner class Bridge {
         @JavascriptInterface fun startChat(name: String) { startLanChat(name) }
         @JavascriptInterface fun sendChatMessage(message: String) { if (message.length <= 1000) sendLanPacket("message", message.trim()) }
-        @JavascriptInterface fun stopChat() { stopLanChat() }
+        @JavascriptInterface fun stopChat() { stopVoiceRoom(); stopLanChat() }
+        @JavascriptInterface fun joinVoiceRoom() { requestVoiceRoom() }
+        @JavascriptInterface fun setVoiceMuted(muted: Boolean) { setVoiceMute(muted) }
+        @JavascriptInterface fun leaveVoiceRoom() { stopVoiceRoom() }
 
         @JavascriptInterface
         fun openUrl(url: String) {
@@ -562,8 +726,11 @@ class MainActivity : Activity() {
         }
         commandWeb?.apply { stopLoading(); loadUrl("about:blank"); destroy() }
         commandWeb = null
+        stopVoiceRoom()
         stopLanChat()
         io.shutdownNow()
+        voiceExecutor.shutdownNow()
+        voiceReceiveExecutor.shutdownNow()
         chatExecutor.shutdownNow()
         super.onDestroy()
     }
