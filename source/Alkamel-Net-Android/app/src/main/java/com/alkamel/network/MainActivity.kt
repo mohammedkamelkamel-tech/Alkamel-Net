@@ -326,11 +326,21 @@ class MainActivity : Activity() {
             Log.e("AlkamelNet", "Unable to start background chat service", e)
             runOnUiThread { if (::web.isInitialized && !isDestroyed) web.evaluateJavascript("window.onChatServiceError&&window.onChatServiceError();", null) }
         }
-        if (!chatRunning.compareAndSet(false, true)) { sendLanPacket("presence", ""); return }
+        if (!chatRunning.compareAndSet(false, true)) {
+            sendLanPacket("presence", "")
+            notifyChatState("joined", "")
+            return
+        }
         chatExecutor.execute {
+            if (!chatRunning.get()) return@execute
             try {
                 val socket = DatagramSocket(null).apply { reuseAddress = true; soTimeout = 1000; bind(java.net.InetSocketAddress(39127)) }
+                if (!chatRunning.get()) {
+                    socket.close()
+                    return@execute
+                }
                 chatSocket = socket
+                notifyChatState("joined", "")
                 var lastPresence = 0L
                 while (chatRunning.get()) {
                     val now = System.currentTimeMillis()
@@ -344,10 +354,26 @@ class MainActivity : Activity() {
                         }
                     } catch (_: SocketTimeoutException) { }
                 }
-            } catch (e: Exception) { Log.e("AlkamelNet", "LAN chat socket failed", e); chatRunning.set(false) }
-            finally { chatSocket?.close(); chatSocket = null }
+            } catch (e: Exception) {
+                Log.e("AlkamelNet", "LAN chat socket failed", e)
+                chatRunning.set(false)
+                notifyChatState("error", e.localizedMessage ?: "تعذر فتح منفذ الدردشة على الشبكة")
+            } finally {
+                chatSocket?.close()
+                chatSocket = null
+            }
         }
     }
+    private fun notifyChatState(state: String, detail: String) {
+        val stateJson = JSONObject.quote(state)
+        val detailJson = JSONObject.quote(detail)
+        runOnUiThread {
+            if (::web.isInitialized && !isFinishing && !isDestroyed) {
+                web.evaluateJavascript("window.onChatState&&window.onChatState($stateJson,$detailJson);", null)
+            }
+        }
+    }
+
     private fun chatBroadcastTargets(): List<InetAddress> {
         val targets = linkedMapOf<String, InetAddress>()
         // Prefer the broadcast address calculated for the active Wi-Fi interface.
@@ -410,6 +436,7 @@ class MainActivity : Activity() {
         chatSocket?.close()
         chatSocket = null
         runCatching { startService(Intent(this, ChatKeepAliveService::class.java).apply { action = ChatKeepAliveService.ACTION_STOP }) }
+        notifyChatState("stopped", "")
     }
 
 
