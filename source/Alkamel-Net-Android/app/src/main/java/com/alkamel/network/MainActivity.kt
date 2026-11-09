@@ -348,6 +348,35 @@ class MainActivity : Activity() {
             finally { chatSocket?.close(); chatSocket = null }
         }
     }
+    private fun chatBroadcastTargets(): List<InetAddress> {
+        val targets = linkedMapOf<String, InetAddress>()
+        // Prefer the broadcast address calculated for the active Wi-Fi interface.
+        // This is more reliable than limited broadcast on some AP/switch networks.
+        try {
+            val connectivity = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+            val network = connectivity.activeNetwork
+            val capabilities = network?.let { connectivity.getNetworkCapabilities(it) }
+            if (network != null && capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true) {
+                val interfaceName = connectivity.getLinkProperties(network)?.interfaceName
+                val wifiInterface = interfaceName?.let { NetworkInterface.getByName(it) }
+                wifiInterface?.interfaceAddresses?.forEach { address ->
+                    val ip = address.address
+                    val broadcast = address.broadcast
+                    if (ip is java.net.Inet4Address && broadcast is java.net.Inet4Address &&
+                        !ip.isLoopbackAddress && !ip.isLinkLocalAddress && !broadcast.isAnyLocalAddress) {
+                        targets[broadcast.hostAddress ?: broadcast.toString()] = broadcast
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.w("AlkamelNet", "Unable to resolve Wi-Fi broadcast address", e)
+        }
+        // Keep limited broadcast as a compatibility fallback.
+        val limited = InetAddress.getByName("255.255.255.255")
+        targets[limited.hostAddress ?: limited.toString()] = limited
+        return targets.values.toList()
+    }
+
     private fun sendLanPacket(type: String, message: String) {
         if (!chatRunning.get()) return
         val messageId = if (type == "message") java.util.UUID.randomUUID().toString() else ""
@@ -357,16 +386,22 @@ class MainActivity : Activity() {
         chatSendExecutor.execute {
             if (!chatRunning.get()) return@execute
             try {
+                val targets = chatBroadcastTargets()
                 DatagramSocket().use { sender ->
                     sender.broadcast = true
-                    val packet = DatagramPacket(payload, payload.size, InetAddress.getByName("255.255.255.255"), 39127)
                     val copies = if (type == "message") 3 else 1
                     repeat(copies) { index ->
                         if (!chatRunning.get()) return@repeat
-                        sender.send(packet)
+                        targets.forEach { target ->
+                            if (chatRunning.get()) {
+                                val packet = DatagramPacket(payload, payload.size, target, 39127)
+                                sender.send(packet)
+                            }
+                        }
                         if (index < copies - 1) Thread.sleep(90)
                     }
                 }
+                Log.d("AlkamelNet", "LAN chat packet sent to ${targets.size} broadcast targets")
             } catch (e: Exception) { Log.w("AlkamelNet", "LAN chat send failed", e) }
         }
     }
