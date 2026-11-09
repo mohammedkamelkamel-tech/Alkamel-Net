@@ -74,48 +74,38 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 - "$PROJECT_DIR/app/src/main/assets/home.html" "$PROJECT_DIR/app/src/main/assets/original/config.js" <<'PY'
+          python3 - "$PROJECT_DIR/app/src/main/assets/home.html" <<'PY'
           import pathlib,re,sys
-          hp,cp=map(pathlib.Path,sys.argv[1:])
-          s=hp.read_text(encoding="utf-8")
-          cfg=cp.read_text(encoding="utf-8")
-          # Read the actual named speed options from the shipped site config at runtime.
-          # Keep the original HD page and its openHd() implementation completely untouched.
-          old_speed='<section id="speed" class="page"><button class="back" onclick="showPage(\\'home\\')">→ الرئيسية</button><h2 class="heading">سرعة الكرت الحالية</h2><div class="panel"><div class="key">السرعة الحالية</div><div class="val" id="currentSpeed">يتم جلبها من بيانات الحساب…</div><div class="key" style="margin-top:18px">السرعات المعرفة في ملف إعدادات الموقع</div><div id="speedOptions"></div><button class="btn" id="applySpeed" onclick="applySelectedSpeed()" disabled>اعتماد السرعة المختارة</button><div class="notice" id="speedNotice">اختر السرعة ثم اعتمدها. سيتم تمرير الاختيار إلى دالة الموقع الأصلية.</div></div></section>'
-          new_speed='<section id="speed" class="page"><button class="back" onclick="showPage(\\'home\\')">→ الرئيسية</button><h2 class="heading">سرعة الكرت الحالية</h2><div class="panel"><div class="key">السرعة الحالية</div><div class="val" id="currentSpeed">يتم جلبها من بيانات الحساب…</div><div class="key" style="margin-top:18px">اختر السرعة المطلوبة</div><div id="speedOptions"></div><div class="notice" id="speedNotice">اختر السرعة وسيتم تطبيقها مباشرة.</div></div></section>'
-          if old_speed not in s: raise SystemExit("FAIL: exact speed section was not found; refusing to build")
-          s=s.replace(old_speed,new_speed,1)
-          # Show the two configured live service addresses, without routing them through one shared stream.
-          old_live='<section id="live" class="page"><button class="back" onclick="showPage(\\'home\\')">→ الرئيسية</button><h2 class="heading">البث المباشر</h2><div class="panel"><p class="key">اختر المشغل الذي تريد فتح البث من خلاله</p><button class="btn" onclick="player(\\'org.videolan.vlc\\')">فتح عبر VLC</button><button class="btn secondary" onclick="player(\\'com.mxtech.videoplayer.ad\\')">فتح عبر MX Player</button><div class="notice" id="liveNotice"></div></div></section>'
-          new_live='<section id="live" class="page"><button class="back" onclick="showPage(\\'home\\')">→ الرئيسية</button><h2 class="heading">البث المباشر</h2><div class="panel"><p class="key">اختر البث المطلوب</p><button class="btn" onclick="goService(\\'live1\\')">البث المباشر 1</button><button class="btn secondary" onclick="goService(\\'live2\\')">البث المباشر 2</button><div class="notice" id="liveNotice"></div></div></section>'
-          if old_live not in s: raise SystemExit("FAIL: exact live section was not found; refusing to build")
-          s=s.replace(old_live,new_live,1)
-          # Remove raw speed values from the option cards and apply the selected value immediately.
-          a=s.index('function fillSpeeds(){')
-          b=s.index('function applySelectedSpeed(){',a)
-          c=s.index('}',b)+1
-          fill='''function fillSpeeds(){let list=(siteConfig&&siteConfig.speedOptions)||[];$('speedOptions').innerHTML='';list.forEach(o=>{let e=document.createElement('button');e.type='button';e.className='option';e.style.width='100%';e.style.color='inherit';e.style.font='inherit';e.style.textAlign='right';let t=document.createElement('span');t.textContent=o.label+(o.selected?' · الافتراضية':'');e.append(t);e.onclick=()=>{selectedSpeed=o.value;$('speedNotice').textContent='جارٍ تطبيق '+o.label+'…';if(window.AndroidBridge){AndroidBridge.applyNetworkSetting(o.value,(lastData&&lastData.spes&&String(lastData.spes).includes('|'))?String(lastData.spes).split('|')[1]:'*no**');}else{$('speedNotice').textContent='يتطلب تطبيق السرعة من تطبيق Android.';}};$('speedOptions').appendChild(e)})}'''
-          s=s[:a]+fill+s[c:]
-          # Current speed name in status and home tile; resolve raw bandwidth value against config entries.
-          marker='let siteConfig=null,selectedSpeed=null;'
-          if marker not in s: raise SystemExit("FAIL: speed state marker missing")
-          s=s.replace(marker,marker+'''function speedLabel(raw){let v=String(raw||'').split('|')[0];let opts=(siteConfig&&siteConfig.speedOptions)||[];let found=opts.find(x=>String(x.value)===v);return found?found.label:(v||'غير محددة')}''',1)
-          s=s.replace("$('currentSpeed').textContent=d.spes||'—';","$('currentSpeed').textContent=speedLabel(d.spes);$('homeCurrentSpeed').textContent=speedLabel(d.spes);")
-          s=s.replace('السرعات المتاحة في الشبكة</small>','<span id="homeCurrentSpeed" class="speed-blink">يتم جلب السرعة…</span></small>')
-          if 'homeCurrentSpeed' not in s: raise SystemExit("FAIL: home speed indicator missing")
-          s=s.replace("function renderSpeeds(){if(siteConfig){fillSpeeds();return}","function renderSpeeds(){if(siteConfig){fillSpeeds();return}")
-          # Keep the actual HD tile, page and functions unchanged.
-          hp.write_text(s,encoding="utf-8")
-          print("Patched exact speed and live sections; HD untouched.")
+          p=pathlib.Path(sys.argv[1])
+          s=p.read_text(encoding="utf-8")
+          speed="""<section id="speed" class="page"><button class="back" onclick="showPage('home')">→ الرئيسية</button><h2 class="heading">سرعة الكرت الحالية</h2><div class="panel"><div class="key">السرعة الحالية</div><div class="val" id="currentSpeed">يتم جلبها من بيانات الحساب…</div><div class="key" style="margin-top:18px">اختر السرعة المطلوبة</div><div id="speedOptions"></div><div class="notice" id="speedNotice">اختر السرعة وسيتم تطبيقها مباشرة.</div></div></section>"""
+          s,n=re.subn(r'<section id="speed" class="page">.*?</section>',lambda m:speed,s,count=1,flags=re.S)
+          if n!=1: raise SystemExit("FAIL: speed section not found")
+          live="""<section id="live" class="page"><button class="back" onclick="showPage('home')">→ الرئيسية</button><h2 class="heading">البث المباشر</h2><div class="panel"><p class="key">اختر البث المطلوب</p><button class="btn" onclick="goService('live1')">البث المباشر 1</button><button class="btn secondary" onclick="goService('live2')">البث المباشر 2</button><div class="notice" id="liveNotice"></div></div></section>"""
+          s,n=re.subn(r'<section id="live" class="page">.*?</section>',lambda m:live,s,count=1,flags=re.S)
+          if n!=1: raise SystemExit("FAIL: live section not found")
+          # Use the portal's native speed-change function: it updates the speed cookie and calls syy().
+          s=s.replace("let siteConfig=null,selectedSpeed=null;","let siteConfig=null,selectedSpeed=null;function speedLabel(raw){let v=String(raw||'').split('|')[0];let opts=(siteConfig&&siteConfig.speedOptions)||[];let found=opts.find(x=>String(x.value)===v);return found?found.label:(v||'غير محددة')}",1)
+          a=s.index("function fillSpeeds(){")
+          b=s.index("function applySelectedSpeed(){",a)
+          c=s.index("}",b)+1
+          js="""function fillSpeeds(){let list=(siteConfig&&siteConfig.speedOptions)||[];$('speedOptions').innerHTML='';list.forEach(o=>{let e=document.createElement('button');e.type='button';e.className='option';e.style.width='100%';e.style.color='inherit';e.style.font='inherit';e.style.textAlign='right';let t=document.createElement('span');t.textContent=o.label+(o.selected?' · الافتراضية':'');e.appendChild(t);e.onclick=()=>{selectedSpeed=o.value;$('speedNotice').textContent='جارٍ تطبيق '+o.label+'…';if(window.AndroidBridge){AndroidBridge.applyNetworkSetting(o.value,(lastData&&lastData.spes&&String(lastData.spes).includes('|'))?String(lastData.spes).split('|')[1]:'*no**')}else{$('speedNotice').textContent='يتطلب تطبيق السرعة من تطبيق Android.'}};$('speedOptions').appendChild(e)})}"""
+          s=s[:a]+js+s[c:]
+          s=s.replace('السرعات المتاحة في الشبكة</small>','<span id="homeCurrentSpeed" class="speed-blink">يتم جلب السرعة…</span></small>',1)
+          # Do not alter the HD section, openHd(), or HD assets.
+          if 'function openHd()' not in s: raise SystemExit("FAIL: HD handler missing")
+          if 'id="homeCurrentSpeed"' not in s: raise SystemExit("FAIL: home speed label missing")
+          p.write_text(s,encoding="utf-8")
+          print("Applied speed/live UI patch; preserved HD.")
           PY
-          # Hard gates: do not publish an APK if requested UI changes did not land.
-          ! grep -q 'اعتماد السرعة المختارة' "$PROJECT_DIR/app/src/main/assets/home.html"
-          grep -q 'البث المباشر 1' "$PROJECT_DIR/app/src/main/assets/home.html"
-          grep -q 'البث المباشر 2' "$PROJECT_DIR/app/src/main/assets/home.html"
-          grep -q 'AndroidBridge.applyNetworkSetting(o.value' "$PROJECT_DIR/app/src/main/assets/home.html"
-          ! grep -q 'v.textContent=o.value' "$PROJECT_DIR/app/src/main/assets/home.html"
-          grep -q 'function openHd()' "$PROJECT_DIR/app/src/main/assets/home.html"
-          grep -q 'function speedLabel(raw)' "$PROJECT_DIR/app/src/main/assets/home.html"
+          HOME="$PROJECT_DIR/app/src/main/assets/home.html"
+          ! grep -q 'اعتماد السرعة المختارة' "$HOME"
+          grep -q 'البث المباشر 1' "$HOME"
+          grep -q 'البث المباشر 2' "$HOME"
+          grep -q 'AndroidBridge.applyNetworkSetting(o.value' "$HOME"
+          ! grep -q 'v.textContent=o.value' "$HOME"
+          grep -q 'function openHd()' "$HOME"
+          grep -q 'function speedLabel(raw)' "$HOME"
       - name: Set unique application package ID
         shell: bash
         run: |
