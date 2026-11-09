@@ -14,6 +14,7 @@ HD = APP / "assets/hd/index.html"
 KOTLIN = APP / "java/com/alkamel/network/MainActivity.kt"
 
 checks = {
+    "portal commands wait for subscriber status before submitting": "waitingForSubscriber" in KOTLIN.read_text(encoding="utf-8") and "target.postDelayed({ runPendingCommand() }, 500)" in KOTLIN.read_text(encoding="utf-8"),
     "JavaScript bridge is restricted to bundled app pages": "if (urlIsLocal(url)) view?.addJavascriptInterface(Bridge(), \"AndroidBridge\")" in KOTLIN.read_text(encoding="utf-8") and "else view?.removeJavascriptInterface(\"AndroidBridge\")" in KOTLIN.read_text(encoding="utf-8"),
     "defensive page navigation and status parsing": "const target=$(id);if(!target||!target.classList.contains('page'))return;" in HOME.read_text(encoding="utf-8") and "if(!d||typeof d!=='object'||Array.isArray(d))" in HOME.read_text(encoding="utf-8"),
     "professional responsive interface layer": "Unified professional visual system for every application section" in HOME.read_text(encoding="utf-8") and "@media(max-width:420px)" in HOME.read_text(encoding="utf-8") and ":focus-visible" in HOME.read_text(encoding="utf-8"),

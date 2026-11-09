@@ -57,6 +57,8 @@ class MainActivity : Activity() {
     private var commandWeb: WebView? = null
     private var commandPageReady = false
     private var pendingCommand: Pair<String, String?>? = null
+    private var commandAttemptInProgress = false
+    private var pendingCommandAttempts = 0
     private lateinit var root: FrameLayout
     private lateinit var loading: LinearLayout
     private lateinit var errorPanel: LinearLayout
@@ -300,21 +302,39 @@ class MainActivity : Activity() {
     private fun runPendingCommand() {
         val command = pendingCommand ?: return
         val target = commandWeb ?: return
-        if (!commandPageReady) return
-        pendingCommand = null
+        if (!commandPageReady || commandAttemptInProgress) return
+        commandAttemptInProgress = true
         val speed = JSONObject.quote(command.first)
         val flag = JSONObject.quote(command.second ?: "")
         target.evaluateJavascript(
             "(function(){if(typeof loginst!=='function')return 'missing-loginst';if(!window.un||!window.un.username)return 'subscriber-not-ready';loginst($speed,$flag);return 'submitted';})()"
         ) { result ->
             runOnUiThread {
+                commandAttemptInProgress = false
+                if (pendingCommand != command) {
+                    pendingCommandAttempts = 0
+                    runPendingCommand()
+                    return@runOnUiThread
+                }
                 val success = result?.contains("submitted") == true
-                val message = if (success) "تم تمرير الطلب إلى كود الموقع الأصلي." else "تعذر العثور على دالة الموقع الأصلية؛ لم يتم إرسال الطلب."
+                val waitingForSubscriber = result?.contains("subscriber-not-ready") == true
+                if (waitingForSubscriber && pendingCommandAttempts < 20) {
+                    pendingCommandAttempts++
+                    target.postDelayed({ runPendingCommand() }, 500)
+                    return@runOnUiThread
+                }
+                pendingCommand = null
+                pendingCommandAttempts = 0
+                val message = when {
+                    success -> "تم تمرير الطلب إلى كود الموقع الأصلي."
+                    waitingForSubscriber -> "لم تكتمل قراءة بيانات المشترك من بوابة الشبكة؛ لم يتم إرسال الطلب."
+                    else -> "تعذر العثور على دالة الموقع الأصلية؛ لم يتم إرسال الطلب."
+                }
                 web.evaluateJavascript(
                     "if(document.getElementById('speedNotice')){document.getElementById('speedNotice').textContent=${JSONObject.quote(message)};if(${success})setTimeout(function(){if(window.AndroidBridge)AndroidBridge.refresh();},1200);}if(document.getElementById('googleNotice'))document.getElementById('googleNotice').textContent=${JSONObject.quote(message)};",
                     null
                 )
-                if (!success) Log.e("AlkamelNet", "Original portal loginst() unavailable: $result")
+                if (!success) Log.e("AlkamelNet", "Original portal command was not submitted: $result")
             }
         }
     }
