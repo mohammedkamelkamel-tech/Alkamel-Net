@@ -46,3 +46,8 @@
 ### فحوص ما قبل البناء
 
 يتضمن المشروع سكربت `scripts/validate_project.py` لفحص إعدادات Android الأساسية، ووجود ملفات الواجهات، وروابط خدمات الشبكة الموثقة، وصحة JavaScript داخل صفحات التطبيق. يشغله GitHub Actions قبل محاولة بناء APK. هذه الفحوص لا تغني عن اختبار التطبيق على شبكة الكامل الفعلية.
+
+
+## Launcher icon
+
+The Android launcher icon uses the approved multicolor `شبكة الكامل` artwork from `app/src/main/res/drawable-nodpi/ic_launcher.webp`.
