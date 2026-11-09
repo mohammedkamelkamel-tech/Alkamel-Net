@@ -191,6 +191,30 @@
 @media(max-width:420px){.wrap{width:calc(100% - 20px)}.top .brand h1{font-size:23px}.top .sub{font-size:11px}.grid{gap:9px}.tile{padding:12px;min-height:68px}}
 @media(max-width:340px){#chatRoom .chat-bottom-dock{grid-template-columns:minmax(0,1fr) 34px 34px 34px!important}#chatRoom .dock-btn{width:32px!important;height:32px!important}}
 @media(prefers-reduced-motion:reduce){.tile{transition:none}}
+
+/* Group room messages: sender and message share one compact line */
+#chatRoom .chat-message,#chatRoom .chat-message.mine{
+  display:flex!important;flex-direction:row!important;align-items:center!important;
+  flex-wrap:wrap!important;gap:4px!important;width:100%;max-width:100%;
+  margin:0!important;
+}
+#chatRoom .chat-meta{display:contents!important}
+#chatRoom .chat-name,#chatRoom .chat-message.mine .chat-name{
+  order:1!important;font-size:7.7px!important;padding:2px 6px!important;
+  line-height:1.4!important;border-radius:7px!important;white-space:nowrap;
+}
+#chatRoom .chat-bubble,#chatRoom .chat-message.mine .chat-bubble{
+  order:2!important;align-self:center!important;width:fit-content!important;
+  max-width:calc(100% - 76px)!important;font-size:10.5px!important;
+  line-height:1.5!important;padding:6px 9px!important;
+  border-radius:4px 10px 10px 10px!important;
+}
+#chatRoom .chat-message.mine .chat-bubble{border-radius:10px 4px 10px 10px!important}
+#chatRoom .chat-time{order:3!important;font-size:6.3px!important;white-space:nowrap}
+@media(max-width:380px){
+  #chatRoom .chat-name,#chatRoom .chat-message.mine .chat-name{font-size:7.7px!important}
+  #chatRoom .chat-bubble,#chatRoom .chat-message.mine .chat-bubble{font-size:10.5px!important;max-width:calc(100% - 68px)!important}
+}
 </style></head><body><main class="wrap">
 <header class="top"><div class="brand"><div class="logo">⌁</div><div><h1>الكامل-نت</h1><div class="sub">خدمات الشبكة في مكان واحد</div></div></div><div class="state" id="connection">● جارٍ التحقق</div></header>
 <section id="home" class="page active"><p class="intro">اختر القسم الذي تريد استخدامه</p><div class="grid">
