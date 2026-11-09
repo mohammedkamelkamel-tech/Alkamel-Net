@@ -45,6 +45,13 @@ jobs:
           find "$PROJECT_DIR/app/src/main/assets" -type f | sort
           echo "Relevant source matches:"
           grep -RniE 'البث المباشر|بث HD|سرعة الكرت|تحديثات جوجل|استراحة|استراحه|اعتماد السرعة|سرعة حالية|1536k|4096k|تم تحديث بيانات الحساب|اسم المشترك' "$PROJECT_DIR/app/src/main/assets" --include='*.html' --include='*.js' | head -300 || true
+      - name: Export extracted source for safe editing
+        uses: actions/upload-artifact@v4
+        with:
+          name: Alkamel-Net-extracted-source
+          path: extracted/
+          if-no-files-found: error
+          retention-days: 3
       - name: Set unique application package ID
         shell: bash
         run: |
