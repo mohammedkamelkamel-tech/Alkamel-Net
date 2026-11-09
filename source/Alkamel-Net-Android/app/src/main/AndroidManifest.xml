@@ -18,7 +18,7 @@
         android:hardwareAccelerated="true"
         android:icon="@drawable/ic_launcher"
         android:roundIcon="@drawable/ic_launcher"
-        android:label="الكامل-نت"
+        android:label="شبكة الكامل"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar"
         android:usesCleartextTraffic="true">
