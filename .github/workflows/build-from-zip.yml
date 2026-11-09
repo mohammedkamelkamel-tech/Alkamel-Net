@@ -19,7 +19,7 @@ jobs:
           set -euxo pipefail
           echo "Repository files:"
           find . -maxdepth 3 -type f -not -path './.git/*' -printf '%p (%s bytes)\n'
-          ZIP_FILE="$(find . -maxdepth 4 -type f -iname '*.zip' ! -path './.git/*' -print -quit)"
+          ZIP_FILE="$(find . -maxdepth 1 -type f -iname '*.zip' ! -name '*patch*' -print -quit)"
           test -n "$ZIP_FILE" || { echo "::error::No ZIP archive found in repository"; exit 1; }
           echo "Using archive: $ZIP_FILE"
           ls -lh "$ZIP_FILE"
