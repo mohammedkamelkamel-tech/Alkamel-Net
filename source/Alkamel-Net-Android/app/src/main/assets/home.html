@@ -142,6 +142,38 @@ function joinChat(){const n=$('chatNickname').value.trim();if(!n){$('chatNotice'
 function appendChatMessage(name,text,isMine=false){const box=$('chatMessages');const empty=$('chatEmpty');if(empty)empty.remove();const item=document.createElement('div');item.className='chat-message'+(isMine?' mine':'');const meta=document.createElement('div');meta.className='chat-meta';const sender=document.createElement('strong');sender.className='chat-name';sender.textContent=isMine?'أنت · '+name:name;const time=document.createElement('time');time.className='chat-time';time.textContent=new Date().toLocaleTimeString('ar',{hour:'2-digit',minute:'2-digit'});const bubble=document.createElement('div');bubble.className='chat-bubble';bubble.textContent=text;meta.append(sender,time);item.append(meta,bubble);box.appendChild(item);while(box.children.length>300)box.removeChild(box.firstElementChild);box.scrollTop=box.scrollHeight;}
 function sendChat(){const input=$('chatInput'),msg=input.value.trim();if(!msg)return;if(!chatJoined){$('chatNotice').textContent='ادخل الغرفة أولاً قبل إرسال الرسائل.';return;}const name=$('chatNickname').value.trim();if(!name)return;AndroidBridge.sendChatMessage(msg);appendChatMessage(name,msg,true);input.value='';input.focus();}
 function receiveChatPacket(raw){try{const p=JSON.parse(raw);if(!p.id||!p.name)return;if(p.type==='presence'){chatUsers.set(p.id,{name:p.name,seen:Date.now()});const cutoff=Date.now()-16000;for(const [id,u] of chatUsers)if(u.seen<cutoff)chatUsers.delete(id);$('chatPeers').textContent=chatUsers.size+' متصل';$('chatUsers').textContent=Array.from(chatUsers.values()).map(u=>u.name).join(' · ')||'أنت أول الموجودين حالياً';return;}if(p.type!=='message'||typeof p.text!=='string'||!p.text.trim())return;const messageId=String(p.messageId||'');if(messageId){if(seenChatMessageIds.has(messageId))return;seenChatMessageIds.add(messageId);if(seenChatMessageIds.size>1000)seenChatMessageIds.delete(seenChatMessageIds.values().next().value);}appendChatMessage(p.name,p.text,false);}catch(e){console.warn('Invalid chat packet',e);}}
+function onVoiceState(state,detail){
+ const status=$('voiceStatus'),mute=$('voiceMuteButton');
+ if(!status||!mute)return;
+ if(state==='joined'){status.textContent='متصل · الميكروفون يعمل';status.style.color='#63e7bd';mute.disabled=false;mute.textContent='كتم الميكروفون';voiceMuted=false;}
+ else if(state==='speaking'){status.textContent='تتحدث الآن';status.style.color='#65dcff';mute.disabled=false;mute.textContent='كتم الميكروفون';}
+ else if(state==='muted'){status.textContent='متصل · الميكروفون مكتوم';status.style.color='#f6c86b';mute.disabled=false;mute.textContent='تشغيل الميكروفون';voiceMuted=true;}
+ else if(state==='error'){status.textContent='تعذر دخول غرفة الصوت';status.style.color='#ff8585';mute.disabled=true;$('chatNotice').textContent=detail||'تحقق من إذن الميكروفون واتصال الشبكة.';}
+ else{status.textContent='لم تنضم';status.style.color='';mute.disabled=true;}
+}
+function joinVoiceRoom(){
+ if(!chatJoined){$('chatNotice').textContent='ادخل الدردشة النصية أولاً ثم انضم لغرفة الصوت.';return;}
+ if(!window.AndroidBridge){$('chatNotice').textContent='شغّل التطبيق من الكامل-نت للسماح بالميكروفون.';return;}
+ $('voiceStatus').textContent='جارٍ تهيئة الميكروفون…';
+ $('chatNotice').textContent='يرجى السماح باستخدام الميكروفون عند ظهور الطلب.';
+ AndroidBridge.joinVoiceRoom();
+}
+function toggleVoiceMute(){
+ if(!window.AndroidBridge)return;
+ voiceMuted=!voiceMuted;
+ AndroidBridge.setVoiceMuted(voiceMuted);
+ onVoiceState(voiceMuted?'muted':'joined','');
+}
+function leaveVoiceRoom(){if(window.AndroidBridge)AndroidBridge.leaveVoiceRoom();onVoiceState('left','');$('voiceSpeakers').textContent='لا يوجد متحدثون الآن';}
+function onVoiceActivity(sender){$('voiceSpeakers').textContent='يوجد متحدث في الغرفة الآن';}
+function stopChat(){
+ if(window.AndroidBridge)AndroidBridge.stopChat();
+ chatJoined=false;leaveVoiceRoom();
+ $('chatPeers').textContent='غير متصل';
+ $('chatNotice').textContent='غادرت الدردشة وغرفة الصوت.';
+}
+function leaveChatPage(){showPage('home');}
+function onChatServiceError(){$('chatNotice').textContent='تعذر تشغيل خدمة الخلفية؛ تحقق من إعدادات النظام ثم أعد المحاولة.';}
 window.onLanChatPacket=receiveChatPacket;
 renderSpeeds();refreshStatus();setInterval(refreshStatus,30000);window.appBack=()=>showPage('home');
 </script></body></html>
