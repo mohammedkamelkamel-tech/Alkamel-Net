@@ -354,7 +354,12 @@ class MainActivity : Activity() {
                         val packetType = obj.optString("type")
                         val senderId = obj.optString("id")
                         if (senderId != chatId) {
-                            if (packetType == "presence") chatPeerAddresses[senderId] = packet.address
+                            // Learn the sender's current LAN address from both presence and
+                            // private handshake packets. The receiver may not have seen the
+                            // sender's latest broadcast yet when it needs to accept/reject.
+                            if (packetType in setOf("presence", "private_request", "private_response", "private_message")) {
+                                chatPeerAddresses[senderId] = packet.address
+                            }
                             val isPublicPacket = packetType in setOf("presence", "message")
                             val isPrivatePacket = packetType in setOf("private_request", "private_response", "private_message") && obj.optString("to") == chatId
                             if (isPublicPacket || isPrivatePacket) {
