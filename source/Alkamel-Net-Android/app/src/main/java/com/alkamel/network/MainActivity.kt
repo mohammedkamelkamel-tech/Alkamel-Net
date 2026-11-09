@@ -72,6 +72,7 @@ class MainActivity : Activity() {
     @Volatile private var chatNickname = ""
     private val chatId = java.util.UUID.randomUUID().toString()
     private val chatExecutor = Executors.newSingleThreadExecutor()
+    private val chatSendExecutor = Executors.newSingleThreadExecutor()
     private val voiceExecutor = Executors.newSingleThreadExecutor()
     private val voiceReceiveExecutor = Executors.newSingleThreadExecutor()
     private val voiceRunning = AtomicBoolean(false)
@@ -342,10 +343,25 @@ class MainActivity : Activity() {
     }
     private fun sendLanPacket(type: String, message: String) {
         if (!chatRunning.get()) return
-        try {
-            val data = JSONObject().put("type", type).put("id", chatId).put("name", chatNickname).put("text", message).toString().toByteArray(Charsets.UTF_8)
-            DatagramSocket().use { sender -> sender.broadcast = true; sender.send(DatagramPacket(data, data.size, InetAddress.getByName("255.255.255.255"), 39127)) }
-        } catch (e: Exception) { Log.w("AlkamelNet", "LAN chat send failed", e) }
+        val messageId = if (type == "message") java.util.UUID.randomUUID().toString() else ""
+        val payload = JSONObject().put("type", type).put("id", chatId).put("name", chatNickname)
+            .put("text", message).apply { if (messageId.isNotEmpty()) put("messageId", messageId) }
+            .toString().toByteArray(Charsets.UTF_8)
+        chatSendExecutor.execute {
+            if (!chatRunning.get()) return@execute
+            try {
+                DatagramSocket().use { sender ->
+                    sender.broadcast = true
+                    val packet = DatagramPacket(payload, payload.size, InetAddress.getByName("255.255.255.255"), 39127)
+                    val copies = if (type == "message") 3 else 1
+                    repeat(copies) { index ->
+                        if (!chatRunning.get()) return@repeat
+                        sender.send(packet)
+                        if (index < copies - 1) Thread.sleep(90)
+                    }
+                }
+            } catch (e: Exception) { Log.w("AlkamelNet", "LAN chat send failed", e) }
+        }
     }
     private fun stopLanChat() { chatRunning.set(false); chatSocket?.close(); chatSocket = null }
 
@@ -805,6 +821,7 @@ class MainActivity : Activity() {
         voiceExecutor.shutdownNow()
         voiceReceiveExecutor.shutdownNow()
         chatExecutor.shutdownNow()
+        chatSendExecutor.shutdownNow()
         super.onDestroy()
     }
 }
