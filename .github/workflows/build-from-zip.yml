@@ -1,4 +1,4 @@
-name: Build Alkamel-Net APK from repository source v1.2.2
+name: Build Alkamel-Net APK from repository source v1.2.3
 on:
   workflow_dispatch:
   push:
@@ -57,7 +57,7 @@ jobs:
                       print(f'\nSOURCE {p.relative_to(root)} TERM {term}: {s[a:b]}')
                       start=i+len(term); hits+=1
           PY
-      - name: Verify uploaded v1.2.0 project and preserve HD stream
+      - name: Verify repository project and preserve HD stream
         shell: bash
         run: |
           set -euo pipefail
@@ -84,12 +84,12 @@ jobs:
           s=p.read_text()
           s,n=re.subn(r'(?m)^(\s*applicationId\s*=\s*)"[^"]+"',r'\1"com.mohammedkamel.alkamelnet.portal2026"',s)
           if n!=1: raise SystemExit(f"Expected one applicationId, found {n}")
-          s,n=re.subn(r'(?m)^(\s*versionCode\s*=\s*)\d+',r'\g<1>6',s)
+          s,n=re.subn(r'(?m)^(\s*versionCode\s*=\s*)\d+',r'\g<1>7',s)
           if n!=1: raise SystemExit(f"Expected one versionCode, found {n}")
           s,n=re.subn(r'(?m)^(\s*versionName\s*=\s*)"[^"]+"',r'\g<1>"1.2.2"',s)
           if n!=1: raise SystemExit(f"Expected one versionName, found {n}")
           p.write_text(s)
-          print("Application ID and version set to 1.2.2 (6)")
+          print("Application ID and version set to 1.2.3 (7)")
           PY
       - uses: actions/setup-java@v4
         with:
