@@ -1,10 +1,10 @@
-name: Extract and Build Alkamel-Net APK v1.2.0
+name: Build Alkamel-Net APK from repository source v1.2.1
 on:
   workflow_dispatch:
   push:
     branches: [main]
     paths:
-      - '**.zip'
+      - 'source/Alkamel-Net-Android/**'
       - '.github/workflows/build-from-zip.yml'
 permissions:
   contents: write
@@ -13,30 +13,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Diagnose uploaded archive
+      - name: Use latest Android project from repository
         shell: bash
         run: |
           set -euxo pipefail
-          echo "Repository files:"
-          find . -maxdepth 3 -type f -not -path './.git/*' -printf '%p (%s bytes)\n'
-          ZIP_FILE="./Alkamel-Net-Android-Project-v1.2.0.zip"
-          test -n "$ZIP_FILE" || { echo "::error::No ZIP archive found in repository"; exit 1; }
-          echo "Using archive: $ZIP_FILE"
-          ls -lh "$ZIP_FILE"
-          file "$ZIP_FILE"
-          unzip -t "$ZIP_FILE"
-          mkdir -p extracted
-          unzip -q "$ZIP_FILE" -d extracted
-          echo "Extracted files:"
-          find extracted -maxdepth 5 -type f | head -200
-          SETTINGS="$(find extracted -type f \( -name settings.gradle.kts -o -name settings.gradle \) -print -quit)"
-          test -n "$SETTINGS" || { echo "::error::ZIP extracted but settings.gradle(.kts) was not found"; exit 1; }
-          PROJECT_DIR="$(dirname "$SETTINGS")"
+          PROJECT_DIR="$GITHUB_WORKSPACE/source/Alkamel-Net-Android"
+          test -f "$PROJECT_DIR/settings.gradle.kts" -o -f "$PROJECT_DIR/settings.gradle"
+          test -f "$PROJECT_DIR/app/build.gradle.kts" -o -f "$PROJECT_DIR/app/build.gradle"
+          test -s "$PROJECT_DIR/app/src/main/assets/home.html"
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-          test -f "$PROJECT_DIR/app/build.gradle.kts" -o -f "$PROJECT_DIR/app/build.gradle" || { echo "::error::Android app module build.gradle not found"; exit 1; }
-          echo "Detected project root: $PROJECT_DIR"
-          echo "Gradle files:"
-          find "$PROJECT_DIR" -maxdepth 3 -type f \( -name '*gradle*' -o -name 'gradle-wrapper.properties' \) -print
+          echo "Building repository source: $PROJECT_DIR"
+          find "$PROJECT_DIR" -maxdepth 3 -type f -name '*gradle*' -print
       - name: Inspect original portal UI source
         shell: bash
         run: |
@@ -80,6 +67,8 @@ jobs:
           grep -q "goService('live2')" "$PROJECT_DIR/app/src/main/assets/home.html"
           grep -q "AndroidBridge.applyNetworkSetting(o.value,flag)" "$PROJECT_DIR/app/src/main/assets/home.html"
           grep -q "speed-blink" "$PROJECT_DIR/app/src/main/assets/home.html"
+          grep -q "maskCardNumber(d.username)" "$PROJECT_DIR/app/src/main/assets/home.html"
+          grep -q "status-blink" "$PROJECT_DIR/app/src/main/assets/home.html"
           ! grep -q "اعتماد السرعة المختارة" "$PROJECT_DIR/app/src/main/assets/home.html"
           ! grep -q "v.textContent=o.value" "$PROJECT_DIR/app/src/main/assets/home.html"
           python3 "$PROJECT_DIR/scripts/validate_project.py"
@@ -95,27 +84,13 @@ jobs:
           s=p.read_text()
           s,n=re.subn(r'(?m)^(\s*applicationId\s*=\s*)"[^"]+"',r'\1"com.mohammedkamel.alkamelnet.portal2026"',s)
           if n!=1: raise SystemExit(f"Expected one applicationId, found {n}")
-          s,n=re.subn(r'(?m)^(\s*versionCode\s*=\s*)\d+',r'\g<1>4',s)
+          s,n=re.subn(r'(?m)^(\s*versionCode\s*=\s*)\d+',r'\g<1>5',s)
           if n!=1: raise SystemExit(f"Expected one versionCode, found {n}")
-          s,n=re.subn(r'(?m)^(\s*versionName\s*=\s*)"[^"]+"',r'\g<1>"1.2.0"',s)
+          s,n=re.subn(r'(?m)^(\s*versionName\s*=\s*)"[^"]+"',r'\g<1>"1.2.1"',s)
           if n!=1: raise SystemExit(f"Expected one versionName, found {n}")
           p.write_text(s)
-          print("Application ID and version set to 1.2.0 (4)")
+          print("Application ID and version set to 1.2.1 (5)")
           PY
-      - name: Publish updated Android source in repository
-        shell: bash
-        run: |
-          set -euxo pipefail
-          mkdir -p source
-          rm -rf source/Alkamel-Net-Android
-          cp -a "$PROJECT_DIR" source/Alkamel-Net-Android
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add source/Alkamel-Net-Android
-          if ! git diff --cached --quiet; then
-            git commit -m "Publish Alkamel-Net Android source v1.2.0 [skip ci]"
-            git push origin HEAD:main
-          fi
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
