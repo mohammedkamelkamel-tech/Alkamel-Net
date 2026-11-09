@@ -48,6 +48,7 @@ import java.net.DatagramSocket
 import java.net.InetAddress
 import java.net.NetworkInterface
 import java.net.SocketTimeoutException
+import java.net.SocketException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
@@ -71,6 +72,7 @@ class MainActivity : Activity() {
     }
     private val refreshInProgress = AtomicBoolean(false)
     private val chatRunning = AtomicBoolean(false)
+    private val chatRequested = AtomicBoolean(false)
     @Volatile private var chatSocket: DatagramSocket? = null
     @Volatile private var chatNickname = ""
     private val chatId = java.util.UUID.randomUUID().toString()
@@ -93,6 +95,7 @@ class MainActivity : Activity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        ensureBackgroundService()
         window.statusBarColor = Color.rgb(7, 20, 38)
         window.navigationBarColor = Color.rgb(7, 20, 38)
         CookieManager.getInstance().setAcceptCookie(true)
@@ -340,16 +343,29 @@ class MainActivity : Activity() {
     }
 
 
-    private fun startLanChat(name: String) {
+    private fun ensureBackgroundService() {
+        val intent = Intent(this, ChatKeepAliveService::class.java).apply { action = ChatKeepAliveService.ACTION_START }
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent)
+            else startService(intent)
+        } catch (e: Exception) {
+            Log.e("AlkamelNet", "Unable to keep app alive in background", e)
+        }
+    }
+
+    private fun startLanChat(name: String, ensureService: Boolean = true) {
         val clean = name.trim().take(24)
         if (clean.isEmpty()) return
         chatNickname = clean
+        chatRequested.set(true)
+        if (ensureService) {
         val keepAlive = Intent(this, ChatKeepAliveService::class.java).apply { action = ChatKeepAliveService.ACTION_START }
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(keepAlive) else startService(keepAlive)
         } catch (e: Exception) {
             Log.e("AlkamelNet", "Unable to start background chat service", e)
             runOnUiThread { if (::web.isInitialized && !isDestroyed) web.evaluateJavascript("window.onChatServiceError&&window.onChatServiceError();", null) }
+        }
         }
         if (!chatRunning.compareAndSet(false, true)) {
             sendLanPacket("presence", "")
@@ -391,10 +407,26 @@ class MainActivity : Activity() {
                         }
                     } catch (_: SocketTimeoutException) { }
                 }
+            } catch (e: SocketException) {
+                // Closing a DatagramSocket while receive() is blocked raises EBADF.
+                // Treat intentional shutdown as normal; retry unexpected socket loss.
+                if (chatRunning.get() && chatRequested.get()) {
+                    Log.w("AlkamelNet", "LAN chat socket interrupted; preparing reconnect", e)
+                    chatRunning.set(false)
+                    notifyChatState("reconnecting", "انقطع اتصال الدردشة مؤقتاً، جارٍ إعادة الاتصال…")
+                    try { Thread.sleep(1200) } catch (_: InterruptedException) { Thread.currentThread().interrupt() }
+                    if (chatRequested.get()) startLanChat(chatNickname, ensureService = false)
+                }
             } catch (e: Exception) {
-                Log.e("AlkamelNet", "LAN chat socket failed", e)
-                chatRunning.set(false)
-                notifyChatState("error", e.localizedMessage ?: "تعذر فتح منفذ الدردشة على الشبكة")
+                if (chatRunning.get() && chatRequested.get()) {
+                    Log.e("AlkamelNet", "LAN chat socket failed", e)
+                    chatRunning.set(false)
+                    notifyChatState("reconnecting", "حدث انقطاع في اتصال الدردشة، جارٍ إعادة المحاولة…")
+                    try { Thread.sleep(1500) } catch (_: InterruptedException) { Thread.currentThread().interrupt() }
+                    if (chatRequested.get()) startLanChat(chatNickname, ensureService = false)
+                } else {
+                    Log.d("AlkamelNet", "LAN chat receiver stopped during socket cleanup")
+                }
             } finally {
                 chatSocket?.close()
                 chatSocket = null
@@ -495,11 +527,11 @@ class MainActivity : Activity() {
     }
 
     private fun stopLanChat() {
+        chatRequested.set(false)
         chatRunning.set(false)
         chatPeerAddresses.clear()
         chatSocket?.close()
         chatSocket = null
-        runCatching { startService(Intent(this, ChatKeepAliveService::class.java).apply { action = ChatKeepAliveService.ACTION_STOP }) }
         notifyChatState("stopped", "")
     }
 

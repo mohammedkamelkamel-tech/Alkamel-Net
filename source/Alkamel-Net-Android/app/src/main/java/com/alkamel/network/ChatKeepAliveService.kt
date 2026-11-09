@@ -50,8 +50,8 @@ class ChatKeepAliveService : Service() {
             @Suppress("DEPRECATION")
             Notification.Builder(this)
         }.setSmallIcon(android.R.drawable.stat_notify_chat)
-            .setContentTitle("الكامل-نت متصل")
-            .setContentText("الدردشة وغرفة الصوت تعملان أثناء استخدام تطبيق آخر")
+            .setContentTitle("شبكة الكامل تعمل في الخلفية")
+            .setContentText("خدمات الشبكة والدردشة متاحة أثناء استخدام تطبيقات أخرى")
             .setCategory(Notification.CATEGORY_SERVICE)
             .setOngoing(true)
             .setContentIntent(openApp)
@@ -63,6 +63,11 @@ class ChatKeepAliveService : Service() {
             startForeground(NOTIFICATION_ID, notification)
         }
         return START_STICKY
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        // Preserve the foreground service when the app task is swiped away.
+        super.onTaskRemoved(rootIntent)
     }
 
     private fun stopForegroundCompat() {
