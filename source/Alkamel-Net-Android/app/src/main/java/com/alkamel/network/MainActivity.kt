@@ -44,6 +44,7 @@ import java.net.URL
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
+import java.net.NetworkInterface
 import java.net.SocketTimeoutException
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
@@ -382,12 +383,18 @@ class MainActivity : Activity() {
             try {
                 val wifi = applicationContext.getSystemService(WIFI_SERVICE) as WifiManager
                 multicastLock = wifi.createMulticastLock("AlkamelNetVoice").apply { setReferenceCounted(false); acquire() }
+                // Select the active Wi-Fi interface explicitly; Android may otherwise
+                // attach multicast traffic to a mobile/virtual interface.
+                val wifiInterface = NetworkInterface.getNetworkInterfaces().toList()
+                    .firstOrNull { it.isUp && !it.isLoopback && (it.name.startsWith("wlan") || it.name.startsWith("wifi")) }
+                    ?: throw IllegalStateException("لم يتم العثور على واجهة Wi-Fi نشطة")
                 val socket = java.net.MulticastSocket(null).apply {
                     reuseAddress = true
                     timeToLive = 1
                     soTimeout = 200
                     bind(java.net.InetSocketAddress(voicePort))
-                    joinGroup(voiceGroup)
+                    networkInterface = wifiInterface
+                    joinGroup(java.net.InetSocketAddress(voiceGroup, voicePort), wifiInterface)
                 }
                 voiceSocket = socket
                 val rate = 16000
