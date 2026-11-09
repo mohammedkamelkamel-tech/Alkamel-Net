@@ -469,9 +469,22 @@ class MainActivity : Activity() {
 
     @Suppress("DEPRECATION")
     override fun onBackPressed() {
-        if (::web.isInitialized && web.canGoBack()) web.goBack()
-        else if (::web.isInitialized && web.url != homeUrl) loadHome()
-        else super.onBackPressed()
+        if (!::web.isInitialized) {
+            super.onBackPressed()
+            return
+        }
+        // Never walk backward through previously opened TV streams or remote pages.
+        // A single Back action returns the user to the app's main menu.
+        val currentUrl = web.url.orEmpty()
+        if (currentUrl.startsWith(homeUrl) || currentUrl.startsWith("data:")) {
+            web.evaluateJavascript(
+                "if(typeof window.appBack==='function'){window.appBack();'handled';}else{'reload';}"
+            ) { result ->
+                if (result == null || result.contains("reload")) runOnUiThread { loadHome() }
+            }
+        } else {
+            loadHome()
+        }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
