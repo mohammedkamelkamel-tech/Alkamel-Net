@@ -1,0 +1,75 @@
+name: Alkamel-Net Android Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platform and build tools
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Validate project settings
+        run: |
+          grep -q 'minSdk = 24' app/build.gradle.kts
+          grep -q 'targetSdk = 35' app/build.gradle.kts
+          grep -q 'rootProject.name = "Alkamel-Net"' settings.gradle.kts
+          test -s app/src/main/assets/home.html
+          test -s app/src/main/assets/hd/index.html
+
+      - name: Validate app assets and JavaScript
+        run: python3 scripts/validate_project.py
+
+      - name: Build debug APK
+        run: gradle --no-daemon --stacktrace :app:assembleDebug
+
+      - name: Verify APK
+        run: |
+          test -s app/build/outputs/apk/debug/app-debug.apk
+          cp app/build/outputs/apk/debug/app-debug.apk Alkamel-Net.apk
+
+      - name: Upload installable APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Alkamel-Net-APK
+          path: Alkamel-Net.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Package complete Android Studio project
+        run: |
+          zip -r Alkamel-Net-Android-Studio-Project.zip app .github .gitignore build.gradle.kts settings.gradle.kts gradle.properties README.md
+
+      - name: Verify source archive
+        run: unzip -t Alkamel-Net-Android-Studio-Project.zip
+
+      - name: Upload complete source project
+        uses: actions/upload-artifact@v4
+        with:
+          name: Alkamel-Net-Source
+          path: Alkamel-Net-Android-Studio-Project.zip
+          if-no-files-found: error
+          retention-days: 30

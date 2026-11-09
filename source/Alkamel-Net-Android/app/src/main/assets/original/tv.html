@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>شبكة الكامل - البث المباشر</title>
+<script src="https://cdn.jsdelivr.net/npm/flv.js@latest/dist/flv.min.js">
+function openVLC(){
+    if(currentUrl){
+        window.location.href='intent:' + currentUrl + '#Intent;package=org.videolan.vlc;type=video/*;end';
+    }
+}
+
+function openMX(){
+    if(currentUrl){
+        window.location.href='intent:' + currentUrl + '#Intent;package=com.mxtech.videoplayer.ad;end';
+    }
+}
+</script>
+<style>
+body{
+margin:0;
+font-family:'Tahoma',Arial,sans-serif;
+background:
+radial-gradient(circle at 15% 20%, rgba(244,114,182,.30), transparent 30%),
+radial-gradient(circle at 85% 10%, rgba(168,85,247,.30), transparent 30%),
+linear-gradient(135deg,#12031f,#22063a,#3b0764,#1a042d);
+color:#fff;
+min-height:100vh;
+overflow-x:hidden;
+}
+.header{
+position:sticky;
+top:0;
+z-index:100;
+background:rgba(35,8,55,.65);backdrop-filter:blur(25px);
+backdrop-filter:blur(14px);
+padding:18px;
+text-align:center;
+border-bottom:1px solid rgba(255,255,255,.08);
+box-shadow:0 0 30px rgba(96,165,250,.15);
+}
+.player-box{
+width:95%;
+max-width:1400px;
+margin:18px auto;
+background:rgba(34,8,63,.55);backdrop-filter:blur(30px);
+padding:18px;
+border-radius:40px;
+border:1px solid rgba(255,255,255,.08);
+box-shadow:0 15px 45px rgba(0,0,0,.45);
+}
+video{
+width:100%;
+border-radius:30px;
+background:black;
+border:2px solid rgba(96,165,250,.25);
+}
+.channels{
+display:flex;
+flex-wrap:wrap;
+justify-content:center;
+align-items:center;
+gap:35px;
+padding:35px 20px 50px;
+max-width:1100px;
+margin:0 auto;
+}
+@media(max-width:700px){
+.channels{
+display:flex;
+flex-wrap:wrap;
+justify-content:center;
+align-items:center;
+gap:35px;
+padding:35px 20px 50px;
+max-width:1100px;
+margin:0 auto;
+}
+}
+
+.channel-wrapper{
+width:150px;
+height:150px;
+display:flex;
+justify-content:center;
+align-items:center;
+}
+
+.channel{
+position:relative;
+width:105px;
+height:105px;
+margin:auto;
+clip-path:polygon(
+50% 0%,61% 35%,98% 35%,
+68% 57%,79% 91%,50% 70%,
+21% 91%,32% 57%,2% 35%,
+39% 35%
+);
+background:linear-gradient(135deg,#ec4899,#a855f7,#6366f1);
+display:flex;
+flex-direction:column;
+align-items:center;
+justify-content:center;
+cursor:pointer;
+transition:.4s ease;
+box-shadow:0 0 25px rgba(168,85,247,.45);
+color:white;text-shadow:0 0 10px rgba(255,255,255,.6);
+padding:10px;
+}
+
+.channel:hover{
+transform:scale(1.12) rotate(8deg);
+box-shadow:0 0 45px rgba(244,114,182,.85);
+}
+
+.channel.active{
+background:linear-gradient(135deg,#f472b6,#ec4899,#8b5cf6);
+box-shadow:0 0 60px rgba(244,114,182,1);
+transform:translateY(-8px) scale(1.08);
+border:2px solid rgba(255,255,255,.6);
+}
+
+.channel.active{
+transform:scale(1.08);
+background:linear-gradient(135deg,#ec4899,#a855f7,#7c3aed);
+box-shadow:0 0 40px rgba(244,114,182,.95);
+border:2px solid rgba(255,255,255,.45);
+}
+.icon{font-size:28px;margin-bottom:6px;filter:drop-shadow(0 0 15px rgba(255,255,255,.8));}
+.name{font-size:14px;font-weight:700;letter-spacing:.5px;}
+.current{text-align:center;font-size:30px;padding:18px;font-weight:900;text-shadow:0 0 20px rgba(244,114,182,.8);}
+.channel-wrapper{display:flex;flex-direction:column;align-items:center;width:150px;min-height:190px}
+.channel-info{margin-top:10px;text-align:center;font-size:12px;line-height:1.5}
+.status-on{color:#86efac;font-weight:700}
+.live-banner{
+margin:12px auto;padding:12px;border-radius:18px;
+background:linear-gradient(135deg,#7f1d1d,#dc2626);
+text-align:center;font-weight:800;max-width:900px}
+.match-banner{
+margin:12px auto;padding:12px;border-radius:18px;
+background:rgba(255,255,255,.08);text-align:center;max-width:900px}
+.night-mode{filter:brightness(.92) saturate(1.15)}
+
+
+@media (max-width:700px){
+    .channels{
+        display:grid !important;
+        grid-template-columns:repeat(2,1fr) !important;
+        gap:18px !important;
+        justify-items:center !important;
+        max-width:420px !important;
+        margin:0 auto !important;
+        padding:25px 10px 40px !important;
+    }
+
+    .channel-wrapper{
+        width:140px !important;
+        min-height:185px !important;
+    }
+}
+
+</style>
+
+<style>
+.open-btn,.open-button,.external-btn,a[target="_blank"]{
+background:linear-gradient(135deg,#ec4899,#a855f7,#7c3aed) !important;
+border:none !important;
+border-radius:18px !important;
+color:white !important;
+padding:12px 20px !important;
+font-weight:700 !important;
+box-shadow:0 0 25px rgba(236,72,153,.45) !important;
+transition:.3s ease;
+}
+.open-btn:hover,.open-button:hover,.external-btn:hover,a[target="_blank"]:hover{
+transform:translateY(-3px) scale(1.05);
+box-shadow:0 0 35px rgba(236,72,153,.7) !important;
+}
+</style>
+
+
+<style>
+.vlc-btn,.btn-vlc{
+background:linear-gradient(135deg,#ff8800,#ffb300,#ffd54f) !important;
+color:#1a1a1a !important;
+border:none !important;
+border-radius:22px !important;
+padding:14px 24px !important;
+font-weight:800 !important;
+box-shadow:0 0 30px rgba(255,136,0,.55) !important;
+}
+
+.mx-btn,.btn-mx{
+background:linear-gradient(135deg,#2563eb,#3b82f6,#60a5fa) !important;
+color:white !important;
+border:none !important;
+border-radius:22px !important;
+padding:14px 24px !important;
+font-weight:800 !important;
+box-shadow:0 0 30px rgba(59,130,246,.55) !important;
+}
+
+.vlc-btn:hover,.btn-vlc:hover,
+.mx-btn:hover,.btn-mx:hover{
+transform:translateY(-4px) scale(1.05);
+transition:.3s ease;
+}
+</style>
+
+
+<script src="matches.js"></script>
+</head>
+<body>
+
+
+
+<div class="header">
+<div class="header-brand">
+    <div class="logo-circle">📺</div>
+    <div class="brand-text">
+        <div class="brand-top">ALKAMEL IPTV NETWORK</div>
+        <div class="brand-name">شبكة الكامل للبث المباشر</div>
+        <div class="brand-desc">بث مباشر • جودة عالية • بدون تقطيع</div>
+    </div>
+</div>
+</div>
+<style>
+
+
+
+
+.header-brand{
+display:flex;
+align-items:center;
+justify-content:center;
+gap:22px;
+padding:24px 45px;
+margin:auto;
+max-width:860px;
+position:relative;
+border-radius:60px 20px 60px 20px;
+background:
+linear-gradient(135deg,
+rgba(17,24,39,.75),
+rgba(88,28,135,.55),
+rgba(30,64,175,.45));
+border:1px solid rgba(255,255,255,.18);
+backdrop-filter:blur(25px);
+box-shadow:
+0 0 35px rgba(236,72,153,.25),
+0 0 60px rgba(168,85,247,.20),
+inset 0 1px 0 rgba(255,255,255,.15);
+overflow:hidden;
+}
+
+.header-brand::before{
+content:'';
+position:absolute;
+top:-40%;
+left:-10%;
+width:120%;
+height:180%;
+background:
+linear-gradient(110deg,
+transparent 35%,
+rgba(255,255,255,.08) 50%,
+transparent 65%);
+transform:rotate(-8deg);
+}
+
+.header-brand::after{
+content:'';
+position:absolute;
+bottom:-30px;
+left:50%;
+transform:translateX(-50%);
+width:85%;
+height:6px;
+border-radius:50px;
+background:linear-gradient(90deg,#ec4899,#a855f7,#60a5fa);
+box-shadow:0 0 25px rgba(168,85,247,.8);
+}
+
+.logo-circle{
+width:82px;
+height:82px;
+border-radius:28px;
+background:linear-gradient(135deg,#ec4899,#a855f7,#3b82f6);
+display:flex;
+justify-content:center;
+align-items:center;
+font-size:36px;
+box-shadow:0 0 30px rgba(236,72,153,.55);
+z-index:2;
+}
+
+.brand-text{
+text-align:right;
+z-index:2;
+}
+
+.brand-top{
+font-size:12px;
+letter-spacing:5px;
+color:#f9a8d4;
+margin-bottom:5px;
+}
+
+.brand-name{
+font-size:34px;
+font-weight:900;
+background:linear-gradient(90deg,#fbbf24,#ffffff,#60a5fa,#ec4899);
+-webkit-background-clip:text;
+-webkit-text-fill-color:transparent;
+text-shadow:0 0 20px rgba(255,255,255,.15);
+margin:6px 0;
+}
+
+
+.brand-desc{
+font-size:14px;
+color:#dbeafe;
+white-space:nowrap;
+display:block;
+width:100%;
+overflow:visible;
+text-align:right;
+letter-spacing:0;
+}
+
+
+
+
+</style>
+
+<div style="height:5px;background:linear-gradient(90deg,#ec4899,#a855f7,#ec4899);box-shadow:0 0 30px #ec4899;"></div>
+
+
+<div class="worldcup-player-ticker">
+<marquee direction="right" scrollamount="6">
+🏆 جميع مباريات كأس العالم 2026 متوفرة عبر شبكة الكامل • ⚽ بث مباشر بجودة عالية • 🚀 تشغيل عبر VLC و MX Player
+</marquee>
+</div>
+
+<style>
+.worldcup-player-ticker{
+width:95%;
+max-width:1400px;
+margin:12px auto 8px auto;
+padding:4px 0;
+background:transparent;
+box-shadow:none;
+font-size:13px;
+font-weight:700;
+color:#fff;
+overflow:hidden;
+}
+.worldcup-player-ticker marquee{
+color:#fff;
+}
+</style>
+
+
+<div id="tournamentBanner" style="
+width:95%;
+max-width:900px;
+margin:12px auto;
+padding:12px;
+text-align:center;
+font-size:20px;
+font-weight:900;
+border-radius:20px;
+background:linear-gradient(135deg,#f59e0b,#fbbf24,#fde68a);
+color:#111827;
+box-shadow:0 0 30px rgba(251,191,36,.6);
+">
+🏆 البطولة الحالية: كأس العالم 2026
+</div>
+
+<div class="player-box">
+<video id="player" controls autoplay playsinline></video>
+<div class="current" id="current">جاري تشغيل القناة...</div>
+<div id="liveBanner" class="live-banner">🔴 لا توجد مباراة جارية الآن</div>
+<div id="matchBanner" class="match-banner">🏆 المباراة الحالية: سيتم تحديثها تلقائياً</div>
+<div id="viewerCount" style="text-align:center;font-size:16px;font-weight:bold;margin-bottom:10px;">👥 58 مشاهد الآن</div>
+
+<div style="text-align:center;padding:15px;">
+<button onclick="openVLC()" style="padding:12px 20px;margin:5px;border:none;border-radius:14px;cursor:pointer;background:linear-gradient(135deg,#ff7a00,#ffb300,#ffd54f);color:#ffffff;font-weight:800;box-shadow:0 0 18px rgba(255,136,0,.55);">فتح عبر VLC</button>
+<button onclick="openMX()" style="padding:12px 20px;margin:5px;border:none;border-radius:14px;cursor:pointer;background:linear-gradient(135deg,#2563eb,#3b82f6,#60a5fa);color:#ffffff;font-weight:800;box-shadow:0 0 18px rgba(59,130,246,.55);">فتح عبر MX Player</button>
+</div>
+
+
+<div class="player-box" style="max-width:900px;">
+<h2 style="text-align:center;">📅 مباريات اليوم</h2>
+<div id="todayMatches" style="text-align:center;">جاري تحميل مباريات اليوم...</div>
+
+<h2 style="text-align:center;margin-top:25px;">📅 مباريات الغد</h2>
+<div id="tomorrowMatches" style="text-align:center;">جاري تحميل مباريات الغد...</div>
+</div>
+
+<div class="channels" id="channels"></div>
+
+</div>
+
+<script>
+const channels=[
+{name:"القناة 1",url:"http://30.30.30.30:8080/live/livestream_480p.flv"},
+{name:"القناة 2",url:"http://30.30.30.30:8080/live2/livestream_480p.flv"},
+{name:"القناة 3",url:"http://30.30.30.30:8080/live3/livestream_480p.flv"},
+{name:"القناة 4",url:"http://30.30.30.30:8080/live4/livestream_480p.flv"},
+{name:"القناة 5",url:"http://30.30.30.30:8080/live5/livestream_480p.flv"},
+{name:"القناة 6",url:"http://30.30.30.30:8080/live6/livestream_480p.flv"},
+{name:"القناة 7",url:"http://30.30.30.30:8080/live7/livestream_480p.flv"},
+{name:"القناة 8",url:"http://30.10.10.10:9088/live/index.m3u8"},
+{name:"القناة 9",url:"http://30.10.10.10:9088/live2/index.m3u8"},
+{name:"القناة 10",url:"http://30.10.10.10:9088/live5/index.m3u8"},
+{name:"القناة 11",url:"http://30.10.10.10:88/tmp_hls/stream3/index.m3u8"},
+{name:"القناة 12",url:"http://30.10.10.10:88/tmp_hls/stream1/index.m3u8"}
+];
+
+const list=document.getElementById("channels");
+const player=document.getElementById("player");
+const current=document.getElementById("current");
+let flvPlayer=null;
+let currentUrl='';
+
+function play(ch,card){
+document.querySelectorAll(".channel").forEach(x=>x.classList.remove("active"));
+card.classList.add("active");
+current.innerText="⚽ "+ch.name;
+currentUrl=ch.url;
+
+if(flvPlayer){flvPlayer.destroy();flvPlayer=null;}
+
+if(ch.url.endsWith(".flv") && window.flvjs && flvjs.isSupported()){
+flvPlayer=flvjs.createPlayer({type:'flv',url:ch.url});
+flvPlayer.attachMediaElement(player);
+flvPlayer.load();
+flvPlayer.play();
+}else{
+player.src=ch.url;
+player.play();
+}
+}
+
+channels.forEach((c,i)=>{
+let div=document.createElement("div");
+div.className="channel";
+let wrap=document.createElement("div");
+wrap.className="channel-wrapper";
+div.innerHTML=`<div class='icon'>⚽</div><div class='name'>${c.name}</div><div class='live-tag' style='display:none;position:absolute;bottom:-18px;background:#dc2626;padding:3px 8px;border-radius:10px;font-size:11px;'>🔴 مباشر</div>`;
+let viewers=Math.floor(Math.random()*15)+5;
+let info=document.createElement("div");
+info.className="channel-info";
+info.innerHTML=`👥 ${viewers} مشاهد<br><span class="status-on">🟢 تعمل</span>`;
+wrap.appendChild(div);
+wrap.appendChild(info);
+div.onclick=()=>play(c,div);
+list.appendChild(wrap);
+});
+
+document.querySelector(".channel").click();
+
+function openVLC(){
+    if(currentUrl){
+        window.location.href='intent:' + currentUrl + '#Intent;package=org.videolan.vlc;type=video/*;end';
+    }
+}
+
+function openMX(){
+    if(currentUrl){
+        window.location.href='intent:' + currentUrl + '#Intent;package=com.mxtech.videoplayer.ad;end';
+    }
+}
+</script>
+
+
+<footer style="
+margin-top:40px;
+padding:25px 15px;
+text-align:center;
+font-size:15px;
+font-weight:700;
+color:rgba(255,255,255,.85);
+background:linear-gradient(90deg,rgba(168,85,247,.25),rgba(236,72,153,.25),rgba(168,85,247,.25));
+backdrop-filter:blur(12px);
+border-top:1px solid rgba(255,255,255,.15);
+box-shadow:0 -5px 30px rgba(236,72,153,.25);
+">
+جميع الحقوق محفوظة © شبكة الكامل 2026
+</footer>
+
+<script>
+function updateViewerCount(){
+ let n=Math.floor(Math.random()*21)+50;
+ let e=document.getElementById("viewerCount");
+ if(e) e.innerHTML="👥 "+n+" مشاهد الآن";
+}
+setInterval(updateViewerCount,45000); updateViewerCount();
+
+function fmt(d){
+ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,'0')+"-"+String(d.getDate()).padStart(2,'0');
+}
+
+window.addEventListener("load",function(){
+ const matches=window.matches||[];
+ const today=fmt(new Date());
+ const t=new Date(); t.setDate(t.getDate()+1);
+ const tomorrow=fmt(t);
+
+ let todayHtml='', tomorrowHtml='';
+
+ matches.forEach(m=>{
+   const row=`<div style="margin:10px;padding:12px;border-radius:15px;background:rgba(255,255,255,.08)">${m.home} × ${m.away}<br>⏰ ${m.time}</div>`;
+   if(m.date===today) todayHtml+=row;
+   if(m.date===tomorrow) tomorrowHtml+=row;
+ });
+
+ document.getElementById("todayMatches").innerHTML=todayHtml || "لا توجد مباريات اليوم";
+ document.getElementById("tomorrowMatches").innerHTML=tomorrowHtml || "لا توجد مباريات الغد";
+});
+</script>
+
+
+<script>
+if(new Date().getHours()>=18 || new Date().getHours()<6){document.body.classList.add('night-mode');}
+window.addEventListener('load',()=>{
+ const m=getLiveMatch();
+ if(m){
+   document.getElementById('liveBanner').innerHTML='🔴 المباراة الجارية الآن: '+m.home+' × '+m.away;
+   document.getElementById('matchBanner').innerHTML='🏆 المباراة الحالية: '+m.home+' × '+m.away+' - ⏰ '+m.time;
+ }
+});
+</script>
+
+<script>
+window.addEventListener('load',()=>{
+ const live=getLiveMatch();
+ if(live){
+   document.getElementById('tournamentBanner').innerHTML='🏆 '+(live.tournament || 'البطولة الحالية');
+   const idx=(live.channel||1)-1;
+   const cards=document.querySelectorAll('.channel');
+   if(cards[idx]){
+      const tag=cards[idx].querySelector('.live-tag');
+      if(tag) tag.style.display='block';
+   }
+
+   if(live.bigMatch===true){
+      document.body.style.background=
+      'radial-gradient(circle at 15% 20%, rgba(239,68,68,.35), transparent 30%),'+
+      'radial-gradient(circle at 85% 10%, rgba(245,158,11,.35), transparent 30%),'+
+      'linear-gradient(135deg,#2b0000,#5b0000,#7c2d12,#1a0000)';
+   }
+ }
+});
+</script>
+
+
+<script>
+function getLiveMatch(){
+  const now = new Date().getTime();
+  const matches = window.matches || [];
+  for(const m of matches){
+    const d=(m.date||'').split('-');
+    if(d.length!==3) continue;
+
+    let t=(m.time||'').replace('صباحاً','').replace('صباحا','').replace('مساءً','').replace('مساء','').trim();
+    const pm=(m.time||'').includes('مساء');
+    const am=(m.time||'').includes('صباح');
+    let parts=t.split(':');
+    if(parts.length<2) continue;
+    let h=parseInt(parts[0],10), mi=parseInt(parts[1],10);
+
+    if(pm && h<12) h+=12;
+    if(am && h===12) h=0;
+
+    const start=new Date(Number(d[0]),Number(d[1])-1,Number(d[2]),h,mi,0).getTime();
+    const end=start + (2*60*60*1000); // ساعتان
+    if(now>=start && now<=end){
+      return m;
+    }
+  }
+  return null;
+}
+</script>
+</body>
+
+</html>
+
+<style>
+.channel:nth-child(odd){
+margin-top:18px;
+}
+.channel:nth-child(even){
+margin-bottom:18px;
+}
+</style>

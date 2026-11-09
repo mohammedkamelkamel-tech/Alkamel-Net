@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><meta name="theme-color" content="#071426"><title>الكامل-نت</title>
+<style>
+@font-face{font-family:Tajawal;src:url('original/fonts/Tajawal-Regular.woff2')}@font-face{font-family:Tajawal;src:url('original/fonts/Tajawal-Bold.woff2');font-weight:700}
+:root{--bg:#071426;--card:#101f38;--card2:#142945;--cyan:#28c5e8;--green:#24d2a0;--muted:#9aacc3;--line:#ffffff16}*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 90% -10%,#12436b 0,transparent 42%),#071426;color:#f4f8ff;font-family:Tajawal,Arial;min-height:100vh}.wrap{max-width:760px;margin:auto;padding:18px 16px 34px}.top{display:flex;align-items:center;justify-content:space-between;margin:5px 2px 22px}.brand{display:flex;align-items:center;gap:12px}.logo{width:49px;height:49px;border:2px solid var(--cyan);border-radius:50%;display:grid;place-items:center;color:var(--cyan);font-size:25px}.brand h1{font-size:24px;margin:0}.sub{font-size:12px;color:var(--muted)}.state{padding:7px 12px;border:1px solid #24d2a055;border-radius:24px;color:#63e7bd;background:#24d2a012;font-size:12px}.intro{margin:0 2px 16px;color:var(--muted);font-size:14px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.tile{border:1px solid var(--line);border-radius:20px;padding:17px 14px;background:linear-gradient(145deg,#142a46,#0d1c33);color:#fff;text-align:right;min-height:122px;display:flex;flex-direction:column;justify-content:space-between;gap:12px;font:inherit}.tile:active{transform:scale(.98);background:#183958}.ico{width:40px;height:40px;border-radius:13px;display:grid;place-items:center;background:#28c5e81b;color:#53d8f2;font-size:22px}.tile strong{font-size:16px}.tile small{color:var(--muted);font-size:11px}.tile.wide{grid-column:span 2;min-height:84px;flex-direction:row;align-items:center}.page{display:none}.page.active{display:block}.back{border:1px solid var(--line);border-radius:13px;background:#ffffff0b;color:white;padding:10px 15px;font:inherit;margin-bottom:16px}.heading{font-size:21px;margin:0 0 16px}.panel{border:1px solid var(--line);border-radius:20px;background:linear-gradient(145deg,#122945,#0c1a30);padding:17px;margin-bottom:12px}.row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--line)}.row:last-child{border:0}.key{color:var(--muted);font-size:13px}.val{font-weight:700;font-size:15px;overflow-wrap:anywhere;text-align:left}.btn{border:0;border-radius:14px;padding:12px 16px;background:linear-gradient(110deg,#05b7d8,#087bc3);color:#031a2b;font:700 15px Tajawal;width:100%;margin-top:10px}.btn.secondary{background:#173451;color:#c8f5ff;border:1px solid #28c5e855}.select{width:100%;background:#08182b;color:#fff;border:1px solid #28c5e855;border-radius:13px;padding:13px;font:inherit;margin:8px 0}.notice{color:#f6c86b;font-size:13px;min-height:20px;margin-top:12px}.option{border:1px solid var(--line);border-radius:15px;padding:13px;margin:8px 0;background:#ffffff08;display:flex;justify-content:space-between;align-items:center;gap:10px}.foot{text-align:center;color:#7188a3;font-size:11px;margin-top:25px}.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}.kvgrid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.kv{background:#071a30;border:1px solid var(--line);border-radius:14px;padding:12px}.kv small{display:block;color:var(--muted);font-size:12px}.kv b{display:block;margin-top:7px;font-size:15px;overflow-wrap:anywhere}
+.speed-blink{display:inline-block;color:#7cecff;font-weight:700;animation:speedBlink 1.15s ease-in-out infinite}@keyframes speedBlink{0%,100%{opacity:1}50%{opacity:.25}}</style></head><body><main class="wrap">
+<header class="top"><div class="brand"><div class="logo">⌁</div><div><h1>الكامل-نت</h1><div class="sub">خدمات الشبكة في مكان واحد</div></div></div><div class="state" id="connection">● جارٍ التحقق</div></header>
+<section id="home" class="page active"><p class="intro">اختر القسم الذي تريد استخدامه</p><div class="grid">
+<button class="tile" onclick="showPage('query')"><div class="ico">⌕</div><div><strong>الاستعلام</strong><br><small>بيانات الحساب والاتصال</small></div></button>
+<button class="tile" onclick="showPage('speed')"><div class="ico">ϟ</div><div><strong>سرعة الكرت الحالية</strong><br><small><span id="homeCurrentSpeed" class="speed-blink">يتم جلب السرعة…</span></small></div></button>
+<button class="tile" onclick="showPage('google')"><div class="ico">G</div><div><strong>تحديثات جوجل</strong><br><small><span id="homeGoogleStatus">حالة الخدمة</span></small></div></button>
+
+<button class="tile" onclick="showPage('live')"><div class="ico">▶</div><div><strong>البث المباشر</strong><br><small>فتح البث بالمشغل الخارجي</small></div></button>
+<div class="tile-row"><button class="tile" onclick="go('http://30.30.30.30:8096/web/index.html#!/home')"><div class="ico">☕</div><div><strong>الاستراحة الأولى</strong><br><small>خدمات الاستراحة</small></div></button></div>
+<button class="tile" onclick="go('http://30.10.10.10/')"><div class="ico">☕</div><div><strong>الاستراحة الثانية</strong><br><small>خدمات الاستراحة</small></div></button>
+<button class="tile" onclick="logout()"><div class="ico">↪</div><div><strong>تسجيل الخروج</strong><br><small>إنهاء جلسة الحساب</small></div></button>
+</div><div class="notice" id="homeNotice"></div></section>
+<section id="query" class="page"><button class="back" onclick="showPage('home')">→ الرئيسية</button><h2 class="heading">بيانات المشترك</h2><div class="panel"><div class="row"><span class="key">رقم الكرت</span><b class="val" id="username">—</b></div><div class="row"><span class="key">حالة الاتصال</span><b class="val" id="status">—</b></div><div class="row"><span class="key">سرعة الكرت</span><b class="val" id="spes">—</b></div><div class="row"><span class="key">الوقت المتبقي</span><b class="val" id="timeleft">—</b></div><div class="row"><span class="key">مدة الاتصال</span><b class="val" id="uptime">—</b></div><div class="row"><span class="key">الرصيد المتبقي</span><b class="val" id="remain">—</b></div><div class="kvgrid"><div class="kv"><small>حجم التحميل</small><b id="download">—</b></div><div class="kv"><small>حجم الرفع</small><b id="upload">—</b></div></div><button class="btn" onclick="refreshStatus()">↻ تحديث البيانات</button><div class="notice" id="queryNotice"></div></div></section>
+<section id="speed" class="page"><button class="back" onclick="showPage('home')">→ الرئيسية</button><h2 class="heading">سرعة الكرت الحالية</h2><div class="panel"><div class="key">السرعة الحالية</div><div class="val" id="currentSpeed">يتم جلبها من بيانات الحساب…</div><div class="key" style="margin-top:18px">اختر السرعة المطلوبة</div><div id="speedOptions"></div><div class="notice" id="speedNotice">اختر السرعة وسيتم تطبيقها مباشرة.</div></div></section>
+<section id="google" class="page"><button class="back" onclick="showPage('home')">→ الرئيسية</button><h2 class="heading">تحديثات جوجل</h2><div class="panel"><div class="key">الحالة الحالية وفق ملفات الموقع</div><div class="val" id="googleStatus">غير محددة من بيانات حالة المشترك</div><div class="actions"><button id="googleEnable" class="btn secondary" onclick="googleAction('enabled')">مفعل</button><button id="googleDisable" class="btn secondary" onclick="googleAction('disabled')">غير مفعل</button></div><div class="notice" id="googleNotice">تُقرأ الحالة من قيمة spes التي يعيدها الموقع. تغيير الإعداد يستخدم إجراء الموقع الأصلي.</div></div></section>
+<section id="live" class="page"><button class="back" onclick="showPage('home')">→ الرئيسية</button><h2 class="heading">البث المباشر</h2><div class="panel"><p class="key">اختر البث المطلوب</p><button class="btn" onclick="goService('live1')">البث المباشر 1</button><button class="btn secondary" onclick="goService('live2')">البث المباشر 2</button><button class="btn" onclick="openHd()">بث HD</button><div class="notice" id="liveNotice"></div></div></section>
+<section id="hd" class="page"><button class="back" onclick="showPage('home')">→ الرئيسية</button><h2 class="heading">بث HD</h2><div class="panel"><p class="key">مشغل البث عالي الدقة</p><button class="btn" onclick="openHd()">تشغيل بث HD</button></div></section>
+<footer class="foot">الكامل-نت · خدمات شبكة الكامل</footer></main>
+<script>
+const $=id=>document.getElementById(id);let lastData=null;
+function showPage(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(id).classList.add('active');if(id==='query')refreshStatus();if(id==='speed')renderSpeeds();}
+const internalServices={query:'http://k.com',rest1:'http://30.30.30.30:8096/web/index.html#!/home',rest2:'http://30.10.10.10/',live1:'http://30.30.30.30:8080/tv/',live2:'http://30.10.10.10:88/'};function go(url){if(window.AndroidBridge)AndroidBridge.openUrl(url);else location.href=url}function goService(key){if(internalServices[key])go(internalServices[key])}function logout(){if(window.AndroidBridge)AndroidBridge.logout()}function openHd(){if(window.AndroidBridge)AndroidBridge.openHd();else location.href='hd/index.html'}
+function player(pkg){const stream='http://10.10.10.10:8888/live/index.m3u8';if(window.AndroidBridge)AndroidBridge.externalPlayer(stream,pkg);else $('liveNotice').textContent='يتطلب فتح المشغل من تطبيق Android.'}
+function refreshStatus(){ $('queryNotice').textContent='جارٍ تحديث البيانات…';if(window.AndroidBridge){AndroidBridge.refresh();return}fetch('http://k.com/status?var=callBack').then(r=>r.json()).then(update).catch(()=>{$('queryNotice').textContent='تعذر الاتصال ببوابة الشبكة.'})}
+function bytes(v){let n=Number(v);if(!Number.isFinite(n)||n<0)return '—';if(n>=1073741824)return(n/1073741824).toFixed(2)+' جيجابايت';if(n>=1048576)return(n/1048576).toFixed(2)+' ميجابايت';if(n>=1024)return(n/1024).toFixed(1)+' كيلوبايت';return n+' بايت'}
+function duration(v){if(!v)return '—';return String(v).replace(/([0-9]+)d/g,'$1 يوم ').replace(/([0-9]+)h/g,'$1 ساعة ').replace(/([0-9]+)m/g,'$1 دقيقة ').replace(/([0-9]+)s/g,'$1 ثانية')}
+function update(d){lastData=d||{};let logged=['yes','true','1'].includes(String(d.logged_in).toLowerCase())||d.logged_in===true;$('connection').textContent=logged?'● متصل':'● غير متصل';$('username').textContent=(d.username||'—').toString().replace(/^(\d{5})\d+$/, '$1'+'**');$('status').textContent=logged?'متصل بنجاح':'غير متصل';$('spes').textContent=speedLabel(String(d.spes||'').split('|')[0]);const spesParts=String(d.spes||'').split('|');
+$('currentSpeed').textContent=speedLabel(spesParts[0]);$('homeCurrentSpeed').textContent=speedLabel(spesParts[0]);
+if(spesParts.length>1){
+ const enabled=spesParts[1]!=='*yes**';
+ $('googleStatus').textContent=enabled?'🟢 مفعلة':'🔴 متوقفة';
+ $('googleNotice').textContent='الحالة مقروءة من بيانات الحساب الأصلية.';
+ $('googleEnable').setAttribute('aria-pressed',String(enabled));
+ $('googleDisable').setAttribute('aria-pressed',String(!enabled));
+}$('timeleft').textContent=duration(d.session_time_left);$('uptime').textContent=duration(d.uptime);$('remain').textContent=bytes(Number(d.remain_bytes_total)*1.11);$('download').textContent=bytes(d.bytes_out);$('upload').textContent=bytes(d.bytes_in);$('queryNotice').textContent='تم تحديث بيانات الحساب من بوابة الشبكة';}
+window.onStatusData=update;window.refreshStatus=refreshStatus;
+let siteConfig=null,selectedSpeed=null;
+function speedLabel(raw){
+ const value=String(raw||'').split('|')[0].trim();
+ if(!value)return 'غير محددة';
+ const options=(siteConfig&&siteConfig.speedOptions)||[];
+ const match=options.find(o=>String(o.value).split('|')[0]===value);
+ return match?match.label:value;
+}
+function renderCurrentSpeed(){
+ if(!lastData)return;
+ const value=String(lastData.spes||'').split('|')[0];
+ const label=speedLabel(value);
+ $('currentSpeed').textContent=label;
+ $('homeCurrentSpeed').textContent=label;
+ $('spes').textContent=label;
+}
+function renderSpeeds(){
+ if(siteConfig){fillSpeeds();renderCurrentSpeed();return;}
+ const s=document.createElement('script');
+ s.src='original/js/config%20(87).js';
+ s.onload=()=>{siteConfig=window.siteConfig;fillSpeeds();renderCurrentSpeed();};
+ s.onerror=()=>{$('speedNotice').textContent='تعذر قراءة إعدادات السرعة الأصلية.';};
+ document.head.appendChild(s);
+}
+function fillSpeeds(){
+ const list=(siteConfig&&siteConfig.speedOptions)||[];
+ $('speedOptions').innerHTML='';
+ list.forEach(o=>{
+  const e=document.createElement('button');e.type='button';e.className='option';
+  e.style.width='100%';e.style.color='inherit';e.style.font='inherit';e.style.textAlign='right';
+  const current=String(lastData&&lastData.spes||'').split('|')[0];
+  e.setAttribute('aria-pressed',String(current===o.value));
+  const t=document.createElement('span');t.textContent=o.label+(current===o.value?' · السرعة الحالية':(o.selected?' · الافتراضية':''));
+  e.appendChild(t);
+  e.onclick=()=>{
+   selectedSpeed=o.value;
+   $('speedNotice').textContent='جارٍ تطبيق '+o.label+'…';
+   const flag=(lastData&&lastData.spes&&String(lastData.spes).includes('|'))?String(lastData.spes).split('|')[1]:'*no**';
+   if(window.AndroidBridge){AndroidBridge.applyNetworkSetting(o.value,flag);}
+   else {$('speedNotice').textContent='يتطلب تطبيق السرعة من تطبيق Android.';}
+  };
+  $('speedOptions').appendChild(e);
+ });
+}
+function googleAction(v){const flag=v==='enabled'?'*no**':'*yes**';const speed=(lastData&&lastData.spes?String(lastData.spes).split('|')[0]:'')||selectedSpeed||'';if(!speed){$('googleNotice').textContent='تعذر تحديد سرعة الحساب من بيانات الموقع.';return;}if(window.AndroidBridge){$('googleNotice').textContent='جارٍ إرسال التغيير عبر دالة الموقع الأصلية…';AndroidBridge.applyNetworkSetting(speed,flag);}else $('googleNotice').textContent='يتطلب تنفيذ الأمر من تطبيق Android.'}
+renderSpeeds();refreshStatus();setInterval(refreshStatus,30000);window.appBack=()=>showPage('home');
+</script></body></html>
