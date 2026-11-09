@@ -48,6 +48,7 @@ import java.net.DatagramSocket
 import java.net.InetAddress
 import java.net.NetworkInterface
 import java.net.SocketTimeoutException
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -71,6 +72,7 @@ class MainActivity : Activity() {
     @Volatile private var chatSocket: DatagramSocket? = null
     @Volatile private var chatNickname = ""
     private val chatId = java.util.UUID.randomUUID().toString()
+    private val chatPeerAddresses = ConcurrentHashMap<String, InetAddress>()
     private val chatExecutor = Executors.newSingleThreadExecutor()
     private val chatSendExecutor = Executors.newSingleThreadExecutor()
     private val voiceExecutor = Executors.newSingleThreadExecutor()
@@ -349,8 +351,15 @@ class MainActivity : Activity() {
                         val buffer = ByteArray(4096); val packet = DatagramPacket(buffer, buffer.size); socket.receive(packet)
                         val raw = String(packet.data, packet.offset, packet.length, Charsets.UTF_8)
                         val obj = JSONObject(raw)
-                        if (obj.optString("id") != chatId && obj.optString("type") in setOf("presence", "message")) {
-                            runOnUiThread { if (::web.isInitialized && !isFinishing) web.evaluateJavascript("if(window.onLanChatPacket)window.onLanChatPacket(${JSONObject.quote(raw)});", null) }
+                        val packetType = obj.optString("type")
+                        val senderId = obj.optString("id")
+                        if (senderId != chatId) {
+                            if (packetType == "presence") chatPeerAddresses[senderId] = packet.address
+                            val isPublicPacket = packetType in setOf("presence", "message")
+                            val isPrivatePacket = packetType in setOf("private_request", "private_response", "private_message") && obj.optString("to") == chatId
+                            if (isPublicPacket || isPrivatePacket) {
+                                runOnUiThread { if (::web.isInitialized && !isFinishing) web.evaluateJavascript("if(window.onLanChatPacket)window.onLanChatPacket(${JSONObject.quote(raw)});", null) }
+                            }
                         }
                     } catch (_: SocketTimeoutException) { }
                 }
@@ -431,8 +440,35 @@ class MainActivity : Activity() {
             } catch (e: Exception) { Log.w("AlkamelNet", "LAN chat send failed", e) }
         }
     }
+    private fun sendPrivateLanPacket(type: String, targetId: String, requestId: String, message: String) {
+        if (!chatRunning.get() || targetId.isBlank() || requestId.isBlank()) return
+        val address = chatPeerAddresses[targetId] ?: run {
+            Log.w("AlkamelNet", "Private chat target is not present in the LAN peer table")
+            return
+        }
+        val payload = JSONObject()
+            .put("type", type)
+            .put("id", chatId)
+            .put("name", chatNickname)
+            .put("to", targetId)
+            .put("requestId", requestId)
+            .put("text", message.take(1000))
+            .toString().toByteArray(Charsets.UTF_8)
+        chatSendExecutor.execute {
+            if (!chatRunning.get()) return@execute
+            try {
+                DatagramSocket().use { sender ->
+                    sender.send(DatagramPacket(payload, payload.size, address, 39127))
+                }
+            } catch (e: Exception) {
+                Log.w("AlkamelNet", "Private LAN packet send failed", e)
+            }
+        }
+    }
+
     private fun stopLanChat() {
         chatRunning.set(false)
+        chatPeerAddresses.clear()
         chatSocket?.close()
         chatSocket = null
         runCatching { startService(Intent(this, ChatKeepAliveService::class.java).apply { action = ChatKeepAliveService.ACTION_STOP }) }
@@ -737,6 +773,12 @@ class MainActivity : Activity() {
     inner class Bridge {
         @JavascriptInterface fun startChat(name: String) { startLanChat(name) }
         @JavascriptInterface fun sendChatMessage(message: String) { if (message.length <= 1000) sendLanPacket("message", message.trim()) }
+        @JavascriptInterface
+        fun sendPrivateChatPacket(type: String, targetId: String, requestId: String, message: String) {
+            if (type in setOf("private_request", "private_response", "private_message") && targetId.length <= 64 && requestId.length <= 64 && message.length <= 1000) {
+                sendPrivateLanPacket(type, targetId, requestId, message.trim())
+            }
+        }
         @JavascriptInterface fun stopChat() { stopVoiceRoom(); stopLanChat() }
         @JavascriptInterface fun joinVoiceRoom() { requestVoiceRoom() }
         @JavascriptInterface fun setVoiceMuted(muted: Boolean) { setVoiceMute(muted) }
