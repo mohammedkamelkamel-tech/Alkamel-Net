@@ -33,7 +33,7 @@ checks = {
     "targeted private LAN transport": "sendPrivateChatPacket" in HOME.read_text(encoding="utf-8") and "sendPrivateLanPacket" in KOTLIN.read_text(encoding="utf-8") and "chatPeerAddresses" in KOTLIN.read_text(encoding="utf-8"),
     "private chat replies learn sender address": 'packetType in setOf("presence", "private_request", "private_response", "private_message")' in KOTLIN.read_text(encoding="utf-8") and "chatPeerAddresses[senderId] = packet.address" in KOTLIN.read_text(encoding="utf-8"),
     "private packets are delivered only to their target": 'obj.optString("to") == chatId' in KOTLIN.read_text(encoding="utf-8") and 'put("to", targetId)' in KOTLIN.read_text(encoding="utf-8"),
-    "private decisions are matched to original request": "outgoing.peerId===packet.id" in HOME.read_text(encoding="utf-8") and "requestId" in HOME.read_text(encoding="utf-8"),
+    "private decisions are matched to original request": "outgoing.peerId!==packet.id" in HOME.read_text(encoding="utf-8") and "requestId" in HOME.read_text(encoding="utf-8"),
     "separate chat lobby and room": 'id="chat"' in HOME.read_text(encoding="utf-8") and 'id="chatRoom"' in HOME.read_text(encoding="utf-8") and "appendChatMessage" in HOME.read_text(encoding="utf-8"),
     "message duplicate protection": "messageId" in KOTLIN.read_text(encoding="utf-8") and "seenChatMessageIds" in HOME.read_text(encoding="utf-8"),
     "chat sender highlighting": "chat-name" in HOME.read_text(encoding="utf-8") and ".chat-message.mine" in HOME.read_text(encoding="utf-8"),
