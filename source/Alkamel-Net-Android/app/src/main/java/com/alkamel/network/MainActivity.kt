@@ -80,6 +80,7 @@ class MainActivity : Activity() {
     @Volatile private var appInForeground = false
     private val notificationChannelId = "alkamel_events"
     private val notificationPermissionRequest = 7413
+    private var requestNotificationsOnResume = false
     private val chatRunning = AtomicBoolean(false)
     private val chatRequested = AtomicBoolean(false)
     @Volatile private var chatSocket: DatagramSocket? = null
@@ -379,7 +380,7 @@ class MainActivity : Activity() {
             .setPositiveButton("تفعيل الآن") { _, _ ->
                 prefs.edit().putBoolean("first_run_setup_asked", true).putBoolean("background_enabled", true).apply()
                 ensureBackgroundService()
-                requestNotificationPermission()
+                requestNotificationsOnResume = true
                 try {
                     startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
                     Toast.makeText(this, "ابحث عن شبكة الكامل واختر السماح بالاستخدام دون قيود.", Toast.LENGTH_LONG).show()
@@ -1094,6 +1095,10 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         appInForeground = true
+        if (requestNotificationsOnResume) {
+            requestNotificationsOnResume = false
+            requestNotificationPermission()
+        }
     }
 
     override fun onPause() {
