@@ -14,6 +14,8 @@ HD = APP / "assets/hd/index.html"
 KOTLIN = APP / "java/com/alkamel/network/MainActivity.kt"
 
 checks = {
+    "logout action moved from home to subscriber query": "onclick=\"logout()\" " not in HOME.read_text(encoding="utf-8"),
+    "logout button is below subscriber refresh": HOME.read_text(encoding="utf-8").find("onclick=\"refreshStatus()\"") < HOME.read_text(encoding="utf-8").find("onclick=\"logout()\"") and "إنهاء جلسة الحساب" not in HOME.read_text(encoding="utf-8"),
     "minSdk 24": "minSdk = 24" in GRADLE,
     "targetSdk 35": "targetSdk = 35" in GRADLE,
     "app label": 'android:label="الكامل-نت"' in MANIFEST,
