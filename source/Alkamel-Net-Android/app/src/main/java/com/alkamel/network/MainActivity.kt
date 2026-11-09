@@ -355,8 +355,11 @@ class MainActivity : Activity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == voicePermissionRequest) {
-            if (grantResults.isNotEmpty() && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) startVoiceRoom()
+            if (grantResults.isNotEmpty() && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                startVoiceRoom()
+            } else {
                 runOnUiThread { web.evaluateJavascript("window.onVoiceState&&window.onVoiceState('error','لم تسمح باستخدام الميكروفون');", null) }
+            }
         }
     }
 
