@@ -157,6 +157,9 @@ class MainActivity : Activity() {
 
                 override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                     super.onPageStarted(view, url, favicon)
+                    // Keep the native JavaScript bridge limited to bundled application pages.
+                    if (urlIsLocal(url)) view?.addJavascriptInterface(Bridge(), "AndroidBridge")
+                    else view?.removeJavascriptInterface("AndroidBridge")
                     showLoading(true)
                     Log.i("AlkamelNet", "Page started: $url")
                 }

@@ -14,6 +14,9 @@ HD = APP / "assets/hd/index.html"
 KOTLIN = APP / "java/com/alkamel/network/MainActivity.kt"
 
 checks = {
+    "JavaScript bridge is restricted to bundled app pages": "if (urlIsLocal(url)) view?.addJavascriptInterface(Bridge(), \"AndroidBridge\")" in KOTLIN.read_text(encoding="utf-8") and "else view?.removeJavascriptInterface(\"AndroidBridge\")" in KOTLIN.read_text(encoding="utf-8"),
+    "defensive page navigation and status parsing": "const target=$(id);if(!target||!target.classList.contains('page'))return;" in HOME.read_text(encoding="utf-8") and "if(!d||typeof d!=='object'||Array.isArray(d))" in HOME.read_text(encoding="utf-8"),
+    "professional responsive interface layer": "Unified professional visual system for every application section" in HOME.read_text(encoding="utf-8") and "@media(max-width:420px)" in HOME.read_text(encoding="utf-8") and ":focus-visible" in HOME.read_text(encoding="utf-8"),
     "logout action moved from home to subscriber query": "onclick=\"logout()\" " not in HOME.read_text(encoding="utf-8"),
     "logout button is below subscriber refresh": HOME.read_text(encoding="utf-8").find("onclick=\"refreshStatus()\"") < HOME.read_text(encoding="utf-8").find("onclick=\"logout()\"") and "إنهاء جلسة الحساب" not in HOME.read_text(encoding="utf-8"),
     "minSdk 24": "minSdk = 24" in GRADLE,

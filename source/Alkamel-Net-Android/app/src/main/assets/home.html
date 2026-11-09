@@ -252,6 +252,39 @@
 .ads-image{position:relative!important;inset:auto!important;display:block;width:100%!important;height:auto!important;max-width:100%!important;max-height:82vh!important;object-fit:contain!important;margin:0 auto!important}
 .ads-image[hidden]{display:none!important}
 @media(max-width:480px){.ads-slider{padding:8px 6px!important;min-height:240px!important}.ads-image{width:100%!important;max-height:82vh!important}}
+/* Unified professional visual system for every application section */
+:root{--surface:#10243d;--surface-raised:#142d49;--surface-soft:#0a1b30;--accent:#29c6e8;--accent-2:#24d2a0;--text-main:#f4f8ff;--text-muted:#a6b8cc;--stroke:#8fb5d51f;--shadow:0 14px 34px #0004}
+html{scroll-behavior:smooth;-webkit-tap-highlight-color:transparent}
+body{color:var(--text-main);font-family:Tajawal,system-ui,sans-serif;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+.wrap{width:min(100%,820px);padding:clamp(14px,3.5vw,26px) clamp(12px,3vw,22px) 38px}
+.top{min-height:70px;margin:4px 2px 24px;gap:12px}
+.brand{gap:13px;min-width:0}.brand h1{font-size:clamp(23px,5vw,29px);letter-spacing:-.35px}.logo{width:54px;height:54px;flex:0 0 54px;box-shadow:0 0 0 5px #28c5e810,0 0 22px #28c5e822}
+.state{white-space:nowrap;padding:8px 13px;font-weight:700;border-color:#24d2a066}
+.intro{font-size:15px;line-height:1.8;margin-bottom:18px}
+.grid{gap:14px}
+.tile{position:relative;isolation:isolate;min-height:140px;padding:18px 16px;border:1px solid #9fc7e522;border-radius:23px;background:linear-gradient(145deg,#162f4c 0%,#10233d 58%,#0c1c32 100%);box-shadow:0 7px 20px #0002,inset 0 1px #ffffff0b;overflow:hidden}
+.tile:before{content:'';position:absolute;inset:0 0 auto;height:2px;background:linear-gradient(90deg,transparent,#42d4ed66,transparent);opacity:.75;z-index:-1}
+.tile:active{transform:translateY(1px) scale(.985);background:linear-gradient(145deg,#1a3a5b,#10243e)}
+.tile strong{font-size:clamp(16px,3.7vw,19px);line-height:1.45}.tile small{font-size:12px;line-height:1.6}
+.ico{width:46px;height:46px;border-radius:15px;background:linear-gradient(145deg,#28c5e82b,#28c5e80d);border:1px solid #28c5e81e;font-size:24px}
+.page{min-height:calc(100dvh - 130px)}
+.heading{font-size:clamp(21px,4.8vw,25px);line-height:1.5;margin:0 0 18px;font-weight:800;letter-spacing:-.2px}
+.back{min-height:42px;padding:9px 15px;border-radius:14px;background:linear-gradient(145deg,#ffffff12,#ffffff06);border-color:#a9c8e02b;font-size:14px}
+.panel{padding:clamp(15px,3.8vw,22px);border-radius:23px;border-color:#9fc7e526;background:linear-gradient(145deg,#142b47 0%,#10223b 58%,#0c1c32 100%);box-shadow:var(--shadow),inset 0 1px #ffffff0a}
+.row{gap:12px;padding:13px 0;border-color:#ffffff12}.key{font-size:14px;line-height:1.6}.val{font-size:16px;line-height:1.5}
+.btn{min-height:48px;padding:12px 17px;border-radius:15px;background:linear-gradient(110deg,#13bad5,#087fc4);box-shadow:0 7px 18px #087fc42a;font-size:15px;letter-spacing:.05px}
+.btn.secondary{background:linear-gradient(145deg,#1b3c5c,#142e49);box-shadow:none;border-color:#38c5e844;color:#d8f6ff}
+.btn:disabled,.option:disabled{opacity:.48;filter:saturate(.5);box-shadow:none}
+.select,input,select,textarea{font:inherit;outline:none}.select{min-height:46px;border-color:#42c7e866;background:#091a2e;border-radius:14px}
+.select:focus,input:focus,select:focus,textarea:focus{border-color:#45d8f2!important;box-shadow:0 0 0 3px #28c5e822!important}
+.option{min-height:50px;border-color:#a6c5e026;background:linear-gradient(145deg,#ffffff0d,#ffffff05);border-radius:15px}
+.kv{border-color:#a6c5e022;background:linear-gradient(145deg,#0b2038,#0a192c);border-radius:17px;padding:14px}.kv small{font-size:12px}.kv b{font-size:16px;line-height:1.5}
+.foot{font-size:12px;line-height:1.8;margin-top:30px;padding-bottom:10px}
+:where(button,a,input,select,textarea,[role=button]):focus-visible{outline:2px solid #57d9f2;outline-offset:3px}button{cursor:pointer;touch-action:manipulation}
+@media(hover:hover){.tile:hover,.option:hover{border-color:#45cce866;box-shadow:0 10px 26px #0003,0 0 0 1px #28c5e812}.btn:hover{filter:brightness(1.08)}}
+@media(max-width:420px){.grid{gap:11px}.tile{min-height:132px;padding:15px 13px;border-radius:20px}.tile strong{font-size:16px}.panel{border-radius:20px}.row{padding:11px 0}.key{font-size:12px}.val{font-size:14px}.btn{min-height:46px}}
+@media(min-width:700px){.grid{gap:16px}.tile{min-height:158px;padding:21px}.panel{padding:24px}.wrap{padding-top:26px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.tile,.btn,.option{transition:none!important}}
 </style></head><body><main class="wrap">
 <header class="top"><div class="brand"><div class="logo">⌁</div><div><h1>الكامل-نت</h1><div class="sub">خدمات الشبكة في مكان واحد</div></div></div><div class="state" id="connection">● جارٍ التحقق</div></header>
 <section id="home" class="page active"><p class="intro">اختر القسم الذي تريد استخدامه</p><div class="grid">
@@ -279,14 +312,14 @@
 <footer class="foot">الكامل-نت · خدمات شبكة الكامل</footer></main>
 <script>
 const $=id=>document.getElementById(id);let lastData=null;
-function showPage(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(id).classList.add('active');if(id==='query')refreshStatus();if(id==='speed')renderSpeeds();if(id==='ads')loadAds();}
+function showPage(id){const target=$(id);if(!target||!target.classList.contains('page'))return;document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));target.classList.add('active');if(id==='query')refreshStatus();if(id==='speed')renderSpeeds();if(id==='ads')loadAds();}
 const internalServices={query:'http://k.com',rest1:'http://30.30.30.30:8096/web/index.html#!/home',rest2:'http://30.10.10.10/',live1:'http://30.30.30.30:8080/tv/',live2:'http://30.10.10.10:88/'};function go(url){if(window.AndroidBridge)AndroidBridge.openUrl(url);else location.href=url}function goService(key){if(internalServices[key])go(internalServices[key])}function logout(){if(window.AndroidBridge)AndroidBridge.logout()}function openHd(){if(window.AndroidBridge)AndroidBridge.openHd();else location.href='hd/index.html'}
 function player(pkg){const stream='http://10.10.10.10:8888/live/index.m3u8';if(window.AndroidBridge)AndroidBridge.externalPlayer(stream,pkg);else $('liveNotice').textContent='يتطلب فتح المشغل من تطبيق Android.'}
-function refreshStatus(){ $('queryNotice').textContent='جارٍ تحديث البيانات…';if(window.AndroidBridge){AndroidBridge.refresh();return}fetch('http://k.com/status?var=callBack').then(r=>r.json()).then(update).catch(()=>{$('queryNotice').textContent='تعذر الاتصال ببوابة الشبكة.'})}
+function refreshStatus(){const notice=$('queryNotice');if(notice)notice.textContent='جارٍ تحديث البيانات…';if(window.AndroidBridge){try{AndroidBridge.refresh();}catch(e){if(notice)notice.textContent='تعذر بدء تحديث البيانات.';}return}fetch('http://k.com/status?var=callBack',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(update).catch(()=>{if(notice)notice.textContent='تعذر الاتصال ببوابة الشبكة.';})}
 function bytes(v){let n=Number(v);if(!Number.isFinite(n)||n<0)return '—';if(n>=1073741824)return(n/1073741824).toFixed(2)+' جيجابايت';if(n>=1048576)return(n/1048576).toFixed(2)+' ميجابايت';if(n>=1024)return(n/1024).toFixed(1)+' كيلوبايت';return n+' بايت'}
 function duration(v){if(!v)return '—';return String(v).replace(/([0-9]+)d/g,'$1 يوم ').replace(/([0-9]+)h/g,'$1 ساعة ').replace(/([0-9]+)m/g,'$1 دقيقة ').replace(/([0-9]+)s/g,'$1 ثانية')}
 function maskCardNumber(raw){const value=String(raw??'').trim();if(!value||value==='—')return '—';return value.length>5?'*'.repeat(value.length-5)+value.slice(-5):value;}
-function update(d){lastData=d||{};let logged=['yes','true','1'].includes(String(d.logged_in).toLowerCase())||d.logged_in===true;$('connection').textContent=logged?'● متصل':'● غير متصل';$('username').textContent=maskCardNumber(d.username);$('status').textContent=logged?'متصل بنجاح':'غير متصل';$('spes').textContent=speedLabel(String(d.spes||'').split('|')[0]);const spesParts=String(d.spes||'').split('|');
+function update(d){if(!d||typeof d!=='object'||Array.isArray(d)){const n=$('queryNotice');if(n)n.textContent='وصلت بيانات غير صالحة من بوابة الشبكة.';return;}lastData=d;let logged=['yes','true','1'].includes(String(d.logged_in).toLowerCase())||d.logged_in===true;$('connection').textContent=logged?'● متصل':'● غير متصل';$('username').textContent=maskCardNumber(d.username);$('status').textContent=logged?'متصل بنجاح':'غير متصل';$('spes').textContent=speedLabel(String(d.spes||'').split('|')[0]);const spesParts=String(d.spes||'').split('|');
 $('currentSpeed').textContent=speedLabel(spesParts[0]);$('homeCurrentSpeed').textContent=speedLabel(spesParts[0]);
 if(spesParts.length>1){
  const enabled=spesParts[1]!=='*yes**';
