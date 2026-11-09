@@ -17,6 +17,8 @@ import android.media.audiofx.AutomaticGainControl
 import android.media.audiofx.NoiseSuppressor
 import android.media.AudioAttributes
 import android.net.wifi.WifiManager
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -385,8 +387,16 @@ class MainActivity : Activity() {
                 multicastLock = wifi.createMulticastLock("AlkamelNetVoice").apply { setReferenceCounted(false); acquire() }
                 // Select the active Wi-Fi interface explicitly; Android may otherwise
                 // attach multicast traffic to a mobile/virtual interface.
-                val wifiInterface = NetworkInterface.getNetworkInterfaces().toList()
-                    .firstOrNull { it.isUp && !it.isLoopback && (it.name.startsWith("wlan") || it.name.startsWith("wifi")) }
+                val connectivity = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+                val activeNetwork = connectivity.activeNetwork
+                val activeCapabilities = activeNetwork?.let { connectivity.getNetworkCapabilities(it) }
+                val activeInterfaceName = if (activeCapabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true) {
+                    activeNetwork?.let { connectivity.getLinkProperties(it)?.interfaceName }
+                } else null
+                val wifiInterface = activeInterfaceName?.let { runCatching { NetworkInterface.getByName(it) }.getOrNull() }
+                    ?.takeIf { it.isUp && !it.isLoopback }
+                    ?: NetworkInterface.getNetworkInterfaces().toList()
+                        .firstOrNull { it.isUp && !it.isLoopback && (it.name.startsWith("wlan") || it.name.startsWith("wifi")) }
                     ?: throw IllegalStateException("لم يتم العثور على واجهة Wi-Fi نشطة")
                 val socket = java.net.MulticastSocket(null).apply {
                     reuseAddress = true
@@ -426,14 +436,19 @@ class MainActivity : Activity() {
                 }
                 val activeRecorder = recorder
                 val activePlayer = player
+                // Audio effects are optional and vary by device/vendor. A failure
+                // to create one must never prevent the voice room from starting.
                 if (AcousticEchoCanceler.isAvailable()) {
-                    echoCanceler = AcousticEchoCanceler.create(activeRecorder.audioSessionId)?.apply { enabled = true }
+                    echoCanceler = runCatching { AcousticEchoCanceler.create(activeRecorder.audioSessionId)?.apply { enabled = true } }
+                        .onFailure { Log.w("AlkamelNet", "Echo cancellation unavailable", it) }.getOrNull()
                 }
                 if (NoiseSuppressor.isAvailable()) {
-                    noiseSuppressor = NoiseSuppressor.create(activeRecorder.audioSessionId)?.apply { enabled = true }
+                    noiseSuppressor = runCatching { NoiseSuppressor.create(activeRecorder.audioSessionId)?.apply { enabled = true } }
+                        .onFailure { Log.w("AlkamelNet", "Noise suppression unavailable", it) }.getOrNull()
                 }
                 if (AutomaticGainControl.isAvailable()) {
-                    automaticGain = AutomaticGainControl.create(activeRecorder.audioSessionId)?.apply { enabled = true }
+                    automaticGain = runCatching { AutomaticGainControl.create(activeRecorder.audioSessionId)?.apply { enabled = true } }
+                        .onFailure { Log.w("AlkamelNet", "Automatic gain control unavailable", it) }.getOrNull()
                 }
                 activeRecorder.startRecording()
                 activePlayer.setVolume(1.0f)
