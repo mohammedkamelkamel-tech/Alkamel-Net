@@ -417,6 +417,14 @@ function loadAds(force){
    const candidates=Array.from({length:count},(_,i)=>ADS_BASE+'img/'+(i+1)+'.jpg');
    Promise.all(candidates.map(url=>new Promise(resolve=>{const test=new Image();test.onload=()=>resolve(url);test.onerror=()=>resolve(null);test.src=url+'?v='+Date.now();}))).then(checks=>{
     adsImages=checks.filter(Boolean);adsIndex=0;adsLoaded=true;
+    try{
+     const key='alkamel_ads_seen_v1',current=adsImages.slice().sort(),previous=JSON.parse(localStorage.getItem(key)||'null');
+     if(Array.isArray(previous)){
+      const added=current.filter(url=>!previous.includes(url)).length;
+      if(added>0&&window.AndroidBridge&&typeof AndroidBridge.onAdsUpdated==='function')AndroidBridge.onAdsUpdated(added);
+     }
+     localStorage.setItem(key,JSON.stringify(current));
+    }catch(e){console.warn('Unable to compare advertisement updates',e);}
     if(loading)loading.hidden=true;
     if(!adsImages.length)throw new Error('empty');
     renderAds();startAdsTimer();
