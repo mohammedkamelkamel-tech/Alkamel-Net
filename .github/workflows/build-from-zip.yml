@@ -44,7 +44,11 @@ jobs:
           echo "HTML and JS assets:"
           find "$PROJECT_DIR/app/src/main/assets" -type f | sort
           echo "Relevant source matches:"
-          grep -RniE 'البث المباشر|بث HD|سرعة الكرت|تحديثات جوجل|استراحة|استراحه|اعتماد السرعة|سرعة حالية|1536k|4096k|تم تحديث بيانات الحساب|اسم المشترك' "$PROJECT_DIR/app/src/main/assets" --include='*.html' --include='*.js' | head -300 || true
+          grep -RniE 'البث المباشر|بث HD|سرعة الكرت|تحديثات جوجل|استراحة|استراحه|اعتماد السرعة|سرعة حالية|1536k|4096k|تم تحديث بيانات الحساب|اسم المشترك|m3u8|\.mp4|stream|live|tv\.html|openHd|applySelectedSpeed|speedOptions|function player' "$PROJECT_DIR/app/src/main/assets" --include='*.html' --include='*.js' | head -450 || true
+          echo "Wrapper JavaScript lines 23-42:"
+          sed -n '23,42p' "$PROJECT_DIR/app/src/main/assets/home.html"
+          echo "Portal live controls:"
+          sed -n '35,55p' "$PROJECT_DIR/app/src/main/assets/original/index.html"
       - name: Apply requested portal UI fixes
         shell: bash
         run: |
