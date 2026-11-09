@@ -36,6 +36,7 @@ checks = {
     "private decisions are matched to original request": "outgoing.peerId!==packet.id" in HOME.read_text(encoding="utf-8") and "requestId" in HOME.read_text(encoding="utf-8"),
     "separate chat lobby and room": 'id="chat"' in HOME.read_text(encoding="utf-8") and 'id="chatRoom"' in HOME.read_text(encoding="utf-8") and "appendChatMessage" in HOME.read_text(encoding="utf-8"),
     "message duplicate protection": "messageId" in KOTLIN.read_text(encoding="utf-8") and "seenChatMessageIds" in HOME.read_text(encoding="utf-8"),
+    "group chat sender and message inline at 70 percent font size": "#chatRoom .chat-meta{display:contents!important}" in HOME.read_text(encoding="utf-8") and "font-size:7.7px!important" in HOME.read_text(encoding="utf-8") and "font-size:10.5px!important" in HOME.read_text(encoding="utf-8"),
     "chat sender highlighting": "chat-name" in HOME.read_text(encoding="utf-8") and ".chat-message.mine" in HOME.read_text(encoding="utf-8"),
     "voice controls": "joinVoiceRoom" in HOME.read_text(encoding="utf-8") and "toggleVoiceMute" in HOME.read_text(encoding="utf-8"),
     "background chat service": (APP / "java/com/alkamel/network/ChatKeepAliveService.kt").is_file() and ".ChatKeepAliveService" in MANIFEST,
