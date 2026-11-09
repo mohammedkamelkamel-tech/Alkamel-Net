@@ -21,7 +21,7 @@ checks = {
     "new شبكة الكامل header and approved icon": '<h1>شبكة الكامل</h1>' in HOME.read_text(encoding="utf-8") and 'src="brand-icon.webp"' in HOME.read_text(encoding="utf-8"),
     "technical support section exists": 'id="support"' in HOME.read_text(encoding="utf-8") and "الدعم الفني" in HOME.read_text(encoding="utf-8"),
     "rest lounges are adjacent grid tiles": 'class="tile tile-rest1"' in HOME.read_text(encoding="utf-8") and 'class="tile tile-rest2"' in HOME.read_text(encoding="utf-8") and '<div class="tile-row">' not in HOME.read_text(encoding="utf-8"),
-    "icon palette theme classes": all(x in HOME.read_text(encoding="utf-8") for x in ("--tile-ads","--tile-query","--tile-speed","--tile-google","--tile-live","--tile-support","--tile-rest1","--tile-rest2","--tile-chat")),
+    "icon palette theme classes": all(x in HOME.read_text(encoding="utf-8") for x in (".tile-ads",".tile-query",".tile-speed",".tile-google",".tile-live",".tile-support",".tile-rest1",".tile-rest2",".tile-chat")),
     "logout action moved from home to subscriber query": "onclick=\"logout()\" " not in HOME.read_text(encoding="utf-8"),
     "logout button is below subscriber refresh": HOME.read_text(encoding="utf-8").find("onclick=\"refreshStatus()\"") < HOME.read_text(encoding="utf-8").find("onclick=\"logout()\"") and "إنهاء جلسة الحساب" not in HOME.read_text(encoding="utf-8"),
     "minSdk 24": "minSdk = 24" in GRADLE,
