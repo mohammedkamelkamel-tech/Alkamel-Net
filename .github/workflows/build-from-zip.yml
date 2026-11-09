@@ -70,41 +70,52 @@ jobs:
                       print(f'\nSOURCE {p.relative_to(root)} TERM {term}: {s[a:b]}')
                       start=i+len(term); hits+=1
           PY
-      - name: Apply requested portal UI fixes
+      - name: Apply and verify portal UI fixes
         shell: bash
         run: |
-          set -euxo pipefail
-          python3 - "$PROJECT_DIR/app/src/main/assets/home.html" <<'PY'
-          import pathlib, re, sys
-          p=pathlib.Path(sys.argv[1]); s=p.read_text(encoding='utf-8')
-          # Move HD into the live-broadcast page and expose both live stream entries.
-          s=s.replace('<button class="tile" onclick="showPage(\'hd\')"><div class="ico">HD</div><div><strong>بث HD</strong><br><small>مشاهدة عبر المشغل المدمج</small></div></button>','')
-          s=s.replace('<section id="live" class="page"><button class="back" onclick="showPage(\'home\')">→ الرئيسية</button><h2 class="heading">البث المباشر</h2><div class="panel"><p class="key">اختر المشغل الذي تريد فتح البث من خلاله</p><button class="btn" onclick="player(\'org.videolan.vlc\')">فتح عبر VLC</button><button class="btn secondary" onclick="player(\'com.mxtech.videoplayer.ad\')">فتح عبر MX Player</button><div class="notice" id="liveNotice"></div></div></section>', '<section id="live" class="page"><button class="back" onclick="showPage(\'home\')">→ الرئيسية</button><h2 class="heading">البث المباشر</h2><div class="panel"><p class="key">اختر البث المطلوب</p><button class="btn" onclick="player(\'org.videolan.vlc\')">البث المباشر 1</button><button class="btn secondary" onclick="player(\'com.mxtech.videoplayer.ad\')">البث المباشر 2</button><button class="btn" onclick="openHd()">بث HD</button><div class="notice" id="liveNotice"></div></div></section>')
-          # Make the two lounge tiles occupy one row.
-          s=s.replace('<button class="tile" onclick="go(\'http://30.30.30.30:8096/web/index.html#!/home\')">','<div class="tile-row"><button class="tile" onclick="go(\'http://30.30.30.30:8096/web/index.html#!/home\')">').replace('<button class="tile" onclick="go(\'http://30.10.10.10/\')">','<button class="tile" onclick="go(\'http://30.10.10.10/\')">')
-          # Close paired tile row after second lounge tile.
-          s=s.replace('خدمات الاستراحة</small></div></button>','خدمات الاستراحة</small></div></button>',1)
-          s=s.replace('خدمات الاستراحة</small></div></button>','خدمات الاستراحة</small></div></button></div>',1) if 'tile-row' in s else s
-          # Subscriber label and masked card number (show first five digits only).
-          s=s.replace('اسم المشترك</span>','رقم الكرت</span>')
-          s=s.replace("$('username').textContent=d.username||'—';", "$('username').textContent=(d.username||'—').toString().replace(/^(\\d{5})\\d+$/, '$1'+'**');")
-          # Remove time from successful refresh message.
-          s=s.replace("'تم تحديث بيانات الحساب من بوابة الشبكة: '+new Date().toLocaleTimeString('ar')", "'تم تحديث بيانات الحساب من بوابة الشبكة'")
-          # Current speed and Google status summaries on home tiles.
-          s=s.replace('السرعات المتاحة في الشبكة</small>','<span id="homeCurrentSpeed">السرعة الحالية</span></small>')
-          s=s.replace('حالة الخدمة</small>','<span id="homeGoogleStatus">حالة الخدمة</span></small>')
-          # Show display labels, not raw bandwidth values, in options.
-          s=s.replace("opt.textContent=item.value||item.name||item.label||'';", "opt.textContent=item.name||item.label||item.title||('الخيار '+(i+1));")
-          # Selection confirmation without a separate apply button.
-          s=s.replace("$('applySpeed').disabled=false;", "$('applySpeed').disabled=false; $('applySpeed').textContent='تم اختيار: '+(item.name||item.label||item.title||'السرعة المختارة');")
-          s=s.replace("$('applySpeed').textContent='اعتماد السرعة المختارة';", "$('applySpeed').textContent='تم اختيار السرعة';")
-          p.write_text(s,encoding='utf-8')
-          print('Applied requested UI edits to',p)
+          set -euo pipefail
+          python3 - "$PROJECT_DIR/app/src/main/assets/home.html" "$PROJECT_DIR/app/src/main/assets/original/config.js" <<'PY'
+          import pathlib,re,sys
+          hp,cp=map(pathlib.Path,sys.argv[1:])
+          s=hp.read_text(encoding="utf-8")
+          cfg=cp.read_text(encoding="utf-8")
+          # Read the actual named speed options from the shipped site config at runtime.
+          # Keep the original HD page and its openHd() implementation completely untouched.
+          old_speed='<section id="speed" class="page"><button class="back" onclick="showPage(\\'home\\')">→ الرئيسية</button><h2 class="heading">سرعة الكرت الحالية</h2><div class="panel"><div class="key">السرعة الحالية</div><div class="val" id="currentSpeed">يتم جلبها من بيانات الحساب…</div><div class="key" style="margin-top:18px">السرعات المعرفة في ملف إعدادات الموقع</div><div id="speedOptions"></div><button class="btn" id="applySpeed" onclick="applySelectedSpeed()" disabled>اعتماد السرعة المختارة</button><div class="notice" id="speedNotice">اختر السرعة ثم اعتمدها. سيتم تمرير الاختيار إلى دالة الموقع الأصلية.</div></div></section>'
+          new_speed='<section id="speed" class="page"><button class="back" onclick="showPage(\\'home\\')">→ الرئيسية</button><h2 class="heading">سرعة الكرت الحالية</h2><div class="panel"><div class="key">السرعة الحالية</div><div class="val" id="currentSpeed">يتم جلبها من بيانات الحساب…</div><div class="key" style="margin-top:18px">اختر السرعة المطلوبة</div><div id="speedOptions"></div><div class="notice" id="speedNotice">اختر السرعة وسيتم تطبيقها مباشرة.</div></div></section>'
+          if old_speed not in s: raise SystemExit("FAIL: exact speed section was not found; refusing to build")
+          s=s.replace(old_speed,new_speed,1)
+          # Show the two configured live service addresses, without routing them through one shared stream.
+          old_live='<section id="live" class="page"><button class="back" onclick="showPage(\\'home\\')">→ الرئيسية</button><h2 class="heading">البث المباشر</h2><div class="panel"><p class="key">اختر المشغل الذي تريد فتح البث من خلاله</p><button class="btn" onclick="player(\\'org.videolan.vlc\\')">فتح عبر VLC</button><button class="btn secondary" onclick="player(\\'com.mxtech.videoplayer.ad\\')">فتح عبر MX Player</button><div class="notice" id="liveNotice"></div></div></section>'
+          new_live='<section id="live" class="page"><button class="back" onclick="showPage(\\'home\\')">→ الرئيسية</button><h2 class="heading">البث المباشر</h2><div class="panel"><p class="key">اختر البث المطلوب</p><button class="btn" onclick="goService(\\'live1\\')">البث المباشر 1</button><button class="btn secondary" onclick="goService(\\'live2\\')">البث المباشر 2</button><div class="notice" id="liveNotice"></div></div></section>'
+          if old_live not in s: raise SystemExit("FAIL: exact live section was not found; refusing to build")
+          s=s.replace(old_live,new_live,1)
+          # Remove raw speed values from the option cards and apply the selected value immediately.
+          a=s.index('function fillSpeeds(){')
+          b=s.index('function applySelectedSpeed(){',a)
+          c=s.index('}',b)+1
+          fill='''function fillSpeeds(){let list=(siteConfig&&siteConfig.speedOptions)||[];$('speedOptions').innerHTML='';list.forEach(o=>{let e=document.createElement('button');e.type='button';e.className='option';e.style.width='100%';e.style.color='inherit';e.style.font='inherit';e.style.textAlign='right';let t=document.createElement('span');t.textContent=o.label+(o.selected?' · الافتراضية':'');e.append(t);e.onclick=()=>{selectedSpeed=o.value;$('speedNotice').textContent='جارٍ تطبيق '+o.label+'…';if(window.AndroidBridge){AndroidBridge.applyNetworkSetting(o.value,(lastData&&lastData.spes&&String(lastData.spes).includes('|'))?String(lastData.spes).split('|')[1]:'*no**');}else{$('speedNotice').textContent='يتطلب تطبيق السرعة من تطبيق Android.';}};$('speedOptions').appendChild(e)})}'''
+          s=s[:a]+fill+s[c:]
+          # Current speed name in status and home tile; resolve raw bandwidth value against config entries.
+          marker='let siteConfig=null,selectedSpeed=null;'
+          if marker not in s: raise SystemExit("FAIL: speed state marker missing")
+          s=s.replace(marker,marker+'''function speedLabel(raw){let v=String(raw||'').split('|')[0];let opts=(siteConfig&&siteConfig.speedOptions)||[];let found=opts.find(x=>String(x.value)===v);return found?found.label:(v||'غير محددة')}''',1)
+          s=s.replace("$('currentSpeed').textContent=d.spes||'—';","$('currentSpeed').textContent=speedLabel(d.spes);$('homeCurrentSpeed').textContent=speedLabel(d.spes);")
+          s=s.replace('السرعات المتاحة في الشبكة</small>','<span id="homeCurrentSpeed" class="speed-blink">يتم جلب السرعة…</span></small>')
+          if 'homeCurrentSpeed' not in s: raise SystemExit("FAIL: home speed indicator missing")
+          s=s.replace("function renderSpeeds(){if(siteConfig){fillSpeeds();return}","function renderSpeeds(){if(siteConfig){fillSpeeds();return}")
+          # Keep the actual HD tile, page and functions unchanged.
+          hp.write_text(s,encoding="utf-8")
+          print("Patched exact speed and live sections; HD untouched.")
           PY
-          # Verify critical requested text and elements exist before building.
-          grep -q 'رقم الكرت' "$PROJECT_DIR/app/src/main/assets/home.html"
+          # Hard gates: do not publish an APK if requested UI changes did not land.
+          ! grep -q 'اعتماد السرعة المختارة' "$PROJECT_DIR/app/src/main/assets/home.html"
           grep -q 'البث المباشر 1' "$PROJECT_DIR/app/src/main/assets/home.html"
           grep -q 'البث المباشر 2' "$PROJECT_DIR/app/src/main/assets/home.html"
+          grep -q 'AndroidBridge.applyNetworkSetting(o.value' "$PROJECT_DIR/app/src/main/assets/home.html"
+          ! grep -q 'v.textContent=o.value' "$PROJECT_DIR/app/src/main/assets/home.html"
+          grep -q 'function openHd()' "$PROJECT_DIR/app/src/main/assets/home.html"
+          grep -q 'function speedLabel(raw)' "$PROJECT_DIR/app/src/main/assets/home.html"
       - name: Set unique application package ID
         shell: bash
         run: |
