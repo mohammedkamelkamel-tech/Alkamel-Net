@@ -108,7 +108,7 @@ jobs:
           s,n=re.subn(r'(?m)^(\s*versionName\s*=\s*)"[^"]+"',r'\g<1>"1.5.8"',s)
           if n!=1: raise SystemExit(f"Expected one versionName, found {n}")
           p.write_text(s)
-          print("Application ID and version set to 1.5.8 (42)")
+          print("Application ID and version set to 1.5.9 (43)")
           PY
       - uses: actions/setup-java@v4
         with:
