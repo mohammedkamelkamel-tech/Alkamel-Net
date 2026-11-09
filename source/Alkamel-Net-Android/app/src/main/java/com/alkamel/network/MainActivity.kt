@@ -51,6 +51,7 @@ class MainActivity : Activity() {
     }
     private val refreshInProgress = AtomicBoolean(false)
     private var localFallbackAttempted = false
+    private var pendingPageAfterHome: String? = null
     private val allowedHosts = setOf("k.com", "30.30.30.30", "30.10.10.10", "10.10.10.10")
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -137,6 +138,11 @@ class MainActivity : Activity() {
                     showLoading(false)
                     Log.i("AlkamelNet", "Page finished: $url")
                     if (url == homeUrl) {
+                        val returnPage = pendingPageAfterHome
+                        pendingPageAfterHome = null
+                        if (returnPage == "live") {
+                            view?.evaluateJavascript("if(typeof showPage==='function')showPage('live');", null)
+                        }
                         view?.evaluateJavascript("document.documentElement && document.body ? document.body.innerText.length : 0") { value ->
                             val hasContent = value != null && value != "null" && value != "0" && value != "\"\""
                             if (!hasContent) loadHomeFallback("الصفحة الرئيسية فارغة")
@@ -352,12 +358,14 @@ class MainActivity : Activity() {
         fun openUrl(url: String) {
             runOnUiThread {
                 val uri = runCatching { Uri.parse(url) }.getOrNull() ?: return@runOnUiThread
-                if (uri.scheme == "http" && uri.host in allowedHosts) web.loadUrl(url)
-                else Toast.makeText(this@MainActivity, "الرابط غير مسموح به داخل التطبيق", Toast.LENGTH_SHORT).show()
+                if (uri.scheme == "http" && uri.host in allowedHosts) {
+                    pendingPageAfterHome = if (url.startsWith("http://30.30.30.30:8080/tv/") || url.startsWith("http://30.10.10.10:88/")) "live" else null
+                    web.loadUrl(url)
+                } else Toast.makeText(this@MainActivity, "الرابط غير مسموح به داخل التطبيق", Toast.LENGTH_SHORT).show()
             }
         }
 
-        @JavascriptInterface fun openHd() { runOnUiThread { web.loadUrl("https://appassets.androidplatform.net/assets/hd/index.html") } }
+        @JavascriptInterface fun openHd() { runOnUiThread { pendingPageAfterHome = "live"; web.loadUrl("https://appassets.androidplatform.net/assets/hd/index.html") } }
         @JavascriptInterface fun home() { runOnUiThread { if (web.url != homeUrl) loadHome() } }
 
         @JavascriptInterface
@@ -473,10 +481,14 @@ class MainActivity : Activity() {
             super.onBackPressed()
             return
         }
-        // Never walk backward through previously opened TV streams or remote pages.
-        // A single Back action returns the user to the app's main menu.
         val currentUrl = web.url.orEmpty()
-        if (currentUrl.startsWith(homeUrl) || currentUrl.startsWith("data:")) {
+        val isLivePlayer = currentUrl.startsWith("http://30.30.30.30:8080/tv/") ||
+            currentUrl.startsWith("http://30.10.10.10:88/") ||
+            currentUrl.startsWith("https://appassets.androidplatform.net/assets/hd/")
+        if (isLivePlayer) {
+            pendingPageAfterHome = "live"
+            loadHome()
+        } else if (currentUrl.startsWith(homeUrl) || currentUrl.startsWith("data:")) {
             web.evaluateJavascript(
                 "if(typeof window.appBack==='function'){window.appBack();'handled';}else{'reload';}"
             ) { result ->
