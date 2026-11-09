@@ -227,6 +227,12 @@
 #chatRoom .chat-bottom-dock .dock-btn:not(:disabled):active{transform:scale(.92)!important;filter:brightness(1.15)}
 #chatRoom .chat-bottom-dock .dock-btn:focus-visible{outline:2px solid #70e4f5!important;outline-offset:3px}
 @media(max-width:380px){#chatRoom .chat-bottom-dock{grid-template-columns:minmax(0,1fr) 40px 40px 40px!important;gap:6px!important;padding:7px!important}#chatRoom .chat-bottom-dock .dock-btn{width:40px!important;height:40px!important;min-width:40px!important;min-height:40px!important;border-radius:12px!important}#chatRoom .chat-bottom-dock .dock-btn svg{width:19px!important;height:19px!important}}
+/* 1.4.7: compact horizontal chat dock */
+#chatRoom .chat-bottom-dock{display:flex!important;flex-direction:row!important;align-items:center!important;gap:6px!important;padding:8px 9px!important;width:100%!important;direction:rtl!important}
+#chatRoom .chat-bottom-dock .select{flex:1 1 auto!important;width:auto!important;min-width:0!important;margin:0!important;height:42px!important;min-height:42px!important;padding:9px 12px!important;font-size:12px!important;border-radius:22px!important}
+#chatRoom .chat-bottom-dock .dock-btn{flex:0 0 38px!important;width:38px!important;height:38px!important;min-width:38px!important;min-height:38px!important;border-radius:12px!important;margin:0!important}
+#chatRoom .chat-bottom-dock .dock-btn svg{width:18px!important;height:18px!important}
+@media(max-width:380px){#chatRoom .chat-bottom-dock{gap:5px!important;padding:7px!important}#chatRoom .chat-bottom-dock .select{height:39px!important;min-height:39px!important;padding:8px 10px!important;font-size:11px!important}#chatRoom .chat-bottom-dock .dock-btn{flex-basis:35px!important;width:35px!important;height:35px!important;min-width:35px!important;min-height:35px!important;border-radius:10px!important}#chatRoom .chat-bottom-dock .dock-btn svg{width:17px!important;height:17px!important}}
 </style></head><body><main class="wrap">
 <header class="top"><div class="brand"><div class="logo">⌁</div><div><h1>الكامل-نت</h1><div class="sub">خدمات الشبكة في مكان واحد</div></div></div><div class="state" id="connection">● جارٍ التحقق</div></header>
 <section id="home" class="page active"><p class="intro">اختر القسم الذي تريد استخدامه</p><div class="grid">
