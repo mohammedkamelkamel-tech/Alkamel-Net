@@ -87,7 +87,7 @@ class ChatKeepAliveService : Service() {
             }
             val notification = builder.setSmallIcon(android.R.drawable.stat_notify_chat)
                 .setContentTitle("إعلان جديد في شبكة الكامل")
-                .setContentText("تمت إضافة \${count - previous} صورة جديدة إلى قسم الإعلانات والعروض.")
+                .setContentText("تمت إضافة ${count - previous} صورة جديدة إلى قسم الإعلانات والعروض.")
                 .setAutoCancel(true).setContentIntent(openApp).build()
             getSystemService(NotificationManager::class.java).notify(ADS_NOTIFICATION_ID, notification)
         }
