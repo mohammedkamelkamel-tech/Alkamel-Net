@@ -49,6 +49,27 @@ jobs:
           sed -n '23,42p' "$PROJECT_DIR/app/src/main/assets/home.html"
           echo "Portal live controls:"
           sed -n '35,55p' "$PROJECT_DIR/app/src/main/assets/original/index.html"
+      - name: Inspect stream URLs and speed handlers
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - "$PROJECT_DIR/app/src/main/assets" <<'PY'
+          import pathlib,sys,re
+          root=pathlib.Path(sys.argv[1])
+          terms=('m3u8','live','stream','player(','openHd','speed','applySelectedSpeed','onchange','syy','changeSpeed','setSpeed')
+          for p in root.rglob('*'):
+              if not p.is_file() or p.suffix.lower() not in ('.html','.js','.json'): continue
+              try: s=p.read_text(encoding='utf-8',errors='ignore')
+              except Exception: continue
+              for term in terms:
+                  start=0; hits=0
+                  while hits<4:
+                      i=s.lower().find(term.lower(),start)
+                      if i<0: break
+                      a=max(0,i-180); b=min(len(s),i+320)
+                      print(f'\nSOURCE {p.relative_to(root)} TERM {term}: {s[a:b]}')
+                      start=i+len(term); hits+=1
+          PY
       - name: Apply requested portal UI fixes
         shell: bash
         run: |
