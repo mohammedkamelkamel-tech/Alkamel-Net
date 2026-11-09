@@ -23,6 +23,9 @@ checks = {
     "native activity": KOTLIN.is_file() and "class MainActivity" in KOTLIN.read_text(encoding="utf-8"),
     "LAN chat bridge": "startLanChat" in KOTLIN.read_text(encoding="utf-8") and "sendLanPacket" in KOTLIN.read_text(encoding="utf-8"),
     "chat page": 'id="chat"' in HOME.read_text(encoding="utf-8") and "onLanChatPacket" in HOME.read_text(encoding="utf-8"),
+    "voice controls": "joinVoiceRoom" in HOME.read_text(encoding="utf-8") and "toggleVoiceMute" in HOME.read_text(encoding="utf-8"),
+    "microphone permission": "android.permission.RECORD_AUDIO" in MANIFEST,
+    "multicast permission": "android.permission.CHANGE_WIFI_MULTICAST_STATE" in MANIFEST,
     "cleartext enabled for private HTTP services": 'android:usesCleartextTraffic="true"' in MANIFEST,
 }
 for label, passed in checks.items():
