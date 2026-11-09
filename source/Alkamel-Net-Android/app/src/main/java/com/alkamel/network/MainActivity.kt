@@ -505,7 +505,7 @@ class MainActivity : Activity() {
                             val count = packet.offset + packet.length - start
                             if (count > 0) {
                                 activePlayer.write(incoming, start, count)
-                                runOnUiThread { if (!isFinishing) web.evaluateJavascript("window.onVoiceActivity&&window.onVoiceActivity(\${JSONObject.quote(sender)});", null) }
+                                runOnUiThread { if (!isFinishing) web.evaluateJavascript("window.onVoiceActivity&&window.onVoiceActivity(${JSONObject.quote(sender)});", null) }
                             }
                         } catch (_: SocketTimeoutException) { }
                         catch (e: Exception) { if (voiceRunning.get()) Log.w("AlkamelNet", "Voice receive failed", e) }
@@ -556,7 +556,7 @@ class MainActivity : Activity() {
                     val now = System.currentTimeMillis()
                     if (now - lastUi > 300) {
                         val state = if (voiceMuted.get()) "muted" else if (speaking) "speaking" else "joined"
-                        runOnUiThread { if (!isFinishing) web.evaluateJavascript("window.onVoiceState&&window.onVoiceState(\${JSONObject.quote(state)},'');", null) }
+                        runOnUiThread { if (!isFinishing) web.evaluateJavascript("window.onVoiceState&&window.onVoiceState(${JSONObject.quote(state)},'');", null) }
                         lastUi = now
                     }
                 }
@@ -591,7 +591,7 @@ class MainActivity : Activity() {
         voiceMuted.set(muted)
         if (voiceRunning.get()) {
             val state = if (muted) "muted" else "joined"
-            runOnUiThread { web.evaluateJavascript("window.onVoiceState&&window.onVoiceState(\${JSONObject.quote(state)},'');", null) }
+            runOnUiThread { web.evaluateJavascript("window.onVoiceState&&window.onVoiceState(${JSONObject.quote(state)},'');", null) }
         }
     }
 
