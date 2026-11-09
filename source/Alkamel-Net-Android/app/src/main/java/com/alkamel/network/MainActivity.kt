@@ -356,13 +356,13 @@ class MainActivity : Activity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == voicePermissionRequest) {
             if (grantResults.isNotEmpty() && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) startVoiceRoom()
-                runOnUiThread { if (!isFinishing) web.evaluateJavascript("window.onVoiceState&&window.onVoiceState('error'," + JSONObject.quote(e.localizedMessage ?: "Voice room error") + ");", null) }
+                runOnUiThread { web.evaluateJavascript("window.onVoiceState&&window.onVoiceState('error','لم تسمح باستخدام الميكروفون');", null) }
         }
     }
 
     private fun startVoiceRoom() {
         if (!chatRunning.get()) {
-                runOnUiThread { if (!isFinishing) web.evaluateJavascript("window.onVoiceState&&window.onVoiceState('error'," + JSONObject.quote(e.localizedMessage ?: "Voice room error") + ");", null) }
+            web.evaluateJavascript("window.onVoiceState&&window.onVoiceState('error','ادخل الدردشة النصية أولاً');", null)
             return
         }
         if (!voiceRunning.compareAndSet(false, true)) return
