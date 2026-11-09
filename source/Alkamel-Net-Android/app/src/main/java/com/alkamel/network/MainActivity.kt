@@ -31,6 +31,10 @@ import androidx.webkit.WebViewAssetLoader
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.DatagramPacket
+import java.net.DatagramSocket
+import java.net.InetAddress
+import java.net.SocketTimeoutException
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -50,6 +54,11 @@ class MainActivity : Activity() {
             .build()
     }
     private val refreshInProgress = AtomicBoolean(false)
+    private val chatRunning = AtomicBoolean(false)
+    @Volatile private var chatSocket: DatagramSocket? = null
+    @Volatile private var chatNickname = ""
+    private val chatId = java.util.UUID.randomUUID().toString()
+    private val chatExecutor = Executors.newSingleThreadExecutor()
     private var localFallbackAttempted = false
     private var pendingPageAfterHome: String? = null
     private val allowedHosts = setOf("k.com", "30.30.30.30", "30.10.10.10", "10.10.10.10")
@@ -282,6 +291,42 @@ class MainActivity : Activity() {
         }
     }
 
+
+    private fun startLanChat(name: String) {
+        val clean = name.trim().take(24)
+        if (clean.isEmpty()) return
+        chatNickname = clean
+        if (!chatRunning.compareAndSet(false, true)) { sendLanPacket("presence", ""); return }
+        chatExecutor.execute {
+            try {
+                val socket = DatagramSocket(null).apply { reuseAddress = true; soTimeout = 1000; bind(java.net.InetSocketAddress(39127)) }
+                chatSocket = socket
+                var lastPresence = 0L
+                while (chatRunning.get()) {
+                    val now = System.currentTimeMillis()
+                    if (now - lastPresence >= 5000) { sendLanPacket("presence", ""); lastPresence = now }
+                    try {
+                        val buffer = ByteArray(4096); val packet = DatagramPacket(buffer, buffer.size); socket.receive(packet)
+                        val raw = String(packet.data, packet.offset, packet.length, Charsets.UTF_8)
+                        val obj = JSONObject(raw)
+                        if (obj.optString("id") != chatId && obj.optString("type") in setOf("presence", "message")) {
+                            runOnUiThread { if (::web.isInitialized && !isFinishing) web.evaluateJavascript("if(window.onLanChatPacket)window.onLanChatPacket(${JSONObject.quote(raw)});", null) }
+                        }
+                    } catch (_: SocketTimeoutException) { }
+                }
+            } catch (e: Exception) { Log.e("AlkamelNet", "LAN chat socket failed", e); chatRunning.set(false) }
+            finally { chatSocket?.close(); chatSocket = null }
+        }
+    }
+    private fun sendLanPacket(type: String, message: String) {
+        if (!chatRunning.get()) return
+        try {
+            val data = JSONObject().put("type", type).put("id", chatId).put("name", chatNickname).put("text", message).toString().toByteArray(Charsets.UTF_8)
+            DatagramSocket().use { sender -> sender.broadcast = true; sender.send(DatagramPacket(data, data.size, InetAddress.getByName("255.255.255.255"), 39127)) }
+        } catch (e: Exception) { Log.w("AlkamelNet", "LAN chat send failed", e) }
+    }
+    private fun stopLanChat() { chatRunning.set(false); chatSocket?.close(); chatSocket = null }
+
     private fun urlIsLocal(url: String?): Boolean = url?.startsWith("https://appassets.androidplatform.net/assets/") == true
 
     private fun loadHomeFallback(reason: String) {
@@ -354,6 +399,10 @@ class MainActivity : Activity() {
     }
 
     inner class Bridge {
+        @JavascriptInterface fun startChat(name: String) { startLanChat(name) }
+        @JavascriptInterface fun sendChatMessage(message: String) { if (message.length <= 1000) sendLanPacket("message", message.trim()) }
+        @JavascriptInterface fun stopChat() { stopLanChat() }
+
         @JavascriptInterface
         fun openUrl(url: String) {
             runOnUiThread {
@@ -513,7 +562,9 @@ class MainActivity : Activity() {
         }
         commandWeb?.apply { stopLoading(); loadUrl("about:blank"); destroy() }
         commandWeb = null
+        stopLanChat()
         io.shutdownNow()
+        chatExecutor.shutdownNow()
         super.onDestroy()
     }
 }

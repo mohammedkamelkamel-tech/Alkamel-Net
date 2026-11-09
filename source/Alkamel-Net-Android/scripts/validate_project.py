@@ -21,6 +21,8 @@ checks = {
     "home asset": HOME.is_file() and HOME.stat().st_size > 0,
     "HD asset": HD.is_file() and HD.stat().st_size > 0,
     "native activity": KOTLIN.is_file() and "class MainActivity" in KOTLIN.read_text(encoding="utf-8"),
+    "LAN chat bridge": "startLanChat" in KOTLIN.read_text(encoding="utf-8") and "sendLanPacket" in KOTLIN.read_text(encoding="utf-8"),
+    "chat page": 'id="chat"' in HOME.read_text(encoding="utf-8") and "onLanChatPacket" in HOME.read_text(encoding="utf-8"),
     "cleartext enabled for private HTTP services": 'android:usesCleartextTraffic="true"' in MANIFEST,
 }
 for label, passed in checks.items():
