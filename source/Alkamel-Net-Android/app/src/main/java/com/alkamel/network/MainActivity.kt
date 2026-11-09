@@ -319,6 +319,13 @@ class MainActivity : Activity() {
         val clean = name.trim().take(24)
         if (clean.isEmpty()) return
         chatNickname = clean
+        val keepAlive = Intent(this, ChatKeepAliveService::class.java).apply { action = ChatKeepAliveService.ACTION_START }
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(keepAlive) else startService(keepAlive)
+        } catch (e: Exception) {
+            Log.e("AlkamelNet", "Unable to start background chat service", e)
+            runOnUiThread { if (::web.isInitialized && !web.isDestroyed) web.evaluateJavascript("window.onChatServiceError&&window.onChatServiceError();", null) }
+        }
         if (!chatRunning.compareAndSet(false, true)) { sendLanPacket("presence", ""); return }
         chatExecutor.execute {
             try {
@@ -363,7 +370,12 @@ class MainActivity : Activity() {
             } catch (e: Exception) { Log.w("AlkamelNet", "LAN chat send failed", e) }
         }
     }
-    private fun stopLanChat() { chatRunning.set(false); chatSocket?.close(); chatSocket = null }
+    private fun stopLanChat() {
+        chatRunning.set(false)
+        chatSocket?.close()
+        chatSocket = null
+        runCatching { startService(Intent(this, ChatKeepAliveService::class.java).apply { action = ChatKeepAliveService.ACTION_STOP }) }
+    }
 
 
     private fun requestVoiceRoom() {
@@ -432,13 +444,19 @@ class MainActivity : Activity() {
                 if (minIn <= 0 || minOut <= 0) throw IllegalStateException("Audio device unavailable")
                 val frame = 640
                 recorder = AudioRecord.Builder()
-                    .setAudioSource(MediaRecorder.AudioSource.MIC)
+                    .setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
                     .setAudioFormat(AudioFormat.Builder().setSampleRate(rate).setEncoding(encoding).setChannelMask(inputMask).build())
-                    .setBufferSizeInBytes(maxOf(minIn, frame * 4)).build()
+                    .setBufferSizeInBytes(maxOf(minIn, frame * 8)).build()
+                if (recorder?.state != AudioRecord.STATE_INITIALIZED) {
+                    throw IllegalStateException("تعذر تهيئة الميكروفون. أغلق التطبيقات التي تستخدمه ثم حاول مجدداً")
+                }
                 player = AudioTrack.Builder()
                     .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
                     .setAudioFormat(AudioFormat.Builder().setSampleRate(rate).setEncoding(encoding).setChannelMask(outputMask).build())
                     .setBufferSizeInBytes(maxOf(minOut, frame * 8)).setTransferMode(AudioTrack.MODE_STREAM).build()
+                if (player?.state != AudioTrack.STATE_INITIALIZED) {
+                    throw IllegalStateException("تعذر تهيئة مخرج الصوت في الهاتف")
+                }
                 val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
                 audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -467,9 +485,12 @@ class MainActivity : Activity() {
                         .onFailure { Log.w("AlkamelNet", "Automatic gain control unavailable", it) }.getOrNull()
                 }
                 activeRecorder.startRecording()
+                if (activeRecorder.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
+                    throw IllegalStateException("الميكروفون لم يبدأ التسجيل. تحقق من إذن الميكروفون")
+                }
                 activePlayer.setVolume(1.0f)
                 activePlayer.play()
-                runOnUiThread { web.evaluateJavascript("window.onVoiceState&&window.onVoiceState('joined','');", null) }
+                runOnUiThread { if (::web.isInitialized && !web.isDestroyed) web.evaluateJavascript("window.onVoiceState&&window.onVoiceState('joined','');", null) }
 
                 voiceReceiveExecutor.execute {
                     val incoming = ByteArray(1200)
@@ -498,7 +519,10 @@ class MainActivity : Activity() {
                 System.arraycopy(prefix, 0, outgoing, 0, prefix.size)
                 var lastUi = 0L
                 while (voiceRunning.get()) {
-                    val count = activeRecorder.read(pcm, 0, pcm.size)
+                    val count = activeRecorder.read(pcm, 0, pcm.size, AudioRecord.READ_BLOCKING)
+                    if (count == AudioRecord.ERROR_INVALID_OPERATION || count == AudioRecord.ERROR_BAD_VALUE || count == AudioRecord.ERROR_DEAD_OBJECT) {
+                        throw IllegalStateException("توقف تسجيل الميكروفون (رمز " + count + ")")
+                    }
                     if (count <= 0) continue
                     var energy = 0.0
                     var i = 0
@@ -807,6 +831,16 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        // Keep LAN workers alive when Android backgrounds/recreates the Activity.
+        if (isFinishing) {
+            stopVoiceRoom()
+            stopLanChat()
+            io.shutdownNow()
+            voiceExecutor.shutdownNow()
+            voiceReceiveExecutor.shutdownNow()
+            chatExecutor.shutdownNow()
+            chatSendExecutor.shutdownNow()
+        }
         if (::web.isInitialized) {
             web.removeJavascriptInterface("AndroidBridge")
             web.stopLoading()
@@ -815,13 +849,6 @@ class MainActivity : Activity() {
         }
         commandWeb?.apply { stopLoading(); loadUrl("about:blank"); destroy() }
         commandWeb = null
-        stopVoiceRoom()
-        stopLanChat()
-        io.shutdownNow()
-        voiceExecutor.shutdownNow()
-        voiceReceiveExecutor.shutdownNow()
-        chatExecutor.shutdownNow()
-        chatSendExecutor.shutdownNow()
         super.onDestroy()
     }
 }
