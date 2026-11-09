@@ -316,29 +316,31 @@ function renderAds(){
 function stopAdsTimer(){if(adsTimer){clearInterval(adsTimer);adsTimer=null;}}
 function startAdsTimer(){stopAdsTimer();if(adsImages.length>1)adsTimer=setInterval(()=>showAd(adsIndex+1),5000);}
 function showAd(index){if(!adsImages.length)return;adsIndex=(index+adsImages.length)%adsImages.length;renderAds();startAdsTimer();}
-async function loadAds(force){
+function loadAds(force){
  if(adsLoading||(!force&&adsLoaded))return;
  adsLoading=true;const note=$('adsNotice'),loading=$('adsLoading');
  if(note)note.textContent='';if(loading){loading.hidden=false;loading.textContent='جارٍ تحميل الإعلانات من الميكروتك…';}
- try{
-  const response=await fetch(ADS_BASE+'config.js',{cache:'no-store'});
-  if(!response.ok)throw new Error('config');
-  const source=await response.text();
-  const match=source.match(/"imageCount"\s*:\s*"?([0-9]+)"?/);
-  const enabled=source.match(/"imageV"\s*:\s*(true|false)/);
-  const count=match?Math.min(40,Math.max(0,Number(match[1]))):0;
-  if(!count||enabled&&enabled[1]==='false')throw new Error('disabled');
-  const candidates=Array.from({length:count},(_,i)=>ADS_BASE+'img/'+(i+1)+'.jpg');
-  const checks=await Promise.all(candidates.map(url=>new Promise(resolve=>{const test=new Image();test.onload=()=>resolve(url);test.onerror=()=>resolve(null);test.src=url+'?v='+Date.now();})));
-  adsImages=checks.filter(Boolean);adsIndex=0;adsLoaded=true;
-  if(loading)loading.hidden=true;
-  if(!adsImages.length)throw new Error('empty');
-  renderAds();startAdsTimer();
- }catch(error){
-  adsImages=[];if(loading){loading.hidden=false;loading.textContent='تعذر تحميل صور الإعلانات من الميكروتك.';}
-  if(note)note.textContent='تأكد من اتصال الجهاز بالشبكة وتوفر الصور داخل مجلد 772072056/img.';
-  renderAds();
- }finally{adsLoading=false;}
+ const configScript=document.createElement('script');
+ configScript.src=ADS_BASE+'config.js?v='+Date.now();
+ configScript.onload=()=>{
+  try{
+   const cfg=window.siteConfig||{};
+   const count=Math.min(40,Math.max(0,Number(cfg.imageCount)||0));
+   const enabled=cfg.imageV!==false;
+   try{delete window.siteConfig;}catch(e){window.siteConfig=undefined;}
+   if(!count||!enabled)throw new Error('disabled');
+   const candidates=Array.from({length:count},(_,i)=>ADS_BASE+'img/'+(i+1)+'.jpg');
+   Promise.all(candidates.map(url=>new Promise(resolve=>{const test=new Image();test.onload=()=>resolve(url);test.onerror=()=>resolve(null);test.src=url+'?v='+Date.now();}))).then(checks=>{
+    adsImages=checks.filter(Boolean);adsIndex=0;adsLoaded=true;
+    if(loading)loading.hidden=true;
+    if(!adsImages.length)throw new Error('empty');
+    renderAds();startAdsTimer();
+   }).catch(()=>{adsImages=[];if(loading){loading.hidden=false;loading.textContent='تعذر تحميل صور الإعلانات من الميكروتك.';}if(note)note.textContent='تأكد من اتصال الجهاز بالشبكة وتوفر الصور داخل مجلد 772072056/img.';renderAds();});
+  }catch(error){if(loading){loading.hidden=false;loading.textContent='لا توجد إعلانات مفعّلة حاليًا.';}if(note)note.textContent='تحقق من إعداد imageV وعدد الصور في config.js.';adsImages=[];renderAds();}
+  finally{adsLoading=false;configScript.remove();}
+ };
+ configScript.onerror=()=>{adsLoading=false;if(loading){loading.hidden=false;loading.textContent='تعذر الاتصال بصفحة إعلانات الميكروتك.';}if(note)note.textContent='تحقق من اتصال الشبكة ومسار 772072056/config.js.';configScript.remove();};
+ document.head.appendChild(configScript);
 }
 function openAds(){showPage('ads');loadAds();}
 
