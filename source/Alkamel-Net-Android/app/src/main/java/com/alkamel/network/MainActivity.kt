@@ -12,6 +12,9 @@ import android.media.AudioRecord
 import android.media.AudioTrack
 import android.media.MediaRecorder
 import android.media.AudioManager
+import android.media.audiofx.AcousticEchoCanceler
+import android.media.audiofx.AutomaticGainControl
+import android.media.audiofx.NoiseSuppressor
 import android.media.AudioAttributes
 import android.net.wifi.WifiManager
 import android.net.Uri
@@ -373,6 +376,9 @@ class MainActivity : Activity() {
         voiceExecutor.execute {
             var recorder: AudioRecord? = null
             var player: AudioTrack? = null
+            var echoCanceler: AcousticEchoCanceler? = null
+            var noiseSuppressor: NoiseSuppressor? = null
+            var automaticGain: AutomaticGainControl? = null
             try {
                 val wifi = applicationContext.getSystemService(WIFI_SERVICE) as WifiManager
                 multicastLock = wifi.createMulticastLock("AlkamelNetVoice").apply { setReferenceCounted(false); acquire() }
@@ -402,11 +408,28 @@ class MainActivity : Activity() {
                     .setBufferSizeInBytes(maxOf(minOut, frame * 8)).setTransferMode(AudioTrack.MODE_STREAM).build()
                 val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
                 audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
-                @Suppress("DEPRECATION")
-                audioManager.isSpeakerphoneOn = true
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    val speaker = audioManager.availableCommunicationDevices.firstOrNull {
+                        it.type == android.media.AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
+                    }
+                    if (speaker != null) audioManager.setCommunicationDevice(speaker)
+                } else {
+                    @Suppress("DEPRECATION")
+                    run { audioManager.isSpeakerphoneOn = true }
+                }
                 val activeRecorder = recorder
                 val activePlayer = player
+                if (AcousticEchoCanceler.isAvailable()) {
+                    echoCanceler = AcousticEchoCanceler.create(activeRecorder.audioSessionId)?.apply { enabled = true }
+                }
+                if (NoiseSuppressor.isAvailable()) {
+                    noiseSuppressor = NoiseSuppressor.create(activeRecorder.audioSessionId)?.apply { enabled = true }
+                }
+                if (AutomaticGainControl.isAvailable()) {
+                    automaticGain = AutomaticGainControl.create(activeRecorder.audioSessionId)?.apply { enabled = true }
+                }
                 activeRecorder.startRecording()
+                activePlayer.setVolume(1.0f)
                 activePlayer.play()
                 runOnUiThread { web.evaluateJavascript("window.onVoiceState&&window.onVoiceState('joined','');", null) }
 
@@ -431,6 +454,7 @@ class MainActivity : Activity() {
                 }
 
                 val pcm = ByteArray(frame)
+                var softwareGain = 1.0
                 val prefix = (chatId + "\n").toByteArray(Charsets.UTF_8)
                 val outgoing = ByteArray(prefix.size + frame)
                 System.arraycopy(prefix, 0, outgoing, 0, prefix.size)
@@ -446,8 +470,25 @@ class MainActivity : Activity() {
                         i += 2
                     }
                     val rms = kotlin.math.sqrt(energy / (count / 2).coerceAtLeast(1))
-                    val speaking = !voiceMuted.get() && rms > 550.0
+                    val speaking = !voiceMuted.get() && rms > 350.0
                     if (!voiceMuted.get()) {
+                        // Gentle adaptive gain for quiet microphones, with a limiter to avoid clipping.
+                        val targetGain = when {
+                            rms < 180.0 -> 5.0
+                            rms < 350.0 -> 3.8
+                            rms < 700.0 -> 2.5
+                            rms < 1400.0 -> 1.6
+                            else -> 1.0
+                        }
+                        softwareGain = softwareGain * 0.82 + targetGain * 0.18
+                        var sampleIndex = 0
+                        while (sampleIndex + 1 < count) {
+                            val rawSample = ((pcm[sampleIndex + 1].toInt() shl 8) or (pcm[sampleIndex].toInt() and 255)).toShort().toInt()
+                            val amplified = (rawSample * softwareGain).toInt().coerceIn(-32768, 32767)
+                            pcm[sampleIndex] = amplified.toByte()
+                            pcm[sampleIndex + 1] = (amplified shr 8).toByte()
+                            sampleIndex += 2
+                        }
                         System.arraycopy(pcm, 0, outgoing, prefix.size, count)
                         socket.send(DatagramPacket(outgoing, prefix.size + count, voiceGroup, voicePort))
                     }
@@ -464,6 +505,9 @@ class MainActivity : Activity() {
             } finally {
                 voiceRunning.set(false)
                 try { recorder?.stop() } catch (_: Exception) { }
+                try { echoCanceler?.release() } catch (_: Exception) { }
+                try { noiseSuppressor?.release() } catch (_: Exception) { }
+                try { automaticGain?.release() } catch (_: Exception) { }
                 try { recorder?.release() } catch (_: Exception) { }
                 try { player?.stop() } catch (_: Exception) { }
                 try { player?.release() } catch (_: Exception) { }
@@ -472,6 +516,9 @@ class MainActivity : Activity() {
                 multicastLock?.let { try { if (it.isHeld) it.release() } catch (_: Exception) { } }
                 multicastLock = null
                 val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    try { audioManager.clearCommunicationDevice() } catch (_: Exception) { }
+                }
                 audioManager.mode = AudioManager.MODE_NORMAL
                 @Suppress("DEPRECATION")
                 run { audioManager.isSpeakerphoneOn = false }
