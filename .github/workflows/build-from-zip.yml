@@ -1,4 +1,4 @@
-name: Build Alkamel-Net APK from repository source v1.5.5
+name: Build Alkamel-Net APK from repository source v1.5.6
 on:
   workflow_dispatch:
   push:
@@ -24,6 +24,22 @@ jobs:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
           echo "Building repository source: $PROJECT_DIR"
           find "$PROJECT_DIR" -maxdepth 3 -type f -name '*gradle*' -print
+      - name: Restore approved launcher artwork
+        shell: bash
+        run: |
+          set -euxo pipefail
+          ICON_B64="$PROJECT_DIR/app/src/main/res/drawable-nodpi/ic_launcher.webp.b64"
+          ICON="$PROJECT_DIR/app/src/main/res/drawable-nodpi/ic_launcher.webp"
+          test -s "$ICON_B64"
+          base64 --decode "$ICON_B64" > "$ICON"
+          python3 - "$ICON" <<'PY'
+          import pathlib,sys
+          p=pathlib.Path(sys.argv[1]); b=p.read_bytes()
+          if len(b)<4000 or b[:4]!=b'RIFF' or b[8:12]!=b'WEBP':
+              raise SystemExit('Invalid launcher artwork: expected a valid WebP file')
+          print(f'PASS - launcher artwork restored and verified ({len(b)} bytes)')
+          PY
+          rm "$ICON_B64"
       - name: Inspect original portal UI source
         shell: bash
         run: |
@@ -84,12 +100,12 @@ jobs:
           s=p.read_text()
           s,n=re.subn(r'(?m)^(\s*applicationId\s*=\s*)"[^"]+"',r'\1"com.mohammedkamel.alkamelnet.portal2026"',s)
           if n!=1: raise SystemExit(f"Expected one applicationId, found {n}")
-          s,n=re.subn(r'(?m)^(\s*versionCode\s*=\s*)\d+',r'\g<1>39',s)
+          s,n=re.subn(r'(?m)^(\s*versionCode\s*=\s*)\d+',r'\g<1>40',s)
           if n!=1: raise SystemExit(f"Expected one versionCode, found {n}")
-          s,n=re.subn(r'(?m)^(\s*versionName\s*=\s*)"[^"]+"',r'\g<1>"1.5.5"',s)
+          s,n=re.subn(r'(?m)^(\s*versionName\s*=\s*)"[^"]+"',r'\g<1>"1.5.6"',s)
           if n!=1: raise SystemExit(f"Expected one versionName, found {n}")
           p.write_text(s)
-          print("Application ID and version set to 1.5.5 (39)")
+          print("Application ID and version set to 1.5.6 (40)")
           PY
       - uses: actions/setup-java@v4
         with:
@@ -135,7 +151,20 @@ jobs:
           set -euxo pipefail
           APK="$PROJECT_DIR/app/build/outputs/apk/debug/app-debug.apk"
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort | tail -n 1)"
-          "$AAPT" dump badging "$APK" | grep -E "^(package:|application-label:)"
+          "$AAPT" dump badging "$APK" | grep -E "^(package:|application-label:|application-icon-)"
+      - name: Verify packaged launcher artwork
+        shell: bash
+        run: |
+          set -euxo pipefail
+          APK="$PROJECT_DIR/app/build/outputs/apk/debug/app-debug.apk"
+          unzip -p "$APK" res/drawable-nodpi-v4/ic_launcher.webp > /tmp/alkamel-launcher.webp
+          python3 - /tmp/alkamel-launcher.webp <<'PY'
+          import pathlib,sys
+          b=pathlib.Path(sys.argv[1]).read_bytes()
+          if len(b)<4000 or b[:4]!=b'RIFF' or b[8:12]!=b'WEBP':
+              raise SystemExit('FAIL - packaged launcher icon is missing or invalid')
+          print(f'PASS - APK contains approved launcher artwork ({len(b)} bytes)')
+          PY
       - name: Verify and upload APK
         shell: bash
         run: |
