@@ -22,7 +22,9 @@ checks = {
     "logout button is below subscriber refresh": HOME.read_text(encoding="utf-8").find("onclick=\"refreshStatus()\"") < HOME.read_text(encoding="utf-8").find("onclick=\"logout()\"") and "إنهاء جلسة الحساب" not in HOME.read_text(encoding="utf-8"),
     "minSdk 24": "minSdk = 24" in GRADLE,
     "targetSdk 35": "targetSdk = 35" in GRADLE,
+    "app version 1.5.5": "versionCode = 39" in GRADLE and 'versionName = "1.5.5"' in GRADLE,
     "app label": 'android:label="الكامل-نت"' in MANIFEST,
+    "launcher icon uses approved artwork": 'android:icon="@drawable/ic_launcher"' in MANIFEST and 'android:roundIcon="@drawable/ic_launcher"' in MANIFEST and (APP / "res/drawable-nodpi/ic_launcher.webp").is_file() and (APP / "res/drawable-nodpi/ic_launcher.webp").stat().st_size > 10000,
     "internet permission": "android.permission.INTERNET" in MANIFEST,
     "home asset": HOME.is_file() and HOME.stat().st_size > 0,
     "HD asset": HD.is_file() and HD.stat().st_size > 0,
@@ -78,9 +80,9 @@ print("PASS - documented service endpoints present")
 
 kotlin = KOTLIN.read_text(encoding="utf-8")
 for required in (
-    'http://k.com/logout?var=callBack',
-    'http://k.com/logout?erase-cookie=yes&var=callBack',
-    'http://10.10.10.10:8888/live/index.m3u8',
+    "http://k.com/logout?var=callBack",
+    "http://k.com/logout?erase-cookie=yes&var=callBack",
+    "http://10.10.10.10:8888/live/index.m3u8",
 ):
     if required not in kotlin and required not in (APP / "assets/hd/index.html").read_text(encoding="utf-8"):
         raise SystemExit(f"FAIL - required native action or stream missing: {required}")

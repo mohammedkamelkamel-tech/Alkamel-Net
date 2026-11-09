@@ -16,7 +16,8 @@
     <application
         android:allowBackup="false"
         android:hardwareAccelerated="true"
-        android:icon="@drawable/ic_alkamel"
+        android:icon="@drawable/ic_launcher"
+        android:roundIcon="@drawable/ic_launcher"
         android:label="الكامل-نت"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar"

@@ -9,8 +9,8 @@ android {
         applicationId = "com.mohammedkamel.alkamelnet.portal2026"
         minSdk = 24
         targetSdk = 35
-        versionCode = 38
-        versionName = "1.5.4"
+        versionCode = 39
+        versionName = "1.5.5"
     }
     buildTypes {
         release { isMinifyEnabled = false }
