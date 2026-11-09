@@ -3,10 +3,14 @@ from pathlib import Path
 import hashlib, sys
 root=Path(sys.argv[1]); hp=root/"app/src/main/assets/home.html"; kp=root/"app/src/main/java/com/alkamel/network/MainActivity.kt"; hd=root/"app/src/main/assets/hd/index.html"
 hd_hash=hashlib.sha256(hd.read_bytes()).hexdigest(); s=hp.read_text(encoding="utf-8"); k=kp.read_text(encoding="utf-8")
-old_live="""<section id="live" class="page"><button class="back" onclick="showPage('home')">→ الرئيسية</button><h2 class="heading">البث المباشر</h2><div class="panel"><p class="key">اختر البث المطلوب</p><button class="btn" onclick="player('org.videolan.vlc')">البث المباشر 1</button><button class="btn secondary" onclick="player('com.mxtech.videoplayer.ad')">البث المباشر 2</button><button class="btn" onclick="openHd()">بث HD</button><div class="notice" id="liveNotice"></div></div></section>"""
+import re
+live_pattern=r'<section id="live" class="page">.*?</section>'
+live_match=re.search(live_pattern,s,re.S)
+if not live_match: raise SystemExit("FAIL: live section not found")
+live_section=live_match.group(0)
+if "openHd()" not in live_section: raise SystemExit("FAIL: HD control missing from live section")
 new_live="""<section id="live" class="page"><button class="back" onclick="showPage('home')">→ الرئيسية</button><h2 class="heading">البث المباشر</h2><div class="panel"><p class="key">اختر البث المطلوب</p><button class="btn" onclick="goService('live1')">البث المباشر 1</button><button class="btn secondary" onclick="goService('live2')">البث المباشر 2</button><button class="btn" onclick="openHd()">بث HD</button><div class="notice" id="liveNotice"></div></div></section>"""
-if old_live not in s: raise SystemExit("FAIL: original live section differs")
-s=s.replace(old_live,new_live,1)
+s=s[:live_match.start()]+new_live+s[live_match.end():]
 old_speed="""<section id="speed" class="page"><button class="back" onclick="showPage('home')">→ الرئيسية</button><h2 class="heading">سرعة الكرت الحالية</h2><div class="panel"><div class="key">السرعة الحالية</div><div class="val" id="currentSpeed">يتم جلبها من بيانات الحساب…</div><div class="key" style="margin-top:18px">السرعات المعرفة في ملف إعدادات الموقع</div><div id="speedOptions"></div><button class="btn" id="applySpeed" onclick="applySelectedSpeed()" disabled>اعتماد السرعة المختارة</button><div class="notice" id="speedNotice">اختر السرعة ثم اعتمدها. سيتم تمرير الاختيار إلى دالة الموقع الأصلية.</div></div></section>"""
 new_speed="""<section id="speed" class="page"><button class="back" onclick="showPage('home')">→ الرئيسية</button><h2 class="heading">سرعة الكرت الحالية</h2><div class="panel"><div class="key">السرعة الحالية</div><div class="val" id="currentSpeed">يتم جلبها من بيانات الحساب…</div><div class="key" style="margin-top:18px">اختر السرعة المطلوبة</div><div id="speedOptions"></div><div class="notice" id="speedNotice">اختر السرعة وسيتم تطبيقها مباشرة.</div></div></section>"""
 if old_speed not in s: raise SystemExit("FAIL: original speed section differs")
