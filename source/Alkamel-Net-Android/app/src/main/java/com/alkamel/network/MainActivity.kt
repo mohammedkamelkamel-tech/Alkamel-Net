@@ -401,8 +401,10 @@ class MainActivity : Activity() {
                 audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
                 @Suppress("DEPRECATION")
                 audioManager.isSpeakerphoneOn = true
-                recorder.startRecording()
-                player.play()
+                val activeRecorder = recorder
+                val activePlayer = player
+                activeRecorder.startRecording()
+                activePlayer.play()
                 runOnUiThread { web.evaluateJavascript("window.onVoiceState&&window.onVoiceState('joined','');", null) }
 
                 voiceReceiveExecutor.execute {
@@ -417,7 +419,7 @@ class MainActivity : Activity() {
                             val start = end + 1
                             val count = packet.offset + packet.length - start
                             if (count > 0) {
-                                player.write(incoming, start, count)
+                                activePlayer.write(incoming, start, count)
                                 runOnUiThread { if (!isFinishing) web.evaluateJavascript("window.onVoiceActivity&&window.onVoiceActivity(\${JSONObject.quote(sender)});", null) }
                             }
                         } catch (_: SocketTimeoutException) { }
@@ -431,7 +433,7 @@ class MainActivity : Activity() {
                 System.arraycopy(prefix, 0, outgoing, 0, prefix.size)
                 var lastUi = 0L
                 while (voiceRunning.get()) {
-                    val count = recorder.read(pcm, 0, pcm.size)
+                    val count = activeRecorder.read(pcm, 0, pcm.size)
                     if (count <= 0) continue
                     var energy = 0.0
                     var i = 0
