@@ -45,13 +45,41 @@ jobs:
           find "$PROJECT_DIR/app/src/main/assets" -type f | sort
           echo "Relevant source matches:"
           grep -RniE 'البث المباشر|بث HD|سرعة الكرت|تحديثات جوجل|استراحة|استراحه|اعتماد السرعة|سرعة حالية|1536k|4096k|تم تحديث بيانات الحساب|اسم المشترك' "$PROJECT_DIR/app/src/main/assets" --include='*.html' --include='*.js' | head -300 || true
-      - name: Export extracted source for safe editing
-        uses: actions/upload-artifact@v4
-        with:
-          name: Alkamel-Net-extracted-source
-          path: extracted/
-          if-no-files-found: error
-          retention-days: 3
+      - name: Apply requested portal UI fixes
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python3 - "$PROJECT_DIR/app/src/main/assets/home.html" <<'PY'
+          import pathlib, re, sys
+          p=pathlib.Path(sys.argv[1]); s=p.read_text(encoding='utf-8')
+          # Move HD into the live-broadcast page and expose both live stream entries.
+          s=s.replace('<button class="tile" onclick="showPage(\'hd\')"><div class="ico">HD</div><div><strong>بث HD</strong><br><small>مشاهدة عبر المشغل المدمج</small></div></button>','')
+          s=s.replace('<section id="live" class="page"><button class="back" onclick="showPage(\'home\')">→ الرئيسية</button><h2 class="heading">البث المباشر</h2><div class="panel"><p class="key">اختر المشغل الذي تريد فتح البث من خلاله</p><button class="btn" onclick="player(\'org.videolan.vlc\')">فتح عبر VLC</button><button class="btn secondary" onclick="player(\'com.mxtech.videoplayer.ad\')">فتح عبر MX Player</button><div class="notice" id="liveNotice"></div></div></section>', '<section id="live" class="page"><button class="back" onclick="showPage(\'home\')">→ الرئيسية</button><h2 class="heading">البث المباشر</h2><div class="panel"><p class="key">اختر البث المطلوب</p><button class="btn" onclick="player(\'org.videolan.vlc\')">البث المباشر 1</button><button class="btn secondary" onclick="player(\'com.mxtech.videoplayer.ad\')">البث المباشر 2</button><button class="btn" onclick="openHd()">بث HD</button><div class="notice" id="liveNotice"></div></div></section>')
+          # Make the two lounge tiles occupy one row.
+          s=s.replace('<button class="tile" onclick="go(\'http://30.30.30.30:8096/web/index.html#!/home\')">','<div class="tile-row"><button class="tile" onclick="go(\'http://30.30.30.30:8096/web/index.html#!/home\')">').replace('<button class="tile" onclick="go(\'http://30.10.10.10/\')">','<button class="tile" onclick="go(\'http://30.10.10.10/\')">')
+          # Close paired tile row after second lounge tile.
+          s=s.replace('خدمات الاستراحة</small></div></button>','خدمات الاستراحة</small></div></button>',1)
+          s=s.replace('خدمات الاستراحة</small></div></button>','خدمات الاستراحة</small></div></button></div>',1) if 'tile-row' in s else s
+          # Subscriber label and masked card number (show first five digits only).
+          s=s.replace('اسم المشترك</span>','رقم الكرت</span>')
+          s=s.replace("$('username').textContent=d.username||'—';", "$('username').textContent=(d.username||'—').toString().replace(/^(\\d{5})\\d+$/, '$1'+'**');")
+          # Remove time from successful refresh message.
+          s=s.replace("'تم تحديث بيانات الحساب من بوابة الشبكة: '+new Date().toLocaleTimeString('ar')", "'تم تحديث بيانات الحساب من بوابة الشبكة'")
+          # Current speed and Google status summaries on home tiles.
+          s=s.replace('السرعات المتاحة في الشبكة</small>','<span id="homeCurrentSpeed">السرعة الحالية</span></small>')
+          s=s.replace('حالة الخدمة</small>','<span id="homeGoogleStatus">حالة الخدمة</span></small>')
+          # Show display labels, not raw bandwidth values, in options.
+          s=s.replace("opt.textContent=item.value||item.name||item.label||'';", "opt.textContent=item.name||item.label||item.title||('الخيار '+(i+1));")
+          # Selection confirmation without a separate apply button.
+          s=s.replace("$('applySpeed').disabled=false;", "$('applySpeed').disabled=false; $('applySpeed').textContent='تم اختيار: '+(item.name||item.label||item.title||'السرعة المختارة');")
+          s=s.replace("$('applySpeed').textContent='اعتماد السرعة المختارة';", "$('applySpeed').textContent='تم اختيار السرعة';")
+          p.write_text(s,encoding='utf-8')
+          print('Applied requested UI edits to',p)
+          PY
+          # Verify critical requested text and elements exist before building.
+          grep -q 'رقم الكرت' "$PROJECT_DIR/app/src/main/assets/home.html"
+          grep -q 'البث المباشر 1' "$PROJECT_DIR/app/src/main/assets/home.html"
+          grep -q 'البث المباشر 2' "$PROJECT_DIR/app/src/main/assets/home.html"
       - name: Set unique application package ID
         shell: bash
         run: |
