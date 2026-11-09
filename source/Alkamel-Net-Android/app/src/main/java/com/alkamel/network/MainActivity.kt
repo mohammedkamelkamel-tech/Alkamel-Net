@@ -399,7 +399,7 @@ class MainActivity : Activity() {
                 if (minIn <= 0 || minOut <= 0) throw IllegalStateException("Audio device unavailable")
                 val frame = 640
                 recorder = AudioRecord.Builder()
-                    .setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
+                    .setAudioSource(MediaRecorder.AudioSource.MIC)
                     .setAudioFormat(AudioFormat.Builder().setSampleRate(rate).setEncoding(encoding).setChannelMask(inputMask).build())
                     .setBufferSizeInBytes(maxOf(minIn, frame * 4)).build()
                 player = AudioTrack.Builder()
@@ -470,17 +470,16 @@ class MainActivity : Activity() {
                         i += 2
                     }
                     val rms = kotlin.math.sqrt(energy / (count / 2).coerceAtLeast(1))
-                    val speaking = !voiceMuted.get() && rms > 350.0
+                    // Far-field voice pickup: adaptive level target, fast gain attack, slow release.
+                    val speaking = !voiceMuted.get() && rms > 180.0
                     if (!voiceMuted.get()) {
-                        // Gentle adaptive gain for quiet microphones, with a limiter to avoid clipping.
-                        val targetGain = when {
-                            rms < 180.0 -> 5.0
-                            rms < 350.0 -> 3.8
-                            rms < 700.0 -> 2.5
-                            rms < 1400.0 -> 1.6
-                            else -> 1.0
+                        val targetGain = if (rms < 55.0) {
+                            1.0
+                        } else {
+                            (2600.0 / rms).coerceIn(1.0, 8.0)
                         }
-                        softwareGain = softwareGain * 0.82 + targetGain * 0.18
+                        val smoothing = if (targetGain > softwareGain) 0.32 else 0.10
+                        softwareGain += (targetGain - softwareGain) * smoothing
                         var sampleIndex = 0
                         while (sampleIndex + 1 < count) {
                             val rawSample = ((pcm[sampleIndex + 1].toInt() shl 8) or (pcm[sampleIndex].toInt() and 255)).toShort().toInt()
