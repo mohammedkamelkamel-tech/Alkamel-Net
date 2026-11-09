@@ -3,6 +3,10 @@ package com.alkamel.network
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.AlertDialog
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.graphics.Bitmap
@@ -22,6 +26,8 @@ import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
+import android.content.pm.PackageManager
 import android.util.Log
 import android.view.Gravity
 import android.view.View
@@ -71,6 +77,9 @@ class MainActivity : Activity() {
             .build()
     }
     private val refreshInProgress = AtomicBoolean(false)
+    @Volatile private var appInForeground = false
+    private val notificationChannelId = "alkamel_events"
+    private val notificationPermissionRequest = 7413
     private val chatRunning = AtomicBoolean(false)
     private val chatRequested = AtomicBoolean(false)
     @Volatile private var chatSocket: DatagramSocket? = null
@@ -95,7 +104,6 @@ class MainActivity : Activity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        ensureBackgroundService()
         window.statusBarColor = Color.rgb(7, 20, 38)
         window.navigationBarColor = Color.rgb(7, 20, 38)
         CookieManager.getInstance().setAcceptCookie(true)
@@ -265,6 +273,8 @@ class MainActivity : Activity() {
         root.addView(errorPanel, FrameLayout.LayoutParams(-1, -1))
         errorPanel.visibility = View.GONE
         setContentView(root)
+        createEventNotificationChannel()
+        showFirstRunSetupIfNeeded()
         initializeCommandWebView()
 
         if (savedInstanceState != null) {
@@ -346,11 +356,95 @@ class MainActivity : Activity() {
     private fun ensureBackgroundService() {
         val intent = Intent(this, ChatKeepAliveService::class.java).apply { action = ChatKeepAliveService.ACTION_START }
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent)
-            else startService(intent)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent) else startService(intent)
         } catch (e: Exception) {
             Log.e("AlkamelNet", "Unable to keep app alive in background", e)
+            Toast.makeText(this, "تعذر تفعيل العمل في الخلفية. تحقق من إعدادات البطارية.", Toast.LENGTH_LONG).show()
         }
+    }
+
+    private fun showFirstRunSetupIfNeeded() {
+        val prefs = getSharedPreferences("alkamel_app_setup", MODE_PRIVATE)
+        if (prefs.getBoolean("first_run_setup_asked", false)) {
+            if (prefs.getBoolean("background_enabled", false)) ensureBackgroundService()
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("تفعيل عمل شبكة الكامل في الخلفية")
+            .setMessage("حتى تستمر خدمات الشبكة والدردشة في العمل عند تصغير التطبيق، فعّل السماح بالعمل في الخلفية، واجعل استخدام البطارية غير مقيّد. كما سنطلب إذن الإشعارات لتنبيهك بالرسائل والإعلانات المهمة.")
+            .setCancelable(false)
+            .setNegativeButton("لاحقاً") { _, _ ->
+                prefs.edit().putBoolean("first_run_setup_asked", true).apply()
+            }
+            .setPositiveButton("تفعيل الآن") { _, _ ->
+                prefs.edit().putBoolean("first_run_setup_asked", true).putBoolean("background_enabled", true).apply()
+                ensureBackgroundService()
+                requestNotificationPermission()
+                try {
+                    startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                    Toast.makeText(this, "ابحث عن شبكة الكامل واختر السماح بالاستخدام دون قيود.", Toast.LENGTH_LONG).show()
+                } catch (e: Exception) {
+                    Log.w("AlkamelNet", "Battery settings screen unavailable", e)
+                    try { startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))) } catch (_: Exception) { }
+                }
+            }
+            .show()
+    }
+
+    private fun createEventNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(notificationChannelId, "تنبيهات شبكة الكامل", NotificationManager.IMPORTANCE_HIGH).apply {
+                description = "إشعارات الدردشة والإعلانات والعروض والتنبيهات المهمة"
+                enableVibration(true)
+            }
+            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+        }
+    }
+
+    private fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), notificationPermissionRequest)
+        }
+    }
+
+    private fun postEventNotification(title: String, message: String, notificationId: Int) {
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
+        val openApp = PendingIntent.getActivity(
+            this, notificationId,
+            Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            PendingIntent.FLAG_UPDATE_CURRENT or if (Build.VERSION.SDK_INT >= 23) PendingIntent.FLAG_IMMUTABLE else 0
+        )
+        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) Notification.Builder(this, notificationChannelId) else {
+            @Suppress("DEPRECATION") Notification.Builder(this)
+        }
+        val notification = builder.setSmallIcon(android.R.drawable.stat_notify_chat)
+            .setContentTitle(title).setContentText(message.take(180))
+            .setStyle(Notification.BigTextStyle().bigText(message.take(500)))
+            .setAutoCancel(true).setContentIntent(openApp).build()
+        getSystemService(NotificationManager::class.java).notify(notificationId, notification)
+    }
+
+    private fun notifyIncomingChat(obj: JSONObject) {
+        if (appInForeground) return
+        val type = obj.optString("type")
+        val sender = obj.optString("name", "عضو")
+        val message = obj.optString("text").trim()
+        val privateMessage = type == "private_message" && obj.optString("to") == chatId
+        val privateRequest = type == "private_request" && obj.optString("to") == chatId
+        val nickname = chatNickname.trim()
+        val mentioned = nickname.isNotEmpty() && message.contains(nickname, ignoreCase = true)
+        if (type != "message" && !privateMessage && !privateRequest) return
+        val title = when {
+            privateRequest -> "طلب محادثة خاصة جديد"
+            privateMessage -> "رسالة خاصة جديدة من $sender"
+            mentioned -> "تم ذكرك في دردشة شبكة الكامل"
+            else -> "رسالة جديدة في دردشة شبكة الكامل"
+        }
+        val body = when {
+            privateRequest -> "يريد $sender بدء محادثة خاصة معك."
+            else -> "$sender: $message"
+        }
+        postEventNotification(title, body, (System.currentTimeMillis() % 2000000000L).toInt())
     }
 
     private fun startLanChat(name: String, ensureService: Boolean = true) {
@@ -358,7 +452,7 @@ class MainActivity : Activity() {
         if (clean.isEmpty()) return
         chatNickname = clean
         chatRequested.set(true)
-        if (ensureService) {
+        if (ensureService && getSharedPreferences("alkamel_app_setup", MODE_PRIVATE).getBoolean("background_enabled", false)) {
         val keepAlive = Intent(this, ChatKeepAliveService::class.java).apply { action = ChatKeepAliveService.ACTION_START }
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(keepAlive) else startService(keepAlive)
@@ -402,7 +496,10 @@ class MainActivity : Activity() {
                             val isPublicPacket = packetType in setOf("presence", "message")
                             val isPrivatePacket = packetType in setOf("private_request", "private_response", "private_message") && obj.optString("to") == chatId
                             if (isPublicPacket || isPrivatePacket) {
-                                runOnUiThread { if (::web.isInitialized && !isFinishing) web.evaluateJavascript("if(window.onLanChatPacket)window.onLanChatPacket(${JSONObject.quote(raw)});", null) }
+                                if (packetType == "message" || packetType == "private_message" || packetType == "private_request") {
+                                    try { notifyIncomingChat(obj) } catch (notificationError: Exception) { Log.w("AlkamelNet", "Unable to show chat notification", notificationError) }
+                                }
+                                runOnUiThread { if (::web.isInitialized && !isFinishing && !isDestroyed) web.evaluateJavascript("if(window.onLanChatPacket)window.onLanChatPacket(${JSONObject.quote(raw)});", null) }
                             }
                         }
                     } catch (_: SocketTimeoutException) { }
@@ -831,6 +928,11 @@ class MainActivity : Activity() {
     }
 
     inner class Bridge {
+        @JavascriptInterface fun onAdsUpdated(newImages: Int) {
+            if (newImages > 0 && !appInForeground) {
+                postEventNotification("إعلان جديد في شبكة الكامل", "تمت إضافة $newImages صورة جديدة إلى قسم الإعلانات والعروض.", 48120)
+            }
+        }
         @JavascriptInterface fun startChat(name: String) { startLanChat(name) }
         @JavascriptInterface fun sendChatMessage(message: String) { if (message.length <= 1000) sendLanPacket("message", message.trim()) }
         @JavascriptInterface
@@ -987,6 +1089,16 @@ class MainActivity : Activity() {
         } else {
             loadHome()
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        appInForeground = true
+    }
+
+    override fun onPause() {
+        appInForeground = false
+        super.onPause()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
