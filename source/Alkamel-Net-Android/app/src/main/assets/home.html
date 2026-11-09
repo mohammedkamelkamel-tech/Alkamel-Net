@@ -301,7 +301,7 @@ if(spesParts.length>1){
 window.onStatusData=update;window.refreshStatus=refreshStatus;
 let siteConfig=null,selectedSpeed=null;
 let adsImages=[],adsIndex=0,adsTimer=null,adsLoaded=false,adsLoading=false,adsTouchStartX=0;
-const ADS_BASE='http://k.com/772072056/';
+const ADS_BASE='http://k.com/';
 function renderAds(){
  const img=$('adsImage'),dots=$('adsDots'),counter=$('adsCounter'),prev=$('adsPrev'),next=$('adsNext');
  if(!img||!dots)return;
@@ -335,11 +335,11 @@ function loadAds(force){
     if(loading)loading.hidden=true;
     if(!adsImages.length)throw new Error('empty');
     renderAds();startAdsTimer();
-   }).catch(()=>{adsImages=[];if(loading){loading.hidden=false;loading.textContent='تعذر تحميل صور الإعلانات من الميكروتك.';}if(note)note.textContent='تأكد من اتصال الجهاز بالشبكة وتوفر الصور داخل مجلد 772072056/img.';renderAds();});
+   }).catch(()=>{adsImages=[];if(loading){loading.hidden=false;loading.textContent='تعذر تحميل صور الإعلانات من الميكروتك.';}if(note)note.textContent='تأكد من اتصال الجهاز بالشبكة وتوفر الصور داخل مجلد img في ملفات الهوتسبوت.';renderAds();});
   }catch(error){if(loading){loading.hidden=false;loading.textContent='لا توجد إعلانات مفعّلة حاليًا.';}if(note)note.textContent='تحقق من إعداد imageV وعدد الصور في config.js.';adsImages=[];renderAds();}
   finally{adsLoading=false;configScript.remove();}
  };
- configScript.onerror=()=>{adsLoading=false;if(loading){loading.hidden=false;loading.textContent='تعذر الاتصال بصفحة إعلانات الميكروتك.';}if(note)note.textContent='تحقق من اتصال الشبكة ومسار 772072056/config.js.';configScript.remove();};
+ configScript.onerror=()=>{adsLoading=false;if(loading){loading.hidden=false;loading.textContent='تعذر الاتصال بصفحة إعلانات الميكروتك.';}if(note)note.textContent='تحقق من اتصال الشبكة ومسار config.js في جذر الهوتسبوت.';configScript.remove();};
  document.head.appendChild(configScript);
 }
 function openAds(){showPage('ads');loadAds();}

@@ -1,4 +1,4 @@
-name: Build Alkamel-Net APK from repository source v1.4.8
+name: Build Alkamel-Net APK from repository source v1.4.9
 on:
   workflow_dispatch:
   push:
@@ -84,12 +84,12 @@ jobs:
           s=p.read_text()
           s,n=re.subn(r'(?m)^(\s*applicationId\s*=\s*)"[^"]+"',r'\1"com.mohammedkamel.alkamelnet.portal2026"',s)
           if n!=1: raise SystemExit(f"Expected one applicationId, found {n}")
-          s,n=re.subn(r'(?m)^(\s*versionCode\s*=\s*)\d+',r'\g<1>32',s)
+          s,n=re.subn(r'(?m)^(\s*versionCode\s*=\s*)\d+',r'\g<1>33',s)
           if n!=1: raise SystemExit(f"Expected one versionCode, found {n}")
-          s,n=re.subn(r'(?m)^(\s*versionName\s*=\s*)"[^"]+"',r'\g<1>"1.4.8"',s)
+          s,n=re.subn(r'(?m)^(\s*versionName\s*=\s*)"[^"]+"',r'\g<1>"1.4.9"',s)
           if n!=1: raise SystemExit(f"Expected one versionName, found {n}")
           p.write_text(s)
-          print("Application ID and version set to 1.4.8 (32)")
+          print("Application ID and version set to 1.4.9 (33)")
           PY
       - uses: actions/setup-java@v4
         with:
