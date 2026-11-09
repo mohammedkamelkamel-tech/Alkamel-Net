@@ -41,8 +41,10 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          find "$PROJECT_DIR/app/src/main/assets" -type f \\( -name '*.html' -o -name '*.js' \\) -print
-          grep -RniE 'البث المباشر|بث HD|سرعة الكرت|تحديثات جوجل|استراحة|استراحه|اعتماد السرعة|سرعة حالية|1536k|4096k' "$PROJECT_DIR/app/src/main/assets" --include='*.html' --include='*.js' | head -250 || true
+          echo "HTML and JS assets:"
+          find "$PROJECT_DIR/app/src/main/assets" -type f | sort
+          echo "Relevant source matches:"
+          grep -RniE 'البث المباشر|بث HD|سرعة الكرت|تحديثات جوجل|استراحة|استراحه|اعتماد السرعة|سرعة حالية|1536k|4096k|تم تحديث بيانات الحساب|اسم المشترك' "$PROJECT_DIR/app/src/main/assets" --include='*.html' --include='*.js' | head -300 || true
       - name: Set unique application package ID
         shell: bash
         run: |
