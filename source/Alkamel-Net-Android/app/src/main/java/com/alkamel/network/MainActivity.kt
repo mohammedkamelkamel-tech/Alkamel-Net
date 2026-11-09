@@ -356,13 +356,13 @@ class MainActivity : Activity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == voicePermissionRequest) {
             if (grantResults.isNotEmpty() && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) startVoiceRoom()
-            else web.evaluateJavascript("window.onVoiceState&&window.onVoiceState('error','لم تسمح باستخدام الميكروفون');", null)
+                runOnUiThread { if (!isFinishing) web.evaluateJavascript("window.onVoiceState&&window.onVoiceState('error'," + JSONObject.quote(e.localizedMessage ?: "Voice room error") + ");", null) }
         }
     }
 
     private fun startVoiceRoom() {
         if (!chatRunning.get()) {
-            web.evaluateJavascript("window.onVoiceState&&window.onVoiceState('error','ادخل الدردشة النصية أولاً');", null)
+                runOnUiThread { if (!isFinishing) web.evaluateJavascript("window.onVoiceState&&window.onVoiceState('error'," + JSONObject.quote(e.localizedMessage ?: "Voice room error") + ");", null) }
             return
         }
         if (!voiceRunning.compareAndSet(false, true)) return
@@ -413,7 +413,7 @@ class MainActivity : Activity() {
                         try {
                             val packet = DatagramPacket(incoming, incoming.size)
                             socket.receive(packet)
-                            val end = (packet.offset until packet.offset + packet.length).firstOrNull { incoming[it] == 10 } ?: continue
+                            val end = (packet.offset until packet.offset + packet.length).firstOrNull { incoming[it] == 10.toByte() } ?: continue
                             val sender = String(incoming, packet.offset, end - packet.offset, Charsets.UTF_8)
                             if (sender == chatId) continue
                             val start = end + 1
@@ -457,7 +457,7 @@ class MainActivity : Activity() {
                 }
             } catch (e: Exception) {
                 Log.e("AlkamelNet", "Voice room failed", e)
-                runOnUiThread { if (!isFinishing) web.evaluateJavascript("window.onVoiceState&&window.onVoiceState('error',\${JSONObject.quote(e.localizedMessage ?: "تعذر تشغيل الصوت")});", null) }
+                runOnUiThread { if (!isFinishing) web.evaluateJavascript("window.onVoiceState&&window.onVoiceState('error'," + JSONObject.quote(e.localizedMessage ?: "Voice room error") + ");", null) }
             } finally {
                 voiceRunning.set(false)
                 try { recorder?.stop() } catch (_: Exception) { }
