@@ -23,6 +23,8 @@ checks = {
     "native activity": KOTLIN.is_file() and "class MainActivity" in KOTLIN.read_text(encoding="utf-8"),
     "LAN chat bridge": "startLanChat" in KOTLIN.read_text(encoding="utf-8") and "sendLanPacket" in KOTLIN.read_text(encoding="utf-8"),
     "chat page": 'id="chat"' in HOME.read_text(encoding="utf-8") and "onLanChatPacket" in HOME.read_text(encoding="utf-8"),
+    "unified chat room UI": "غرفة عامة" in HOME.read_text(encoding="utf-8") and "appendChatMessage" in HOME.read_text(encoding="utf-8"),
+    "chat sender highlighting": "chat-name" in HOME.read_text(encoding="utf-8") and "chat-message mine" in HOME.read_text(encoding="utf-8"),
     "voice controls": "joinVoiceRoom" in HOME.read_text(encoding="utf-8") and "toggleVoiceMute" in HOME.read_text(encoding="utf-8"),
     "microphone permission": "android.permission.RECORD_AUDIO" in MANIFEST,
     "multicast permission": "android.permission.CHANGE_WIFI_MULTICAST_STATE" in MANIFEST,
