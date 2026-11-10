@@ -1,13 +1,25 @@
-# Keep JavaScript bridge entry points exposed to the bundled WebView assets.
+# Preserve runtime annotations used by the Android WebView JavaScript bridge.
 -keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod
+
+# JavaScript calls these annotated methods by their exact names.
+# Keep the method names, but allow R8 to optimize their implementation.
 -keepclassmembers,allowoptimization class * {
     @android.webkit.JavascriptInterface <methods>;
 }
-# WebView discovers this bridge and its annotated methods by reflection.
--keep class com.alkamel.network.MainActivity$Bridge { *; }
--keep class com.alkamel.network.MainActivity { *; }
-# Preserve Android components instantiated by the framework.
--keep class com.alkamel.network.ChatKeepAliveService { *; }
-# Keep source/line metadata out of production stack traces while retaining mapping files in build output.
+
+# Android instantiates this Activity and Service from the manifest.
+# Keep component class names and constructors only; allow internal methods to be obfuscated.
+-keep,allowoptimization class com.alkamel.network.MainActivity {
+    public <init>();
+}
+-keep,allowoptimization class com.alkamel.network.ChatKeepAliveService {
+    public <init>();
+}
+
+# The bridge is instantiated directly by MainActivity; its annotated entry points
+# are retained by the rule above, while unrelated implementation details stay obfuscatable.
+# Do not add a blanket keep rule for MainActivity or Bridge members.
+
+# Retain useful crash line metadata for diagnosing field issues.
 -renamesourcefileattribute SourceFile
 -keepattributes SourceFile,LineNumberTable
