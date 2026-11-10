@@ -98,9 +98,8 @@ jobs:
           GRADLE_FILE="$PROJECT_DIR/app/build.gradle.kts"
           test -f "$GRADLE_FILE"
           python3 - "$GRADLE_FILE" <<'PY'
-          import pathlib,re,sys
-          p=pathlib.Path(sys.argv[1])
-          s=p.read_text()
+          import os,pathlib,re,sys
+          p=pathlib.Path(sys.argv[1]); s=p.read_text()
           s,n=re.subn(r'(?m)^(\s*applicationId\s*=\s*)"[^"]+"',r'\1"com.mohammedkamel.alkamelnet.portal2026"',s)
           if n!=1: raise SystemExit(f"Expected one applicationId, found {n}")
           version=re.search(r'(?m)^\s*versionName\s*=\s*"([^"]+)"',s)
@@ -109,7 +108,10 @@ jobs:
           if not re.fullmatch(r"\d+\.\d+\.\d+",version.group(1)): raise SystemExit("Invalid semantic versionName")
           if int(code.group(1))<1: raise SystemExit("Invalid versionCode")
           p.write_text(s)
-          with open(__import__("os").environ["GITHUB_ENV"], "a") as env:\n              env.write("APP_VERSION=" + version.group(1) + "\\n")\n              env.write("VERSION_CODE=" + code.group(1) + "\\n")\n                    print(f"Application ID set; preserving source version {version.group(1)} ({code.group(1)})")
+          with open(os.environ["GITHUB_ENV"],"a") as env:
+              env.write("APP_VERSION="+version.group(1)+"\n")
+              env.write("VERSION_CODE="+code.group(1)+"\n")
+          print(f"Application ID set; preserving source version {version.group(1)} ({code.group(1)})")
           PY
       - uses: actions/setup-java@v4
         with:
@@ -195,33 +197,29 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/output"
           cd "$(dirname "$PROJECT_DIR")"
           zip -qr "$GITHUB_WORKSPACE/output/Alkamel-Net-Android-Project-v${APP_VERSION}-code${VERSION_CODE}.zip" "$(basename "$PROJECT_DIR")" -x '*/.gradle/*' '*/build/*' '*/.idea/*' '*/local.properties'
-          test -s "$GITHUB_WORKSPACE/output/Alkamel-Net-Android-Project.zip"
+          test -s "$GITHUB_WORKSPACE/output/Alkamel-Net-Android-Project-v${APP_VERSION}-code${VERSION_CODE}.zip"
       - name: Create single package with APK and project
         shell: bash
         run: |
           set -euxo pipefail
           cd "$GITHUB_WORKSPACE/output"
-          test -s Alkamel-Net-v${APP_VERSION}-code${VERSION_CODE}.apk
-          test -s Alkamel-Net-Android-Project.zip
-          mkdir -p Alkamel-Net-Package
-          cp Alkamel-Net-debug.apk Alkamel-Net-Package/
-          cp Alkamel-Net-Android-Project.zip Alkamel-Net-Package/
-          cat > Alkamel-Net-Package/اقرأني.txt <<'EOF'
-          الكامل-نت
-          يحتوي هذا الملف على:
-          1- Alkamel-Net-debug.apk : ملف تثبيت التطبيق.
-          2- Alkamel-Net-Android-Project.zip : ملفات مشروع Android المعدل.
-          فك ضغط هذا الملف أولاً، ثم ثبّت APK أو فك ضغط ملف المشروع للعمل عليه.
-          EOF
-          zip -qr Alkamel-Net-Full-Package-v${APP_VERSION}-code${VERSION_CODE}.zip Alkamel-Net-Package
-          unzip -t Alkamel-Net-Full-Package.zip
-          test -s Alkamel-Net-Full-Package.zip
+          APK_NAME="Alkamel-Net-v${APP_VERSION}-code${VERSION_CODE}.apk"
+          PROJECT_NAME="Alkamel-Net-Android-Project-v${APP_VERSION}-code${VERSION_CODE}.zip"
+          PACKAGE_DIR="Alkamel-Net-v${APP_VERSION}-code${VERSION_CODE}"
+          FULL_PACKAGE="Alkamel-Net-Full-Package-v${APP_VERSION}-code${VERSION_CODE}.zip"
+          test -s "$APK_NAME" && test -s "$PROJECT_NAME"
+          mkdir -p "$PACKAGE_DIR"
+          cp "$APK_NAME" "$PROJECT_NAME" "$PACKAGE_DIR/"
+          printf 'شبكة الكامل\nالإصدار: %s\nرقم الإصدار الداخلي: %s\nرقم تشغيل البناء: %s\n' "$APP_VERSION" "$VERSION_CODE" "$GITHUB_RUN_NUMBER" > "$PACKAGE_DIR/اقرأني.txt"
+          zip -qr "$FULL_PACKAGE" "$PACKAGE_DIR"
+          unzip -t "$FULL_PACKAGE"
+          test -s "$FULL_PACKAGE"
       - name: Publish APK and project in one ZIP
         uses: softprops/action-gh-release@v2
         with:
           tag_name: alkamel-net-v${{ env.APP_VERSION }}-code${{ env.VERSION_CODE }}-build-${{ github.run_number }}
           name: شبكة الكامل v${{ env.APP_VERSION }} (versionCode ${{ env.VERSION_CODE }}) - build ${{ github.run_number }}
-          files: output/Alkamel-Net-Full-Package.zip
+          files: output/Alkamel-Net-Full-Package-v${{ env.APP_VERSION }}-code${{ env.VERSION_CODE }}.zip
           fail_on_unmatched_files: true
           generate_release_notes: false
       - name: Upload optional Actions artifact
@@ -229,6 +227,6 @@ jobs:
         continue-on-error: true
         with:
           name: Alkamel-Net-v${{ env.APP_VERSION }}-code${{ env.VERSION_CODE }}
-          path: output/Alkamel-Net-debug.apk
+          path: output/Alkamel-Net-v${{ env.APP_VERSION }}-code${{ env.VERSION_CODE }}.apk
           if-no-files-found: error
           retention-days: 7
