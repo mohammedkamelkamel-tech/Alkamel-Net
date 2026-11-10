@@ -87,7 +87,7 @@ checks = {
     "background chat event notifications": "notifyIncomingChat(obj)" in KOTLIN.read_text(encoding="utf-8") and "تم ذكرك في دردشة شبكة الكامل" in KOTLIN.read_text(encoding="utf-8"),
     "background advertisement update monitor": "startAdsUpdateMonitor()" in (APP / "java/com/alkamel/network/ChatKeepAliveService.kt").read_text(encoding="utf-8") and "checkForNewAds()" in (APP / "java/com/alkamel/network/ChatKeepAliveService.kt").read_text(encoding="utf-8"),
     "background service is not stopped when leaving chat": "chatRequested.set(false)" in KOTLIN.read_text(encoding="utf-8") and "ACTION_STOP" not in KOTLIN.read_text(encoding="utf-8").split("private fun stopLanChat()",1)[1].split("private fun requestVoiceRoom()",1)[0],
-    "expected socket close does not surface EBADF": "catch (e: SocketException)" in KOTLIN.read_text(encoding="utf-8") and "if (chatRunning.get() && chatRequested.get())" in KOTLIN.read_text(encoding="utf-8"),
+    "expected socket close does not surface EBADF": "catch (e: SocketException)" in KOTLIN.read_text(encoding="utf-8") and "chatSessionGeneration.get() == sessionId" in KOTLIN.read_text(encoding="utf-8") and "if (chatRunning.get() && chatRequested.get() && chatSessionGeneration.get() == sessionId)" in KOTLIN.read_text(encoding="utf-8"),
     "socket recovery reconnects automatically": "startLanChat(chatNickname, ensureService = false)" in KOTLIN.read_text(encoding="utf-8") and "جارٍ إعادة الاتصال" in KOTLIN.read_text(encoding="utf-8"),
 
     "voice microphone route": "MediaRecorder.AudioSource.VOICE_COMMUNICATION" in KOTLIN.read_text(encoding="utf-8"),
