@@ -91,7 +91,7 @@ jobs:
           ! grep -q "اعتماد السرعة المختارة" "$PROJECT_DIR/app/src/main/assets/home.html"
           ! grep -q "v.textContent=o.value" "$PROJECT_DIR/app/src/main/assets/home.html"
           python3 "$PROJECT_DIR/scripts/validate_project.py"
-      - name: Set package identity and release version
+      - name: Set package identity and preserve validated release version
         shell: bash
         run: |
           set -euxo pipefail
@@ -101,14 +101,15 @@ jobs:
           import pathlib,re,sys
           p=pathlib.Path(sys.argv[1])
           s=p.read_text()
-          s,n=re.subn(r'(?m)^(\s*applicationId\s*=\s*)"[^"]+"',r'\1"com.mohammedkamel.alkamelnet.portal2026"',s)
+          s,n=re.subn(r'(?m)^(\\s*applicationId\\s*=\\s*)"[^"]+"',r'\\1"com.mohammedkamel.alkamelnet.portal2026"',s)
           if n!=1: raise SystemExit(f"Expected one applicationId, found {n}")
-          s,n=re.subn(r'(?m)^(\s*versionCode\s*=\s*)\d+',r'\g<1>55',s)
-          if n!=1: raise SystemExit(f"Expected one versionCode, found {n}")
-          s,n=re.subn(r'(?m)^(\s*versionName\s*=\s*)"[^"]+"',r'\g<1>"1.7.1"',s)
-          if n!=1: raise SystemExit(f"Expected one versionName, found {n}")
+          version=re.search(r'(?m)^\\s*versionName\\s*=\\s*"([^"]+)"',s)
+          code=re.search(r'(?m)^\\s*versionCode\\s*=\\s*(\\d+)',s)
+          if not version or not code: raise SystemExit("Missing versionName/versionCode in Gradle")
+          if not re.fullmatch(r"\\d+\\.\\d+\\.\\d+",version.group(1)): raise SystemExit("Invalid semantic versionName")
+          if int(code.group(1))<1: raise SystemExit("Invalid versionCode")
           p.write_text(s)
-          print("Application ID and version set to 1.7.0 (54)")
+          print(f"Application ID set; preserving source version {version.group(1)} ({code.group(1)})")
           PY
       - uses: actions/setup-java@v4
         with:
