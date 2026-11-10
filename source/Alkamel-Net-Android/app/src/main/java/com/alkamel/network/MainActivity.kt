@@ -1109,16 +1109,9 @@ class MainActivity : Activity() {
             // isolated, or otherwise unattributed system services.
             for (type in intArrayOf(ConnectivityManager.TYPE_WIFI, ConnectivityManager.TYPE_MOBILE)) {
                 try {
-                    val deviceStats = manager.querySummaryForDevice(type, null, start, end)
-                    try {
-                        val deviceBucket = android.app.usage.NetworkStats.Bucket()
-                        if (deviceStats.getNextBucket(deviceBucket)) {
-                            deviceTotalBytes += (deviceBucket.rxBytes + deviceBucket.txBytes).coerceAtLeast(0L)
-                            hasDeviceSummary = true
-                        }
-                    } finally {
-                        runCatching { deviceStats.close() }
-                    }
+                    val deviceBucket = manager.querySummaryForDevice(type, null, start, end)
+                    deviceTotalBytes += (deviceBucket.rxBytes + deviceBucket.txBytes).coerceAtLeast(0L)
+                    hasDeviceSummary = true
                 } catch (e: Exception) {
                     Log.w("AlkamelNet", "Device network summary failed type=$type", e)
                 }
