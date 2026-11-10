@@ -1034,7 +1034,7 @@ class MainActivity : Activity() {
                 } catch (e: Exception) {
                     Log.w("AlkamelNet", "Status refresh failed", e)
                     runOnUiThread {
-                        if (::web.isInitialized && !isFinishing) web.evaluateJavascript("if(document.getElementById('queryNotice'))document.getElementById('queryNotice').textContent='تعذر جلب البيانات. تحقق من اتصالك بشبكة الكامل.';", null)
+                        if (::web.isInitialized && !isFinishing) web.evaluateJavascript("if(typeof setQueryNotice==='function')setQueryNotice('تعذر جلب البيانات. تحقق من اتصالك بشبكة الكامل؛ لم يتم تحديث القراءات.','error');else if(document.getElementById('queryNotice'))document.getElementById('queryNotice').textContent='تعذر جلب البيانات. تحقق من اتصالك بشبكة الكامل.';", null)
                     }
                 } finally {
                     connection?.disconnect()
