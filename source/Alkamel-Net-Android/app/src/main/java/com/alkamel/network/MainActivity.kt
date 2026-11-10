@@ -582,33 +582,36 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun chatBroadcastTargets(): List<InetAddress> {
-        val targets = linkedMapOf<String, InetAddress>()
-        // Prefer the broadcast address calculated for the active Wi-Fi interface.
-        // This is more reliable than limited broadcast on some AP/switch networks.
+    /**
+     * Resolve broadcast routes from the actual local interfaces instead of relying
+     * only on ConnectivityManager.activeNetwork. Android may report cellular as the
+     * active default network while Wi-Fi is still the LAN used by the chat room.
+     */
+    private fun chatBroadcastRoutes(): List<Pair<InetAddress, InetAddress>> {
+        val routes = linkedMapOf<String, Pair<InetAddress, InetAddress>>()
         try {
-            val connectivity = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
-            val network = connectivity.activeNetwork
-            val capabilities = network?.let { connectivity.getNetworkCapabilities(it) }
-            if (network != null && capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true) {
-                val interfaceName = connectivity.getLinkProperties(network)?.interfaceName
-                val wifiInterface = interfaceName?.let { NetworkInterface.getByName(it) }
-                wifiInterface?.interfaceAddresses?.forEach { address ->
-                    val ip = address.address
+            val interfaces = NetworkInterface.getNetworkInterfaces()?.asSequence()?.toList().orEmpty()
+            interfaces.forEach { network ->
+                val name = network.name.lowercase()
+                val isLanInterface = name.startsWith("wlan") || name.startsWith("wifi") ||
+                    name.startsWith("ap") || name.startsWith("eth")
+                if (!isLanInterface || !runCatching { network.isUp && !network.isLoopback && !network.isVirtual }.getOrDefault(false)) {
+                    return@forEach
+                }
+                network.interfaceAddresses.forEach { address ->
+                    val local = address.address
                     val broadcast = address.broadcast
-                    if (ip is java.net.Inet4Address && broadcast is java.net.Inet4Address &&
-                        !ip.isLoopbackAddress && !ip.isLinkLocalAddress && !broadcast.isAnyLocalAddress) {
-                        targets[broadcast.hostAddress ?: broadcast.toString()] = broadcast
+                    if (local is java.net.Inet4Address && broadcast is java.net.Inet4Address &&
+                        !local.isLoopbackAddress && !local.isLinkLocalAddress && !broadcast.isAnyLocalAddress) {
+                        val key = "${local.hostAddress}->${broadcast.hostAddress}"
+                        routes[key] = local to broadcast
                     }
                 }
             }
         } catch (e: Exception) {
-            Log.w("AlkamelNet", "Unable to resolve Wi-Fi broadcast address", e)
+            Log.w("AlkamelNet", "Unable to enumerate LAN broadcast interfaces", e)
         }
-        // Keep limited broadcast as a compatibility fallback.
-        val limited = InetAddress.getByName("255.255.255.255")
-        targets[limited.hostAddress ?: limited.toString()] = limited
-        return targets.values.toList()
+        return routes.values.toList()
     }
 
     private fun sendLanPacket(type: String, message: String) {
@@ -620,23 +623,42 @@ class MainActivity : Activity() {
         chatSendExecutor.execute {
             if (!chatRunning.get()) return@execute
             try {
-                val targets = chatBroadcastTargets()
-                DatagramSocket().use { sender ->
-                    sender.broadcast = true
-                    val copies = if (type == "message") 3 else 1
-                    repeat(copies) { index ->
-                        if (!chatRunning.get()) return@repeat
-                        targets.forEach { target ->
-                            if (chatRunning.get()) {
-                                val packet = DatagramPacket(payload, payload.size, target, 39127)
-                                sender.send(packet)
+                val routes = chatBroadcastRoutes()
+                val limitedBroadcast = InetAddress.getByName("255.255.255.255")
+                val copies = if (type == "message") 3 else 1
+                if (routes.isEmpty()) {
+                    DatagramSocket().use { sender ->
+                        sender.broadcast = true
+                        repeat(copies) { index ->
+                            if (chatRunning.get()) sender.send(DatagramPacket(payload, payload.size, limitedBroadcast, 39127))
+                            if (index < copies - 1) Thread.sleep(90)
+                        }
+                    }
+                } else {
+                    routes.forEach { (localAddress, subnetBroadcast) ->
+                        if (!chatRunning.get()) return@forEach
+                        DatagramSocket(null).use { sender ->
+                            sender.reuseAddress = true
+                            sender.broadcast = true
+                            sender.bind(java.net.InetSocketAddress(localAddress, 0))
+                            repeat(copies) { index ->
+                                if (chatRunning.get()) {
+                                    sender.send(DatagramPacket(payload, payload.size, subnetBroadcast, 39127))
+                                    // Limited broadcast is retained as a fallback for APs
+                                    // that do not forward the calculated subnet broadcast.
+                                    if (subnetBroadcast != limitedBroadcast) {
+                                        sender.send(DatagramPacket(payload, payload.size, limitedBroadcast, 39127))
+                                    }
+                                }
+                                if (index < copies - 1) Thread.sleep(90)
                             }
                         }
-                        if (index < copies - 1) Thread.sleep(90)
                     }
                 }
-                Log.d("AlkamelNet", "LAN chat packet sent to ${targets.size} broadcast targets")
-            } catch (e: Exception) { Log.w("AlkamelNet", "LAN chat send failed", e) }
+                Log.d("AlkamelNet", "LAN chat packet sent through ${routes.size} LAN interfaces")
+            } catch (e: Exception) {
+                Log.w("AlkamelNet", "LAN chat send failed", e)
+            }
         }
     }
     private fun sendPrivateLanPacket(type: String, targetId: String, requestId: String, message: String) {
