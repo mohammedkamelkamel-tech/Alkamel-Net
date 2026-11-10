@@ -1110,7 +1110,9 @@ class MainActivity : Activity() {
                     val bucket = android.app.usage.NetworkStats.Bucket()
                     while (stats.hasNextBucket()) {
                         if (!stats.getNextBucket(bucket)) break
-                        if (bucket.uid >= 10000) {
+                        // Include system and user application UIDs so the report does not
+                        // silently drop traffic attributed by Android to system services.
+                        if (bucket.uid >= 0) {
                             val bytes = (bucket.rxBytes + bucket.txBytes).coerceAtLeast(0L)
                             if (bytes > 0L) totals[bucket.uid] = (totals[bucket.uid] ?: 0L) + bytes
                         }
@@ -1124,13 +1126,18 @@ class MainActivity : Activity() {
 
             val appsByUid = HashMap<Int, MutableList<android.content.pm.ApplicationInfo>>()
             for (app in packageManager.getInstalledApplications(PackageManager.GET_META_DATA)) {
-                if (app.uid < 10000 || app.uid == android.os.Process.myUid()) continue
+                if (app.uid < 0) continue
                 appsByUid.getOrPut(app.uid) { mutableListOf() }.add(app)
             }
             val rows = totals.entries.mapNotNull { entry ->
                 val installed = appsByUid[entry.key]
-                if (entry.value <= 0L || installed.isNullOrEmpty()) null
-                else {
+                if (entry.value <= 0L) null
+                else if (installed.isNullOrEmpty()) {
+                    JSONObject()
+                        .put("name", "خدمات النظام")
+                        .put("bytes", entry.value)
+                        .put("icon", "")
+                } else {
                     val ordered = installed.sortedBy { runCatching { packageManager.getApplicationLabel(it).toString() }.getOrDefault(it.packageName) }
                     val names = ordered.map { runCatching { packageManager.getApplicationLabel(it).toString() }.getOrDefault(it.packageName) }.distinct()
                     val firstApp = ordered.first()
