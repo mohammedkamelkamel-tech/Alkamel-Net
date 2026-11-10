@@ -9,8 +9,8 @@ android {
         applicationId = "com.mohammedkamel.alkamelnet.portal2026"
         minSdk = 24
         targetSdk = 35
-        versionCode = 60
-        versionName = "1.7.6"
+        versionCode = 61
+        versionName = "1.7.7"
     }
     buildTypes {
         debug {
@@ -40,4 +40,5 @@ android {
 
 dependencies {
     implementation("androidx.webkit:webkit:1.12.1")
+    implementation("androidx.work:work-runtime-ktx:2.10.1")
 }
