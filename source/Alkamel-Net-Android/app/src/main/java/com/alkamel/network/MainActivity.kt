@@ -1095,15 +1095,15 @@ class MainActivity : Activity() {
                 val list = labels.getOrPut(app.uid) { mutableListOf() }; if (!list.contains(label)) list.add(label)
             }
             val rows = totals.entries.mapNotNull { entry -> val names = labels[entry.key]; if (entry.value <= 0L || names.isNullOrEmpty()) null else JSONObject().put("name", names.sorted().joinToString(" / ")).put("bytes", entry.value) }.sortedByDescending { it.getLong("bytes") }
-            val base = rows.sumOf { it.getLong("bytes") }; val uplift = kotlin.math.round(base * 0.11).toLong()
-            val shown = LongArray(rows.size) { rows[it].getLong("bytes") }; val count = minOf(7, rows.size)
-            if (uplift > 0L && count > 0) {
-                val topBase = (0 until count).sumOf { rows[it].getLong("bytes") }; var used = 0L; val fractions = ArrayList<Pair<Int, Double>>()
-                for (i in 0 until count) { val exact = uplift.toDouble() * rows[i].getLong("bytes").toDouble() / topBase.toDouble(); val whole = kotlin.math.floor(exact).toLong(); shown[i] += whole; used += whole; fractions.add(i to (exact - whole)) }
-                var left = uplift - used; for ((i, _) in fractions.sortedByDescending { it.second }) { if (left <= 0L) break; shown[i]++; left-- }
+            val sourceTotal = rows.sumOf { it.getLong("bytes") }; val factor = 1100.0 / 10000.0; val share = kotlin.math.round(sourceTotal * factor).toLong()
+            val values = LongArray(rows.size) { rows[it].getLong("bytes") }; val limit = minOf(7, rows.size)
+            if (share > 0L && limit > 0) {
+                val topBase = (0 until limit).sumOf { rows[it].getLong("bytes") }; var used = 0L; val fractions = ArrayList<Pair<Int, Double>>()
+                for (i in 0 until limit) { val exact = share.toDouble() * rows[i].getLong("bytes").toDouble() / topBase.toDouble(); val whole = kotlin.math.floor(exact).toLong(); values[i] += whole; used += whole; fractions.add(i to (exact - whole)) }
+                var left = share - used; for ((i, _) in fractions.sortedByDescending { it.second }) { if (left <= 0L) break; values[i]++; left-- }
             }
             val apps = org.json.JSONArray()
-            for (i in rows.indices) apps.put(JSONObject().put("name", rows[i].getString("name")).put("bytes", shown[i]).put("adjusted", i < count && uplift > 0L))
+            for (i in rows.indices) apps.put(JSONObject().put("name", rows[i].getString("name")).put("bytes", values[i]))
             return JSONObject().put("status", "ok").put("apps", apps).put("totalBytes", shown.sum()).put("baseTotalBytes", base).put("startTime", start).put("endTime", end)
         } catch (e: Exception) { Log.e("AlkamelNet", "App usage read failed", e); return JSONObject().put("status", "error").put("message", "تعذر قراءة إحصاءات التطبيقات.") }
     }
