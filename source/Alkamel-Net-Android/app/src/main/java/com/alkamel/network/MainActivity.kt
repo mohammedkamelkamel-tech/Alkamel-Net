@@ -79,6 +79,11 @@ class MainActivity : Activity() {
             .build()
     }
     private val refreshInProgress = AtomicBoolean(false)
+    private val networkGuard = Executors.newSingleThreadScheduledExecutor()
+    @Volatile private var networkGuardStarted = false
+    @Volatile private var networkAccessBlocked = true
+    private var networkFailureCount = 0
+    private var networkSuccessCount = 0
     private val mainHandler = Handler(Looper.getMainLooper())
     @Volatile private var resumeRecoveryToken = 0
     @Volatile private var appInForeground = false
@@ -309,7 +314,7 @@ class MainActivity : Activity() {
             })
             addView(Button(this@MainActivity).apply {
                 text = "إعادة المحاولة"
-                setOnClickListener { hideError(); verifyPrivateNetworkAccess() }
+                setOnClickListener { hideError(); verifyPrivateNetworkAccess { loadHome() } }
             })
         }
         root.addView(web, FrameLayout.LayoutParams(-1, -1))
@@ -955,44 +960,97 @@ class MainActivity : Activity() {
     }
 
     /**
-     * Restrict the app to the private network by checking its internal DNS/service
-     * entry points. Either hostname is sufficient so a temporary outage of one
-     * address does not lock out legitimate subscribers.
+     * Access is granted only while the private portal is reachable. This check
+     * deliberately uses the portal itself rather than the Wi-Fi name, because
+     * SSIDs can be copied by unrelated networks.
      */
+    private fun isPrivateNetworkReachable(): Boolean =
+        listOf("k.com", "k.net").any { host ->
+            try {
+                val connection = (URL("http://$host/").openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 2200
+                    readTimeout = 2200
+                    instanceFollowRedirects = false
+                    useCaches = false
+                    setRequestProperty("Cache-Control", "no-cache, no-store")
+                    setRequestProperty("Connection", "close")
+                }
+                try {
+                    val status = connection.responseCode
+                    status in 200..399 && connection.url.host.equals(host, ignoreCase = true)
+                } finally {
+                    connection.disconnect()
+                }
+            } catch (e: Exception) {
+                Log.d("AlkamelNet", "Private network check failed for $host: ${e.message}")
+                false
+            }
+        }
+
+    private fun startNetworkAccessGuard() {
+        if (networkGuardStarted) return
+        networkGuardStarted = true
+        networkGuard.scheduleWithFixedDelay({
+            val reachable = isPrivateNetworkReachable()
+            if (reachable) {
+                networkFailureCount = 0
+                if (networkAccessBlocked) {
+                    networkSuccessCount++
+                    if (networkSuccessCount >= 1) {
+                        networkAccessBlocked = false
+                        mainHandler.post {
+                            if (!isFinishing && !isDestroyed) {
+                                hideError()
+                                loadHome()
+                                val prefs = getSharedPreferences("alkamel_app_setup", MODE_PRIVATE)
+                                if (prefs.getBoolean("background_enabled", false)) ensureBackgroundService()
+                                Toast.makeText(this, "تم استعادة الاتصال بشبكة الكامل.", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                } else networkSuccessCount = 0
+            } else {
+                networkSuccessCount = 0
+                networkFailureCount++
+                if (networkFailureCount >= 2 && !networkAccessBlocked) {
+                    networkAccessBlocked = true
+                    mainHandler.post {
+                        if (!isFinishing && !isDestroyed) {
+                            Log.w("AlkamelNet", "Private network lost; locking app and stopping LAN services")
+                            stopVoiceRoom()
+                            stopLanChat()
+                            commandWeb?.stopLoading()
+                            web.stopLoading()
+                            web.evaluateJavascript("(function(){document.querySelectorAll('video,audio').forEach(function(m){try{m.pause();m.currentTime=0;}catch(e){}});})()", null)
+                            stopService(Intent(this, ChatKeepAliveService::class.java).setAction(ChatKeepAliveService.ACTION_STOP))
+                            showError("انقطع اتصالك بشبكة الكامل. تم إيقاف خدمات التطبيق؛ اتصل بشبكة الكامل للمتابعة.")
+                        }
+                    }
+                }
+            }
+        }, 5, 5, java.util.concurrent.TimeUnit.SECONDS)
+    }
+
     private fun verifyPrivateNetworkAccess(onAllowed: (() -> Unit)? = null) {
         if (isFinishing || isDestroyed) return
         showLoading(true)
         errorPanel.visibility = View.GONE
+        startNetworkAccessGuard()
         io.execute {
-            val reachable = listOf("k.com", "k.net").any { host ->
-                try {
-                    val connection = (URL("http://$host/").openConnection() as HttpURLConnection).apply {
-                        requestMethod = "GET"
-                        connectTimeout = 2200
-                        readTimeout = 2200
-                        instanceFollowRedirects = false
-                        useCaches = false
-                        setRequestProperty("Cache-Control", "no-cache")
-                        setRequestProperty("Connection", "close")
-                    }
-                    try {
-                        val status = connection.responseCode
-                        status in 200..399 && connection.url.host.equals(host, ignoreCase = true)
-                    } finally {
-                        connection.disconnect()
-                    }
-                } catch (e: Exception) {
-                    Log.d("AlkamelNet", "Private network check failed for $host: ${e.message}")
-                    false
-                }
-            }
+            val reachable = isPrivateNetworkReachable()
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 showLoading(false)
                 if (reachable) {
+                    networkAccessBlocked = false
+                    networkFailureCount = 0
+                    networkSuccessCount = 0
                     hideError()
                     onAllowed?.invoke()
                 } else {
+                    networkAccessBlocked = true
+                    stopService(Intent(this, ChatKeepAliveService::class.java).setAction(ChatKeepAliveService.ACTION_STOP))
                     showError("هذا التطبيق مخصص لمشتركي شبكة الكامل. اتصل بشبكة الكامل ثم أعد المحاولة.")
                 }
             }
@@ -1660,6 +1718,7 @@ class MainActivity : Activity() {
             chatExecutor.shutdownNow()
             chatSendExecutor.shutdownNow()
         }
+        networkGuard.shutdownNow()
         if (::web.isInitialized) {
             web.removeJavascriptInterface("AndroidBridge")
             web.stopLoading()
