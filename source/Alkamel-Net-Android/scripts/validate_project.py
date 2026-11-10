@@ -15,6 +15,9 @@ KOTLIN = APP / "java/com/alkamel/network/MainActivity.kt"
 
 checks = {
     "portal commands wait for subscriber status before submitting": "waitingForSubscriber" in KOTLIN.read_text(encoding="utf-8") and "target.postDelayed({ runPendingCommand() }, 500)" in KOTLIN.read_text(encoding="utf-8"),
+    "resume recovery detects an unresponsive home WebView": "recoverHomeAfterResume()" in KOTLIN.read_text(encoding="utf-8") and "Home WebView did not answer resume health check" in KOTLIN.read_text(encoding="utf-8") and "mainHandler.postDelayed" in KOTLIN.read_text(encoding="utf-8"),
+    "resume recovery refreshes active sections": "window.appOnResume=function()" in HOME.read_text(encoding="utf-8") and "window.appOnResume==='function'" in KOTLIN.read_text(encoding="utf-8"),
+    "hidden portal command WebView reconnects after background": 'hidden.loadUrl("http://k.com/")' in KOTLIN.read_text(encoding="utf-8") and "commandPageReady = false" in KOTLIN.read_text(encoding="utf-8"),
     "JavaScript bridge is restricted to bundled app pages": "if (urlIsLocal(url)) view?.addJavascriptInterface(Bridge(), \"AndroidBridge\")" in KOTLIN.read_text(encoding="utf-8") and "else view?.removeJavascriptInterface(\"AndroidBridge\")" in KOTLIN.read_text(encoding="utf-8"),
     "defensive page navigation and status parsing": "const target=$(id);if(!target||!target.classList.contains('page'))return;" in HOME.read_text(encoding="utf-8") and "if(!d||typeof d!=='object'||Array.isArray(d))" in HOME.read_text(encoding="utf-8"),
     "professional responsive interface layer": "Unified professional visual system for every application section" in HOME.read_text(encoding="utf-8") and "@media(max-width:420px)" in HOME.read_text(encoding="utf-8") and ":focus-visible" in HOME.read_text(encoding="utf-8"),
@@ -30,7 +33,7 @@ checks = {
     "logout button is below subscriber refresh": HOME.read_text(encoding="utf-8").find("onclick=\"refreshStatus()\"") < HOME.read_text(encoding="utf-8").find("onclick=\"logout()\"") and "إنهاء جلسة الحساب" not in HOME.read_text(encoding="utf-8"),
     "minSdk 24": "minSdk = 24" in GRADLE,
     "targetSdk 35": "targetSdk = 35" in GRADLE,
-    "app version 1.6.6": "versionCode = 50" in GRADLE and 'versionName = "1.6.6"' in GRADLE,
+    "app version 1.6.7": "versionCode = 51" in GRADLE and 'versionName = "1.6.7"' in GRADLE,
     "app label": 'android:label="شبكة الكامل"' in MANIFEST,
     "launcher icon uses approved artwork": 'android:icon="@drawable/ic_launcher"' in MANIFEST and 'android:roundIcon="@drawable/ic_launcher"' in MANIFEST and (APP / "res/drawable-nodpi/ic_launcher.webp").is_file() and (APP / "res/drawable-nodpi/ic_launcher.webp").stat().st_size > 4000 and (APP / "res/drawable-nodpi/ic_launcher.webp").read_bytes()[:4] == b"RIFF" and (APP / "res/drawable-nodpi/ic_launcher.webp").read_bytes()[8:12] == b"WEBP",
     "internet permission": "android.permission.INTERNET" in MANIFEST,
