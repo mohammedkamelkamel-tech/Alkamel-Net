@@ -665,6 +665,14 @@ class MainActivity : Activity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == wifiScanPermissionRequest) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                performNearbyWifiScan()
+            } else {
+                runOnUiThread { if (::web.isInitialized) web.evaluateJavascript("window.onNearbyWifiResult&&window.onNearbyWifiResult({error:'يلزم السماح بإذن الموقع لعرض الشبكات القريبة'});", null) }
+            }
+            return
+        }
         if (requestCode == voicePermissionRequest) {
             if (grantResults.isNotEmpty() && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
                 startVoiceRoom()
@@ -949,6 +957,101 @@ class MainActivity : Activity() {
         }
     }
 
+    private val wifiScanPermissionRequest = 7413
+
+    private fun requestNearbyWifiScan() {
+        if (checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION), wifiScanPermissionRequest)
+            return
+        }
+        performNearbyWifiScan()
+    }
+
+    private fun performNearbyWifiScan() {
+        if (!::web.isInitialized || isFinishing || isDestroyed) return
+        io.execute {
+            val result = JSONObject()
+            try {
+                val wifi = applicationContext.getSystemService(WIFI_SERVICE) as WifiManager
+                if (!wifi.isWifiEnabled) {
+                    result.put("error", "الواي فاي مغلق. شغّله ثم أعد الفحص.")
+                } else {
+                    val started = runCatching { wifi.startScan() }.getOrDefault(false)
+                    mainHandler.postDelayed({
+                        io.execute {
+                            try {
+                                val entries = org.json.JSONArray()
+                                val scans = wifi.scanResults.orEmpty()
+                                    .filter { it.SSID.isNotBlank() }
+                                    .distinctBy { it.BSSID ?: it.SSID }
+                                    .sortedByDescending { it.level }
+                                var crownFound = false
+                                var crownNumber = ""
+                                var standardFound = false
+                                for (scan in scans) {
+                                    val ssid = scan.SSID.trim()
+                                    val rssi = scan.level
+                                    val level = WifiManager.calculateSignalLevel(rssi, 5) + 1
+                                    val band = when {
+                                        scan.frequency in 2400..2500 -> "2.4 GHz"
+                                        scan.frequency in 4900..5900 -> "5 GHz"
+                                        scan.frequency >= 5925 -> "6 GHz"
+                                        else -> "غير معروف"
+                                    }
+                                    val ap = Regex("\\(\\s*(\\d+)\\s*\\)\\s*$").find(ssid)?.groupValues?.get(1)
+                                    val isCrown = ssid.contains("A::5G الكامل", ignoreCase = true)
+                                    val isStandard = ssid.contains("2Gالكامل نت", ignoreCase = true)
+                                    if (isCrown) { crownFound = true; if (!ap.isNullOrBlank()) crownNumber = ap }
+                                    if (isStandard) standardFound = true
+                                    val item = JSONObject()
+                                    item.put("ssid", ssid)
+                                    item.put("rssi", rssi)
+                                    item.put("level", level)
+                                    item.put("frequency", scan.frequency)
+                                    item.put("band", band)
+                                    item.put("security", when {
+                                        scan.capabilities.contains("WPA3", true) -> "WPA3"
+                                        scan.capabilities.contains("WPA", true) -> "WPA/WPA2"
+                                        scan.capabilities.contains("WEP", true) -> "WEP"
+                                        else -> "مفتوحة"
+                                    })
+                                    item.put("crown", isCrown)
+                                    item.put("standard", isStandard)
+                                    entries.put(item)
+                                }
+                                result.put("networks", entries)
+                                result.put("count", entries.length())
+                                result.put("scanStarted", started)
+                                result.put("crownFound", crownFound)
+                                result.put("crownNumber", crownNumber)
+                                result.put("standardFound", standardFound)
+                                if (entries.length() == 0) result.put("error", "لم تظهر شبكات. تأكد من تشغيل خدمة الموقع ومنح إذن الموقع، ثم أعد المحاولة.")
+                                else if (!started) result.put("notice", "تم عرض آخر نتائج مسح متاحة؛ قد تكون قديمة بسبب قيود Android على تكرار المسح.")
+                            } catch (e: Exception) {
+                                result.put("error", "تعذر قراءة الشبكات القريبة: ${e.message ?: "تحقق من أذونات الموقع"}")
+                            }
+                            runOnUiThread {
+                                if (!isFinishing && !isDestroyed && ::web.isInitialized) {
+                                    web.evaluateJavascript("window.onNearbyWifiResult && window.onNearbyWifiResult($result)", null)
+                                }
+                            }
+                        }
+                    }, 1800L)
+                }
+            } catch (e: Exception) {
+                result.put("error", "تعذر فحص الوايرلس: ${e.message ?: "حدث خطأ"}")
+                runOnUiThread {
+                    if (!isFinishing && !isDestroyed && ::web.isInitialized)
+                        web.evaluateJavascript("window.onNearbyWifiResult && window.onNearbyWifiResult($result)", null)
+                }
+            }
+            if (result.has("error")) runOnUiThread {
+                if (!isFinishing && !isDestroyed && ::web.isInitialized)
+                    web.evaluateJavascript("window.onNearbyWifiResult && window.onNearbyWifiResult($result)", null)
+            }
+        }
+    }
+
     inner class Bridge {
         @JavascriptInterface fun startChat(name: String) { startLanChat(name) }
         @JavascriptInterface fun sendChatMessage(message: String) { if (message.length <= 1000) sendLanPacket("message", message.trim()) }
@@ -963,6 +1066,7 @@ class MainActivity : Activity() {
         @JavascriptInterface fun setVoiceMuted(muted: Boolean) { setVoiceMute(muted) }
         @JavascriptInterface fun leaveVoiceRoom() { stopVoiceRoom() }
 
+        @JavascriptInterface fun scanNearbyWifi() { runOnUiThread { requestNearbyWifiScan() } }
         @JavascriptInterface
         fun openUrl(url: String) {
             runOnUiThread {
