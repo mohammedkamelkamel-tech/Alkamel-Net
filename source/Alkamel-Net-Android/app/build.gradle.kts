@@ -9,8 +9,8 @@ android {
         applicationId = "com.mohammedkamel.alkamelnet.portal2026"
         minSdk = 24
         targetSdk = 35
-        versionCode = 64
-        versionName = "1.8.0"
+        versionCode = 65
+        versionName = "1.8.1"
     }
     buildTypes {
         debug {
