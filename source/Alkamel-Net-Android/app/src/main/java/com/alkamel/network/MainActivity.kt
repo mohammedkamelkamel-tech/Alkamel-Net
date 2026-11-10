@@ -1161,7 +1161,7 @@ class MainActivity : Activity() {
 
         @JavascriptInterface fun scanNearbyWifi() { runOnUiThread { requestNearbyWifiScan() } }
         @JavascriptInterface fun getAppNetworkUsage() { requestAppNetworkUsage() }
-        @JavascriptInterface fun openUsageAccessSettings() { openUsageAccessSettings() }
+        @JavascriptInterface fun openUsageAccessSettings() { this@MainActivity.openUsageAccessSettings() }
         @JavascriptInterface
         fun openUrl(url: String) {
             runOnUiThread {
