@@ -732,7 +732,16 @@ class MainActivity : Activity() {
         chatSendExecutor.execute {
             if (!chatRunning.get()) return@execute
             try {
-                DatagramSocket().use { sender ->
+                DatagramSocket(null).use { sender ->
+                    // Private unicast packets must follow the same Wi-Fi route as
+                    // group chat; otherwise Android may send them over cellular.
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                        chatWifiNetwork()?.let { network ->
+                            runCatching { network.bindSocket(sender) }
+                                .onFailure { Log.w("AlkamelNet", "Unable to bind private chat sender to Wi-Fi", it) }
+                        }
+                    }
+                    sender.bind(java.net.InetSocketAddress(0))
                     sender.send(DatagramPacket(payload, payload.size, address, 39127))
                 }
             } catch (e: Exception) {
@@ -903,11 +912,21 @@ class MainActivity : Activity() {
                 System.arraycopy(prefix, 0, outgoing, 0, prefix.size)
                 var lastUi = 0L
                 while (voiceRunning.get()) {
-                    val count = activeRecorder.read(pcm, 0, pcm.size, AudioRecord.READ_BLOCKING)
+                    // Non-blocking reads let the stop flag end the audio loop
+                    // immediately; READ_BLOCKING can strand the single voice worker
+                    // after leaving a room and prevent joining again.
+                    val count = activeRecorder.read(pcm, 0, pcm.size, AudioRecord.READ_NON_BLOCKING)
+                    if (!voiceRunning.get()) break
                     if (count == AudioRecord.ERROR_INVALID_OPERATION || count == AudioRecord.ERROR_BAD_VALUE || count == AudioRecord.ERROR_DEAD_OBJECT) {
                         throw IllegalStateException("توقف تسجيل الميكروفون (رمز " + count + ")")
                     }
-                    if (count <= 0) continue
+                    if (count <= 0) {
+                        try { Thread.sleep(5) } catch (_: InterruptedException) {
+                            Thread.currentThread().interrupt()
+                            break
+                        }
+                        continue
+                    }
                     var energy = 0.0
                     var i = 0
                     while (i + 1 < count) {
