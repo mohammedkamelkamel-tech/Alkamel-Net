@@ -1375,14 +1375,18 @@ class MainActivity : Activity() {
         if (returnPage != null) {
             pendingPageAfterHome = returnPage
             loadHome()
-        } else if (currentUrl.startsWith(homeUrl) || currentUrl.startsWith("data:")) {
-            web.evaluateJavascript(
-                "if(typeof window.appBack==='function'){window.appBack();'handled';}else{'reload';}"
-            ) { result ->
-                if (result == null || result.contains("reload")) runOnUiThread { loadHome() }
+            return
+        }
+
+        // Always delegate portal navigation to the page-level back handler.
+        // This keeps support sub-pages inside the support menu even when the
+        // WebView is serving the bundled page through its data/local fallback URL.
+        web.evaluateJavascript(
+            "if(typeof window.appBack==='function'){window.appBack();'handled';}else{'reload';}"
+        ) { result ->
+            if (result == null || result.contains("reload")) {
+                runOnUiThread { if (!isFinishing && !isDestroyed) loadHome() }
             }
-        } else {
-            loadHome()
         }
     }
 
