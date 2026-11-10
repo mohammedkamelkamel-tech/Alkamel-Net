@@ -178,6 +178,16 @@ class MainActivity : Activity() {
                     val uri = request?.url ?: return false
                     if (uri.host == "appassets.androidplatform.net" && uri.scheme == "https") return false
                     if (uri.scheme == "http" && uri.host in allowedHosts) return false
+                    if (uri.scheme == "https" && uri.host == "wa.me" &&
+                        uri.path == "/967772072056") {
+                        try {
+                            startActivity(Intent(Intent.ACTION_VIEW, uri))
+                        } catch (e: Exception) {
+                            Log.e("AlkamelNet", "Unable to open WhatsApp contact", e)
+                            Toast.makeText(this@MainActivity, "تعذر فتح واتساب", Toast.LENGTH_SHORT).show()
+                        }
+                        return true
+                    }
                     Log.w("AlkamelNet", "Blocked navigation: $uri")
                     return true
                 }
