@@ -1104,7 +1104,7 @@ class MainActivity : Activity() {
             }
             val apps = org.json.JSONArray()
             for (i in rows.indices) apps.put(JSONObject().put("name", rows[i].getString("name")).put("bytes", values[i]))
-            return JSONObject().put("status", "ok").put("apps", apps).put("totalBytes", shown.sum()).put("baseTotalBytes", base).put("startTime", start).put("endTime", end)
+            return JSONObject().put("status", "ok").put("apps", apps).put("totalBytes", values.sum()).put("startTime", start).put("endTime", end)
         } catch (e: Exception) { Log.e("AlkamelNet", "App usage read failed", e); return JSONObject().put("status", "error").put("message", "تعذر قراءة إحصاءات التطبيقات.") }
     }
 
