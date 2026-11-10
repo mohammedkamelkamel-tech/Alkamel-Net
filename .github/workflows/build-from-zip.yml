@@ -103,8 +103,8 @@ jobs:
           s=p.read_text()
           s,n=re.subn(r'(?m)^(\\s*applicationId\\s*=\\s*)"[^"]+"',r'\\1"com.mohammedkamel.alkamelnet.portal2026"',s)
           if n!=1: raise SystemExit(f"Expected one applicationId, found {n}")
-          version=re.search(r'(?m)^\\s*versionName\\s*=\\s*"([^"]+)"',s)
-          code=re.search(r'(?m)^\\s*versionCode\\s*=\\s*(\\d+)',s)
+          version=re.search(r'(?m)^\s*versionName\s*=\s*"([^"]+)"',s)
+          code=re.search(r'(?m)^\s*versionCode\s*=\s*(\d+)',s)
           if not version or not code: raise SystemExit("Missing versionName/versionCode in Gradle")
           if not re.fullmatch(r"\\d+\\.\\d+\\.\\d+",version.group(1)): raise SystemExit("Invalid semantic versionName")
           if int(code.group(1))<1: raise SystemExit("Invalid versionCode")
@@ -158,10 +158,10 @@ jobs:
           import pathlib,re,sys
           gradle=pathlib.Path(sys.argv[1]).read_text()
           badging=sys.argv[2]
-          name=re.search(r'(?m)^\\s*versionName\\s*=\\s*"([^"]+)"',gradle)
-          code=re.search(r'(?m)^\\s*versionCode\\s*=\\s*(\\d+)',gradle)
+          name=re.search(r'(?m)^\s*versionName\s*=\s*"([^"]+)"',gradle)
+          code=re.search(r'(?m)^\s*versionCode\s*=\s*(\d+)',gradle)
           if not name or not code: raise SystemExit("FAIL - missing source version")
-          match=re.search(r"^package:.*?versionCode='(\\d+)'.*?versionName='([^']+)'",badging,re.M)
+          match=re.search(r"^package:.*?versionCode='(\d+)'.*?versionName='([^']+)'",badging,re.M)
           if not match: raise SystemExit("FAIL - APK version metadata missing")
           if match.group(1)!=code.group(1) or match.group(2)!=name.group(1):
               raise SystemExit(f"FAIL - APK version {match.group(2)} ({match.group(1)}) differs from source {name.group(1)} ({code.group(1)})")
