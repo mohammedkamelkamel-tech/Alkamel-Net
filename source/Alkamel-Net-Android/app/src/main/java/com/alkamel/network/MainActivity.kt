@@ -314,7 +314,7 @@ class MainActivity : Activity() {
             })
             addView(Button(this@MainActivity).apply {
                 text = "إعادة المحاولة"
-                setOnClickListener { hideError(); verifyPrivateNetworkAccess() }
+                setOnClickListener { hideError(); verifyPrivateNetworkAccess { loadHome() } }
             })
         }
         root.addView(web, FrameLayout.LayoutParams(-1, -1))
@@ -1716,8 +1716,8 @@ class MainActivity : Activity() {
             voiceReceiveExecutor.shutdownNow()
             chatExecutor.shutdownNow()
             chatSendExecutor.shutdownNow()
-            networkGuard.shutdownNow()
         }
+        networkGuard.shutdownNow()
         if (::web.isInitialized) {
             web.removeJavascriptInterface("AndroidBridge")
             web.stopLoading()
