@@ -1050,6 +1050,7 @@ class MainActivity : Activity() {
                     onAllowed?.invoke()
                 } else {
                     networkAccessBlocked = true
+                    stopService(Intent(this, ChatKeepAliveService::class.java).setAction(ChatKeepAliveService.ACTION_STOP))
                     showError("هذا التطبيق مخصص لمشتركي شبكة الكامل. اتصل بشبكة الكامل ثم أعد المحاولة.")
                 }
             }
