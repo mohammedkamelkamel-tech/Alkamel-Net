@@ -152,7 +152,21 @@ jobs:
           set -euxo pipefail
           APK="$PROJECT_DIR/app/build/outputs/apk/debug/app-debug.apk"
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort | tail -n 1)"
-          "$AAPT" dump badging "$APK" | grep -E "^(package:|application-label:|application-icon-)"
+          BADGING="$("$AAPT" dump badging "$APK")"
+          printf '%s\n' "$BADGING" | grep -E "^(package:|application-label:|application-icon-)"
+          python3 - "$PROJECT_DIR/app/build.gradle.kts" "$BADGING" <<'PY'
+          import pathlib,re,sys
+          gradle=pathlib.Path(sys.argv[1]).read_text()
+          badging=sys.argv[2]
+          name=re.search(r'(?m)^\\s*versionName\\s*=\\s*"([^"]+)"',gradle)
+          code=re.search(r'(?m)^\\s*versionCode\\s*=\\s*(\\d+)',gradle)
+          if not name or not code: raise SystemExit("FAIL - missing source version")
+          match=re.search(r"^package:.*?versionCode='(\\d+)'.*?versionName='([^']+)'",badging,re.M)
+          if not match: raise SystemExit("FAIL - APK version metadata missing")
+          if match.group(1)!=code.group(1) or match.group(2)!=name.group(1):
+              raise SystemExit(f"FAIL - APK version {match.group(2)} ({match.group(1)}) differs from source {name.group(1)} ({code.group(1)})")
+          print(f"PASS - APK version matches source: {name.group(1)} ({code.group(1)})")
+          PY
       - name: Verify packaged launcher artwork
         shell: bash
         run: |
