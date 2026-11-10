@@ -23,6 +23,7 @@ import android.media.AudioAttributes
 import android.net.wifi.WifiManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.net.Network
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -93,6 +94,7 @@ class MainActivity : Activity() {
     private val chatRunning = AtomicBoolean(false)
     private val chatRequested = AtomicBoolean(false)
     @Volatile private var chatSocket: DatagramSocket? = null
+    @Volatile private var chatMulticastLock: WifiManager.MulticastLock? = null
     @Volatile private var chatNickname = ""
     private val chatId = java.util.UUID.randomUUID().toString()
     private val chatPeerAddresses = ConcurrentHashMap<String, InetAddress>()
@@ -516,7 +518,25 @@ class MainActivity : Activity() {
         chatExecutor.execute {
             if (!chatRunning.get()) return@execute
             try {
-                val socket = DatagramSocket(null).apply { reuseAddress = true; soTimeout = 1000; bind(java.net.InetSocketAddress(39127)) }
+                // Bind the receiver to Wi-Fi explicitly; wildcard UDP sockets can
+                // otherwise follow Android's cellular/default route and miss LAN packets.
+                val wifiNetwork = chatWifiNetwork()
+                val wifi = applicationContext.getSystemService(WIFI_SERVICE) as WifiManager
+                runCatching {
+                    chatMulticastLock = wifi.createMulticastLock("AlkamelNetChat").apply {
+                        setReferenceCounted(false)
+                        acquire()
+                    }
+                }.onFailure { Log.w("AlkamelNet", "Unable to acquire chat Wi-Fi receive lock", it) }
+                val socket = DatagramSocket(null).apply {
+                    reuseAddress = true
+                    soTimeout = 1000
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && wifiNetwork != null) {
+                        runCatching { wifiNetwork.bindSocket(this) }
+                            .onFailure { Log.w("AlkamelNet", "Unable to bind chat receiver to Wi-Fi network", it) }
+                    }
+                    bind(java.net.InetSocketAddress(39127))
+                }
                 if (!chatRunning.get()) {
                     socket.close()
                     return@execute
@@ -587,6 +607,24 @@ class MainActivity : Activity() {
         }
     }
 
+    /** Select the connected Wi-Fi network rather than Android's default route. */
+    private fun chatWifiNetwork(): Network? {
+        return try {
+            val connectivity = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+            val candidates = buildList {
+                connectivity.activeNetwork?.let { add(it) }
+                addAll(connectivity.allNetworks)
+            }.distinct()
+            candidates.firstOrNull { network ->
+                connectivity.getNetworkCapabilities(network)
+                    ?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+            }
+        } catch (e: Exception) {
+            Log.w("AlkamelNet", "Unable to identify active Wi-Fi network for chat", e)
+            null
+        }
+    }
+
     /**
      * Resolve broadcast routes from the actual local interfaces instead of relying
      * only on ConnectivityManager.activeNetwork. Android may report cellular as the
@@ -632,8 +670,15 @@ class MainActivity : Activity() {
                 val limitedBroadcast = InetAddress.getByName("255.255.255.255")
                 val copies = if (type == "message") 3 else 1
                 if (routes.isEmpty()) {
-                    DatagramSocket().use { sender ->
+                    DatagramSocket(null).use { sender ->
                         sender.broadcast = true
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                            chatWifiNetwork()?.let { network ->
+                                runCatching { network.bindSocket(sender) }
+                                    .onFailure { Log.w("AlkamelNet", "Unable to bind fallback chat sender to Wi-Fi", it) }
+                            }
+                        }
+                        sender.bind(java.net.InetSocketAddress(0))
                         repeat(copies) { index ->
                             if (chatRunning.get()) sender.send(DatagramPacket(payload, payload.size, limitedBroadcast, 39127))
                             if (index < copies - 1) Thread.sleep(90)
@@ -645,6 +690,12 @@ class MainActivity : Activity() {
                         DatagramSocket(null).use { sender ->
                             sender.reuseAddress = true
                             sender.broadcast = true
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                                chatWifiNetwork()?.let { network ->
+                                    runCatching { network.bindSocket(sender) }
+                                        .onFailure { Log.w("AlkamelNet", "Unable to bind chat sender to Wi-Fi", it) }
+                                }
+                            }
                             sender.bind(java.net.InetSocketAddress(localAddress, 0))
                             repeat(copies) { index ->
                                 if (chatRunning.get()) {
@@ -698,6 +749,9 @@ class MainActivity : Activity() {
         chatPeerAddresses.clear()
         chatSocket?.close()
         chatSocket = null
+        runCatching { chatMulticastLock?.let { if (it.isHeld) it.release() } }
+            .onFailure { Log.w("AlkamelNet", "Unable to release chat Wi-Fi lock", it) }
+        chatMulticastLock = null
         notifyChatState("stopped", "")
     }
 
