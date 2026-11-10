@@ -1141,7 +1141,7 @@ class MainActivity : Activity() {
                 if (app.uid < 0) continue
                 appsByUid.getOrPut(app.uid) { mutableListOf() }.add(app)
             }
-            val rows = totals.entries.mapNotNull { entry ->
+            val rawRows = totals.entries.mapNotNull { entry ->
                 val installed = appsByUid[entry.key]
                 if (entry.value <= 0L) null
                 else if (installed.isNullOrEmpty()) {
