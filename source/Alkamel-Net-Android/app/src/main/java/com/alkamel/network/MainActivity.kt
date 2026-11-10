@@ -48,9 +48,6 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.webkit.WebViewAssetLoader
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -113,12 +110,6 @@ class MainActivity : Activity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val usageRefresh = PeriodicWorkRequestBuilder<AppNetworkUsageWorker>(15, java.util.concurrent.TimeUnit.MINUTES).build()
-        WorkManager.getInstance(applicationContext).enqueueUniquePeriodicWork(
-            "alkamel_app_network_usage_refresh",
-            ExistingPeriodicWorkPolicy.KEEP,
-            usageRefresh
-        )
         window.statusBarColor = Color.rgb(7, 20, 38)
         window.navigationBarColor = Color.rgb(7, 20, 38)
         CookieManager.getInstance().setAcceptCookie(true)
@@ -1195,21 +1186,9 @@ class MainActivity : Activity() {
     }
 
     private fun requestAppNetworkUsage() {
+        // Read fresh Android network statistics only when the subscriber taps Refresh.
         io.execute {
-            val prefs = getSharedPreferences("app_network_usage", MODE_PRIVATE)
-            val cached = prefs.getString("latest_report", null)
-            if (!cached.isNullOrBlank()) {
-                val cachedPayload = JSONObject.quote(cached)
-                runOnUiThread {
-                    if (::web.isInitialized && !isFinishing && !isDestroyed)
-                        web.evaluateJavascript("if(window.onAppNetworkUsageResult)window.onAppNetworkUsageResult(JSON.parse($cachedPayload));", null)
-                }
-            }
             val data = collectAppNetworkUsage()
-            if (data.optString("status") == "ok") prefs.edit()
-                .putString("latest_report", data.toString())
-                .putLong("updated_at", System.currentTimeMillis())
-                .apply()
             val payload = JSONObject.quote(data.toString())
             runOnUiThread {
                 if (::web.isInitialized && !isFinishing && !isDestroyed)
