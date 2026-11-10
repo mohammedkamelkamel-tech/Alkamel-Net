@@ -1059,6 +1059,8 @@ class MainActivity : Activity() {
                     val apNumber = rawSsid?.let { Regex("\\(\\s*(\\d+)\\s*\\)\\s*$").find(it)?.groupValues?.get(1) }
                     val rssi = info?.rssi ?: -127
                     val level = if (rssi in -100..-1) WifiManager.calculateSignalLevel(rssi, 5) else -1
+                    val wifiConnected = runCatching { (getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager).activeNetwork?.let { network -> (getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager).getNetworkCapabilities(network)?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) } == true }.getOrDefault(false)
+                    result.put("wifiConnected", wifiConnected)
                     result.put("ssid", rawSsid ?: "غير متاح (قد يتطلب إذن الموقع في Android)")
                     result.put("signal", if (level >= 0) "${rssi} dBm · ${level + 1}/5" else "غير متاح")
                     result.put("apNumber", apNumber ?: "غير معروف")
