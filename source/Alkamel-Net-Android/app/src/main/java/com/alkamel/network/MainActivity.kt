@@ -1172,6 +1172,16 @@ class MainActivity : Activity() {
                     .put("icon", systemIcon))
             }
 
+            if (rawRows.isEmpty() && hasDeviceSummary && deviceTotalBytes > 0L) {
+                val systemIcon = runCatching {
+                    applicationIconData(packageManager.getApplicationInfo("android", 0))
+                }.getOrDefault("")
+                rawRows.add(JSONObject()
+                    .put("name", "خدمات النظام")
+                    .put("bytes", deviceTotalBytes)
+                    .put("icon", systemIcon))
+            }
+
             // The device-level summary is the single source of truth for the daily
             // total when Android provides it. Scale UID rows proportionally to that
             // total instead of taking max(uidTotal, deviceTotal), which can inflate
