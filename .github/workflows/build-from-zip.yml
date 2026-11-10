@@ -213,6 +213,10 @@ jobs:
           printf 'شبكة الكامل\nالإصدار: %s\nرقم الإصدار الداخلي: %s\nرقم تشغيل البناء: %s\n' "$APP_VERSION" "$VERSION_CODE" "$GITHUB_RUN_NUMBER" > "$PACKAGE_DIR/اقرأني.txt"
           zip -qr "$FULL_PACKAGE" "$PACKAGE_DIR"
           unzip -t "$FULL_PACKAGE"
+          unzip -Z1 "$FULL_PACKAGE" | grep -F "$PACKAGE_DIR/$APK_NAME"
+          unzip -Z1 "$FULL_PACKAGE" | grep -F "$PACKAGE_DIR/$PROJECT_NAME"
+          unzip -p "$FULL_PACKAGE" "$PACKAGE_DIR/اقرأني.txt" | grep -F "الإصدار: $APP_VERSION"
+          unzip -p "$FULL_PACKAGE" "$PACKAGE_DIR/اقرأني.txt" | grep -F "رقم الإصدار الداخلي: $VERSION_CODE"
           test -s "$FULL_PACKAGE"
       - name: Publish APK and project in one ZIP
         uses: softprops/action-gh-release@v2
