@@ -36,6 +36,7 @@ checks = {
     "minSdk 24": "minSdk = 24" in GRADLE,
     "targetSdk 35": "targetSdk = 35" in GRADLE,
     "app version 1.8.0": "versionCode = 64" in GRADLE and 'versionName = "1.8.0"' in GRADLE,
+    "continuous private-network enforcement and automatic recovery": "startNetworkAccessGuard()" in KOTLIN.read_text(encoding="utf-8") and "scheduleWithFixedDelay" in KOTLIN.read_text(encoding="utf-8") and "networkAccessBlocked" in KOTLIN.read_text(encoding="utf-8") and "تم استعادة الاتصال بشبكة الكامل" in KOTLIN.read_text(encoding="utf-8"),
     "app label": 'android:label="شبكة الكامل"' in MANIFEST,
     "launcher icon uses approved artwork": 'android:icon="@drawable/ic_launcher"' in MANIFEST and 'android:roundIcon="@drawable/ic_launcher"' in MANIFEST and (APP / "res/drawable-nodpi/ic_launcher.webp").is_file() and (APP / "res/drawable-nodpi/ic_launcher.webp").stat().st_size > 4000 and (APP / "res/drawable-nodpi/ic_launcher.webp").read_bytes()[:4] == b"RIFF" and (APP / "res/drawable-nodpi/ic_launcher.webp").read_bytes()[8:12] == b"WEBP",
     "internet permission": "android.permission.INTERNET" in MANIFEST,
