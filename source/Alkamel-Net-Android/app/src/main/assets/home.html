@@ -568,7 +568,7 @@ function stopChat(){
 function leaveChatPage(){showPage('home');}
 function onChatServiceError(){const message='تعذر تشغيل خدمة الخلفية؛ قد يتوقف الاتصال عند إغلاق التطبيق.';if(chatPending){setChatJoinPending(true,message);}else{$('chatNotice').textContent=message;}}
 window.onLanChatPacket=receiveChatPacket;
-renderSpeeds();refreshStatus();setInterval(refreshStatus,30000);
+renderSpeeds();refreshStatus();setInterval(()=>{if(!document.hidden&&$('home')?.classList.contains('active'))refreshStatus();},60000);
 function formatNetworkBytes(v){let n=Math.max(0,Number(v)||0);if(n<1024)return n+' بايت';if(n<1048576)return (n/1024).toFixed(1)+' كيلوبايت';if(n<1073741824)return (n/1048576).toFixed(2)+' ميجابايت';return (n/1073741824).toFixed(2)+' جيجابايت';}
 function loadAppNetworkUsage(){const n=document.getElementById('appUsageNotice');if(n)n.textContent='جارٍ قراءة الاستهلاك…';if(window.AndroidBridge)AndroidBridge.getAppNetworkUsage();}
 function openAppUsagePermission(){if(window.AndroidBridge)AndroidBridge.openUsageAccessSettings();}
