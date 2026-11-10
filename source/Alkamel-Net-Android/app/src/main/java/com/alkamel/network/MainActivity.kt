@@ -1138,47 +1138,66 @@ class MainActivity : Activity() {
 
             val appsByUid = HashMap<Int, MutableList<android.content.pm.ApplicationInfo>>()
             for (app in packageManager.getInstalledApplications(PackageManager.GET_META_DATA)) {
-                if (app.uid < 0) continue
-                appsByUid.getOrPut(app.uid) { mutableListOf() }.add(app)
+                if (app.uid >= 0) appsByUid.getOrPut(app.uid) { mutableListOf() }.add(app)
             }
-            val rawRows = totals.entries.mapNotNull { entry ->
-                val installed = appsByUid[entry.key]
-                if (entry.value <= 0L) null
-                else if (installed.isNullOrEmpty()) {
-                    JSONObject()
-                        .put("name", "خدمات النظام")
-                        .put("bytes", entry.value)
-                        .put("icon", "")
-                } else {
-                    val ordered = installed.sortedBy { runCatching { packageManager.getApplicationLabel(it).toString() }.getOrDefault(it.packageName) }
-                    val names = ordered.map { runCatching { packageManager.getApplicationLabel(it).toString() }.getOrDefault(it.packageName) }.distinct()
-                    val firstApp = ordered.first()
-                    JSONObject()
-                        .put("name", names.joinToString(" / "))
-                        .put("bytes", entry.value)
-                        .put("icon", applicationIconData(firstApp))
-                }
-            }.toMutableList()
 
-            // Reconcile per-app UID totals with Android's device-wide Wi-Fi + mobile
-            // summary. Any positive remainder is real device traffic not attributed
-            // to an installed app UID, so retain it under one system-services row.
-            val uidTotalBytes = rawRows.sumOf { it.getLong("bytes") }
-            val authoritativeRawTotal = if (hasDeviceSummary && deviceTotalBytes > 0L) {
-                maxOf(deviceTotalBytes, uidTotalBytes)
-            } else {
-                uidTotalBytes
-            }
-            val unattributedBytes = (authoritativeRawTotal - uidTotalBytes).coerceAtLeast(0L)
-            if (unattributedBytes > 0L) {
-                val systemRow = rawRows.firstOrNull { it.getString("name") == "خدمات النظام" }
-                if (systemRow != null) {
-                    systemRow.put("bytes", systemRow.getLong("bytes") + unattributedBytes)
+            // Merge every UID that has no installed package into ONE system-services row.
+            val rawRows = mutableListOf<JSONObject>()
+            var systemBytes = 0L
+            totals.forEach { (uid, bytes) ->
+                if (bytes <= 0L) return@forEach
+                val installed = appsByUid[uid]
+                if (installed.isNullOrEmpty()) {
+                    systemBytes += bytes
                 } else {
-                    rawRows.add(JSONObject().put("name", "خدمات النظام").put("bytes", unattributedBytes).put("icon", ""))
+                    val ordered = installed.sortedBy {
+                        runCatching { packageManager.getApplicationLabel(it).toString() }.getOrDefault(it.packageName)
+                    }
+                    val names = ordered.map {
+                        runCatching { packageManager.getApplicationLabel(it).toString() }.getOrDefault(it.packageName)
+                    }.distinct()
+                    rawRows.add(JSONObject()
+                        .put("name", names.joinToString(" / "))
+                        .put("bytes", bytes)
+                        .put("icon", applicationIconData(ordered.first())))
                 }
             }
-            val rows = rawRows.sortedByDescending { it.getLong("bytes") }
+            if (systemBytes > 0L) {
+                val systemIcon = runCatching {
+                    applicationIconData(packageManager.getApplicationInfo("android", 0))
+                }.getOrDefault("")
+                rawRows.add(JSONObject()
+                    .put("name", "خدمات النظام")
+                    .put("bytes", systemBytes)
+                    .put("icon", systemIcon))
+            }
+
+            // The device-level summary is the single source of truth for the daily
+            // total when Android provides it. Scale UID rows proportionally to that
+            // total instead of taking max(uidTotal, deviceTotal), which can inflate
+            // the report by counting overlapping accounting views.
+            if (hasDeviceSummary && deviceTotalBytes > 0L && rawRows.isNotEmpty()) {
+                val uidTotalBytes = rawRows.sumOf { it.getLong("bytes") }
+                if (uidTotalBytes > 0L && uidTotalBytes != deviceTotalBytes) {
+                    data class ScaledShare(val row: JSONObject, val remainder: Double)
+                    var assigned = 0L
+                    val shares = rawRows.map { row ->
+                        val exact = deviceTotalBytes.toDouble() * row.getLong("bytes").toDouble() / uidTotalBytes.toDouble()
+                        val whole = kotlin.math.floor(exact).toLong()
+                        row.put("bytes", whole)
+                        assigned += whole
+                        ScaledShare(row, exact - whole.toDouble())
+                    }
+                    var remaining = (deviceTotalBytes - assigned).coerceAtLeast(0L)
+                    shares.sortedByDescending { it.remainder }.forEach { share ->
+                        if (remaining > 0L) {
+                            share.row.put("bytes", share.row.getLong("bytes") + 1L)
+                            remaining--
+                        }
+                    }
+                }
+            }
+            val rows = rawRows.filter { it.getLong("bytes") > 0L }.sortedByDescending { it.getLong("bytes") }
 
             // Add 11% once to the grand total, then distribute that increase proportionally
             // across the seven highest-usage apps, exactly like الكامل-تحديد السرعة.
