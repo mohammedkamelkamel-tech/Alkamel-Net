@@ -319,7 +319,8 @@ class MainActivity : Activity() {
         setContentView(root)
         createEventNotificationChannel()
         showFirstRunSetupIfNeeded()
-        initializeCommandWebView()
+        // Initialize the hidden portal WebView only when a subscriber changes a setting.
+        // Avoid loading a second k.com page during normal app startup.
 
         verifyPrivateNetworkAccess {
             if (savedInstanceState != null) {
