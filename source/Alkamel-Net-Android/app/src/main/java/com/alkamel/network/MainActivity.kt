@@ -666,7 +666,7 @@ class MainActivity : Activity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == wifiScanPermissionRequest) {
-            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            if (grantResults.size > 1 && grantResults[1] == PackageManager.PERMISSION_GRANTED) {
                 performNearbyWifiScan()
             } else {
                 runOnUiThread { if (::web.isInitialized) web.evaluateJavascript("window.onNearbyWifiResult&&window.onNearbyWifiResult({error:'يلزم السماح بإذن الموقع لعرض الشبكات القريبة'});", null) }
@@ -961,7 +961,7 @@ class MainActivity : Activity() {
 
     private fun requestNearbyWifiScan() {
         if (checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION), wifiScanPermissionRequest)
+            requestPermissions(arrayOf(android.Manifest.permission.ACCESS_COARSE_LOCATION, android.Manifest.permission.ACCESS_FINE_LOCATION), wifiScanPermissionRequest)
             return
         }
         performNearbyWifiScan()
