@@ -53,7 +53,7 @@ checks = {
     "native activity": KOTLIN.is_file() and "class MainActivity" in KOTLIN.read_text(encoding="utf-8"),
     "LAN chat bridge": "startLanChat" in KOTLIN.read_text(encoding="utf-8") and "sendLanPacket" in KOTLIN.read_text(encoding="utf-8"),
     "private chat unicast sender binds to Wi-Fi": "Unable to bind private chat sender to Wi-Fi" in KOTLIN.read_text(encoding="utf-8") and "chatWifiNetwork()?.let { network" in KOTLIN.read_text(encoding="utf-8"),
-    "voice capture uses non-blocking reads so room can restart": "AudioRecord.READ_NON_BLOCKING" in KOTLIN.read_text(encoding="utf-8") and "if (!voiceRunning.get()) break" in KOTLIN.read_text(encoding="utf-8") and "Thread.sleep(5)" in KOTLIN.read_text(encoding="utf-8"),
+    "voice capture uses non-blocking reads so room can restart": "AudioRecord.READ_NON_BLOCKING" in KOTLIN.read_text(encoding="utf-8") and "if (!voiceRunning.get() || voiceSessionGeneration.get() != sessionId) break" in KOTLIN.read_text(encoding="utf-8") and "Thread.sleep(5)" in KOTLIN.read_text(encoding="utf-8"),
     "voice session generation prevents stale worker cleanup": "voiceSessionGeneration" in KOTLIN.read_text(encoding="utf-8") and "voiceSessionGeneration.get() == sessionId" in KOTLIN.read_text(encoding="utf-8") and "if (voiceSocket === sessionSocket) voiceSocket = null" in KOTLIN.read_text(encoding="utf-8"),
     "chat sockets explicitly bind to Wi-Fi": "chatWifiNetwork()" in KOTLIN.read_text(encoding="utf-8") and "wifiNetwork.bindSocket(this)" in KOTLIN.read_text(encoding="utf-8"),
     "chat Wi-Fi receive lock is released": "chatMulticastLock" in KOTLIN.read_text(encoding="utf-8") and "chatMulticastLock = null" in KOTLIN.read_text(encoding="utf-8"),
