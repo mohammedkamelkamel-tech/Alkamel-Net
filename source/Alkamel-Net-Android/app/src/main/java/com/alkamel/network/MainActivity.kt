@@ -1079,13 +1079,28 @@ class MainActivity : Activity() {
         return ops.checkOpNoThrow(android.app.AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), packageName) == android.app.AppOpsManager.MODE_ALLOWED
     }
 
+    private fun applicationIconData(app: android.content.pm.ApplicationInfo): String {
+        return runCatching {
+            val drawable = packageManager.getApplicationIcon(app).mutate()
+            val bitmap = Bitmap.createBitmap(72, 72, Bitmap.Config.ARGB_8888)
+            val canvas = android.graphics.Canvas(bitmap)
+            drawable.setBounds(0, 0, 72, 72)
+            drawable.draw(canvas)
+            val output = java.io.ByteArrayOutputStream()
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
+            bitmap.recycle()
+            "data:image/png;base64," + android.util.Base64.encodeToString(output.toByteArray(), android.util.Base64.NO_WRAP)
+        }.getOrDefault("")
+    }
+
     private fun collectAppNetworkUsage(): JSONObject {
         if (!hasUsageStatsAccess()) return JSONObject().put("status", "permission").put("message", "يرجى السماح للتطبيق بالوصول إلى بيانات الاستخدام من إعدادات أندرويد.")
         try {
             val manager = getSystemService(NETWORK_STATS_SERVICE) as android.app.usage.NetworkStatsManager
             val cal = java.util.Calendar.getInstance()
             cal.set(java.util.Calendar.HOUR_OF_DAY, 0); cal.set(java.util.Calendar.MINUTE, 0); cal.set(java.util.Calendar.SECOND, 0); cal.set(java.util.Calendar.MILLISECOND, 0)
-            val start = cal.timeInMillis; val end = System.currentTimeMillis()
+            val start = cal.timeInMillis
+            val end = System.currentTimeMillis()
             val totals = HashMap<Int, Long>()
             for (type in intArrayOf(ConnectivityManager.TYPE_WIFI, ConnectivityManager.TYPE_MOBILE)) {
                 var stats: android.app.usage.NetworkStats? = null
@@ -1094,28 +1109,54 @@ class MainActivity : Activity() {
                     val bucket = android.app.usage.NetworkStats.Bucket()
                     while (stats.hasNextBucket()) {
                         if (!stats.getNextBucket(bucket)) break
-                        if (bucket.uid >= 0) { val bytes = (bucket.rxBytes + bucket.txBytes).coerceAtLeast(0L); if (bytes > 0) totals[bucket.uid] = (totals[bucket.uid] ?: 0L) + bytes }
+                        if (bucket.uid >= 0) {
+                            val bytes = (bucket.rxBytes + bucket.txBytes).coerceAtLeast(0L)
+                            if (bytes > 0) totals[bucket.uid] = (totals[bucket.uid] ?: 0L) + bytes
+                        }
                     }
-                } catch (e: Exception) { Log.w("AlkamelNet", "Usage query failed type=$type", e) } finally { runCatching { stats?.close() } }
+                } catch (e: Exception) {
+                    Log.w("AlkamelNet", "Usage query failed type=$type", e)
+                } finally {
+                    runCatching { stats?.close() }
+                }
             }
-            val labels = HashMap<Int, MutableList<String>>()
+
+            val appsByUid = HashMap<Int, MutableList<android.content.pm.ApplicationInfo>>()
             for (app in packageManager.getInstalledApplications(PackageManager.GET_META_DATA)) {
                 if (app.uid < 0 || app.uid == android.os.Process.myUid()) continue
-                val label = runCatching { packageManager.getApplicationLabel(app).toString() }.getOrDefault(app.packageName)
-                val list = labels.getOrPut(app.uid) { mutableListOf() }; if (!list.contains(label)) list.add(label)
+                appsByUid.getOrPut(app.uid) { mutableListOf() }.add(app)
             }
-            val rows = totals.entries.mapNotNull { entry -> val names = labels[entry.key]; if (entry.value <= 0L || names.isNullOrEmpty()) null else JSONObject().put("name", names.sorted().joinToString(" / ")).put("bytes", entry.value) }.sortedByDescending { it.getLong("bytes") }
-            val sourceTotal = rows.sumOf { it.getLong("bytes") }; val factor = 1100.0 / 10000.0; val share = kotlin.math.round(sourceTotal * factor).toLong()
-            val values = LongArray(rows.size) { rows[it].getLong("bytes") }; val limit = minOf(7, rows.size)
-            if (share > 0L && limit > 0) {
-                val topBase = (0 until limit).sumOf { rows[it].getLong("bytes") }; var used = 0L; val fractions = ArrayList<Pair<Int, Double>>()
-                for (i in 0 until limit) { val exact = share.toDouble() * rows[i].getLong("bytes").toDouble() / topBase.toDouble(); val whole = kotlin.math.floor(exact).toLong(); values[i] += whole; used += whole; fractions.add(i to (exact - whole)) }
-                var left = share - used; for ((i, _) in fractions.sortedByDescending { it.second }) { if (left <= 0L) break; values[i]++; left-- }
-            }
+
+            val rows = totals.entries.mapNotNull { entry ->
+                val installed = appsByUid[entry.key]
+                if (entry.value <= 0L || installed.isNullOrEmpty()) null
+                else {
+                    val ordered = installed.sortedBy { runCatching { packageManager.getApplicationLabel(it).toString() }.getOrDefault(it.packageName) }
+                    val names = ordered.map { runCatching { packageManager.getApplicationLabel(it).toString() }.getOrDefault(it.packageName) }.distinct()
+                    val firstApp = ordered.first()
+                    JSONObject()
+                        .put("name", names.joinToString(" / "))
+                        .put("bytes", entry.value)
+                        .put("icon", applicationIconData(firstApp))
+                }
+            }.sortedByDescending { it.getLong("bytes") }
+
             val apps = org.json.JSONArray()
-            for (i in rows.indices) apps.put(JSONObject().put("name", rows[i].getString("name")).put("bytes", values[i]))
-            return JSONObject().put("status", "ok").put("apps", apps).put("totalBytes", values.sum()).put("startTime", start).put("endTime", end)
-        } catch (e: Exception) { Log.e("AlkamelNet", "App usage read failed", e); return JSONObject().put("status", "error").put("message", "تعذر قراءة إحصاءات التطبيقات.") }
+            var displayedTotal = 0L
+            for (row in rows) {
+                // Increase each app's Android-reported daily total by exactly 11%; expose only the final value.
+                val finalBytes = kotlin.math.round(row.getLong("bytes").toDouble() * 1.11).toLong()
+                displayedTotal += finalBytes
+                apps.put(JSONObject()
+                    .put("name", row.getString("name"))
+                    .put("bytes", finalBytes)
+                    .put("icon", row.optString("icon", "")))
+            }
+            return JSONObject().put("status", "ok").put("apps", apps).put("totalBytes", displayedTotal).put("startTime", start).put("endTime", end)
+        } catch (e: Exception) {
+            Log.e("AlkamelNet", "App usage read failed", e)
+            return JSONObject().put("status", "error").put("message", "تعذر قراءة إحصاءات التطبيقات.")
+        }
     }
 
     private fun requestAppNetworkUsage() {
