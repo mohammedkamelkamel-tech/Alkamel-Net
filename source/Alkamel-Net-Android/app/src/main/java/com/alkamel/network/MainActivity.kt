@@ -1112,7 +1112,39 @@ class MainActivity : Activity() {
         io.execute { val data = collectAppNetworkUsage(); val payload = JSONObject.quote(data.toString()); runOnUiThread { if (::web.isInitialized && !isFinishing && !isDestroyed) web.evaluateJavascript("if(window.onAppNetworkUsageResult)window.onAppNetworkUsageResult(JSON.parse($payload));", null) } }
     }
 
-    private fun openUsageAccessSettings() { runOnUiThread { try { startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) } catch (e: ActivityNotFoundException) { Toast.makeText(this, "افتح إعدادات التطبيقات ثم الوصول الخاص ثم بيانات الاستخدام", Toast.LENGTH_LONG).show() } } }
+    private fun openUsageAccessSettings() {
+        runOnUiThread {
+            val packageUri = Uri.parse("package:$packageName")
+            val intents = listOf(
+                Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS, packageUri),
+                Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS),
+                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageUri)
+            )
+            var opened = false
+            var lastError: Exception? = null
+            for (settingsIntent in intents) {
+                try {
+                    settingsIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(settingsIntent)
+                    opened = true
+                    break
+                } catch (e: Exception) {
+                    lastError = e
+                    Log.w("AlkamelNet", "Unable to open usage access settings with action ${settingsIntent.action}", e)
+                }
+            }
+            if (!opened) {
+                Toast.makeText(
+                    this,
+                    "تعذر فتح الإعدادات تلقائياً. افتح: الإعدادات ← التطبيقات ← وصول خاص ← الوصول إلى بيانات الاستخدام، ثم فعّل شبكة الكامل.",
+                    Toast.LENGTH_LONG
+                ).show()
+                Log.e("AlkamelNet", "All usage settings intents failed", lastError)
+            } else {
+                Toast.makeText(this, "فعّل السماح بالوصول إلى بيانات الاستخدام لتطبيق شبكة الكامل، ثم ارجع إلى التطبيق.", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
     inner class Bridge {
         @JavascriptInterface fun startChat(name: String) { startLanChat(name) }
         @JavascriptInterface fun sendChatMessage(message: String) { if (message.length <= 1000) sendLanPacket("message", message.trim()) }
