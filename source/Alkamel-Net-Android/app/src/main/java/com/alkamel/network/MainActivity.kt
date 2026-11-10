@@ -1102,23 +1102,22 @@ class MainActivity : Activity() {
             val start = cal.timeInMillis
             val end = System.currentTimeMillis()
             val totals = HashMap<Int, Long>()
-            for (type in intArrayOf(ConnectivityManager.TYPE_WIFI, ConnectivityManager.TYPE_MOBILE)) {
-                var stats: android.app.usage.NetworkStats? = null
-                try {
-                    stats = manager.querySummary(type, null, start, end)
-                    val bucket = android.app.usage.NetworkStats.Bucket()
-                    while (stats.hasNextBucket()) {
-                        if (!stats.getNextBucket(bucket)) break
-                        if (bucket.uid >= 0) {
-                            val bytes = (bucket.rxBytes + bucket.txBytes).coerceAtLeast(0L)
-                            if (bytes > 0) totals[bucket.uid] = (totals[bucket.uid] ?: 0L) + bytes
-                        }
+            // This dashboard intentionally reports Wi-Fi usage only; mobile data is excluded.
+            var wifiStats: android.app.usage.NetworkStats? = null
+            try {
+                wifiStats = manager.querySummary(ConnectivityManager.TYPE_WIFI, null, start, end)
+                val bucket = android.app.usage.NetworkStats.Bucket()
+                while (wifiStats.hasNextBucket()) {
+                    if (!wifiStats.getNextBucket(bucket)) break
+                    if (bucket.uid >= 0) {
+                        val bytes = (bucket.rxBytes + bucket.txBytes).coerceAtLeast(0L)
+                        if (bytes > 0) totals[bucket.uid] = (totals[bucket.uid] ?: 0L) + bytes
                     }
-                } catch (e: Exception) {
-                    Log.w("AlkamelNet", "Usage query failed type=$type", e)
-                } finally {
-                    runCatching { stats?.close() }
                 }
+            } catch (e: Exception) {
+                Log.w("AlkamelNet", "Wi-Fi usage query failed", e)
+            } finally {
+                runCatching { wifiStats?.close() }
             }
 
             val appsByUid = HashMap<Int, MutableList<android.content.pm.ApplicationInfo>>()
