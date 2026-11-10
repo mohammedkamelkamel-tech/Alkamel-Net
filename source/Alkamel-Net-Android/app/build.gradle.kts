@@ -40,5 +40,4 @@ android {
 
 dependencies {
     implementation("androidx.webkit:webkit:1.12.1")
-    implementation("androidx.work:work-runtime-ktx:2.10.1")
 }
