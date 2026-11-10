@@ -112,8 +112,11 @@ class MainActivity : Activity() {
         root = FrameLayout(this).apply { setBackgroundColor(Color.rgb(7, 20, 38)) }
         web = WebView(this).apply {
             setBackgroundColor(Color.rgb(7, 20, 38))
+            // Keep the single WebView warm and hardware accelerated for faster LAN navigation.
+            setLayerType(View.LAYER_TYPE_HARDWARE, null)
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
+            settings.databaseEnabled = true
             settings.mediaPlaybackRequiresUserGesture = false
             settings.allowFileAccess = false
             settings.allowContentAccess = true
@@ -122,6 +125,11 @@ class MainActivity : Activity() {
             settings.setSupportMultipleWindows(false)
             settings.loadsImagesAutomatically = true
             settings.blockNetworkImage = false
+            settings.cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
+            settings.setRenderPriority(android.webkit.WebSettings.RenderPriority.HIGH)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                settings.offscreenPreRaster = true
+            }
             webChromeClient = object : WebChromeClient() {
                 override fun onConsoleMessage(message: android.webkit.ConsoleMessage): Boolean {
                     Log.d("AlkamelNet-Web", "${message.message()} -- ${message.sourceId()}:${message.lineNumber()}")
@@ -174,7 +182,12 @@ class MainActivity : Activity() {
                     // Keep the native JavaScript bridge limited to bundled application pages.
                     if (urlIsLocal(url)) view?.addJavascriptInterface(Bridge(), "AndroidBridge")
                     else view?.removeJavascriptInterface("AndroidBridge")
-                    showLoading(true)
+                    // Avoid flashing the full-screen loader for quick local page transitions.
+                    if (urlIsLocal(url) || url?.startsWith("http://30.") == true || url?.startsWith("http://10.") == true) {
+                        showLoading(false)
+                    } else {
+                        showLoading(true)
+                    }
                     Log.i("AlkamelNet", "Page started: $url")
                 }
 
