@@ -1048,15 +1048,15 @@ class MainActivity : Activity() {
         }
 
         @JavascriptInterface
-        fun runNetworkTest(selectedPlan: String) {
-            if (selectedPlan.length > 100) return
+        fun runNetworkTest(planValue: String, selectedPlan: String) {
+            if (selectedPlan.length > 100 || planValue.length > 40) return
             io.execute {
                 val result = JSONObject()
                 try {
                     val wifi = applicationContext.getSystemService(WIFI_SERVICE) as WifiManager
                     val info = runCatching { wifi.connectionInfo }.getOrNull()
                     val rawSsid = info?.ssid?.trim()?.removeSurrounding("\"")?.takeIf { it.isNotBlank() && it != "<unknown ssid>" }
-                    val apNumber = rawSsid?.let { Regex("\\((\\d+)\\)\\s*$").find(it)?.groupValues?.get(1) }
+                    val apNumber = rawSsid?.let { Regex("\\(\\s*(\\d+)\\s*\\)\\s*$").find(it)?.groupValues?.get(1) }
                     val rssi = info?.rssi ?: -127
                     val level = if (rssi in -100..-1) WifiManager.calculateSignalLevel(rssi, 5) else -1
                     result.put("ssid", rawSsid ?: "غير متاح (قد يتطلب إذن الموقع في Android)")
@@ -1090,7 +1090,11 @@ class MainActivity : Activity() {
                         }
                     }
                     result.put("download", downloadText)
-                    val expected = Regex("(\\d+(?:[.,]\\d+)?)").find(selectedPlan)?.groupValues?.get(1)?.replace(',', '.')?.toDoubleOrNull()
+                    val downloadPart = planValue.substringAfter('/', planValue).trim()
+                    val rateMatch = Regex("(\\d+(?:[.,]\\d+)?)([kKmM]?)").find(downloadPart)
+                    val rawRate = rateMatch?.groupValues?.get(1)?.replace(',', '.')?.toDoubleOrNull()
+                    val unit = rateMatch?.groupValues?.get(2)?.lowercase()
+                    val expected = when (unit) { "k" -> rawRate?.div(1000.0); "m" -> rawRate; else -> rawRate }
                     val planResult = when {
                         expected == null || expected <= 0 -> "تعذرت قراءة سرعة الباقة: $selectedPlan"
                         measuredMbps <= 0 -> "لم تكتمل مقارنة السرعة"
