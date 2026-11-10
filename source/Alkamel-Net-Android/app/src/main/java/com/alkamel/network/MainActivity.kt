@@ -1183,8 +1183,8 @@ class MainActivity : Activity() {
             }
         }
         mainHandler.postDelayed({
-            if (token == resumeRecoveryToken || !callbackReceived) {
-                if (!callbackReceived && !isFinishing && !isDestroyed) {
+            if (token == resumeRecoveryToken && !callbackReceived) {
+                if (!isFinishing && !isDestroyed) {
                     Log.e("AlkamelNet", "Home WebView did not answer resume health check; recreating Activity")
                     recreate()
                 }
