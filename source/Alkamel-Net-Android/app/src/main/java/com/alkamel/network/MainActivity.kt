@@ -193,8 +193,15 @@ class MainActivity : Activity() {
                 override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                     super.onPageStarted(view, url, favicon)
                     // Keep the native JavaScript bridge limited to bundled application pages.
-                    if (urlIsLocal(url)) view?.addJavascriptInterface(Bridge(), "AndroidBridge")
-                    else view?.removeJavascriptInterface("AndroidBridge")
+                    // The bundled home is loaded with loadDataWithBaseURL and some
+                    // WebView versions report its document URL as data:. Keep the native
+                    // bridge attached for that embedded home document; remote service pages
+                    // still have the bridge removed.
+                    if (urlIsLocal(url) || url?.startsWith("data:") == true) {
+                        view?.addJavascriptInterface(Bridge(), "AndroidBridge")
+                    } else {
+                        view?.removeJavascriptInterface("AndroidBridge")
+                    }
                     // Avoid flashing the full-screen loader for quick local page transitions.
                     if (urlIsLocal(url) || url?.startsWith("http://30.") == true || url?.startsWith("http://10.") == true) {
                         showLoading(false)
@@ -920,6 +927,9 @@ class MainActivity : Activity() {
             // depending on WebViewAssetLoader for the first document, which can
             // otherwise leave older WebView implementations on a blank screen.
             localFallbackAttempted = true
+            // Reattach before every local home load so returning from external
+            // lounge/live pages never leaves the JavaScript bridge unavailable.
+            web.addJavascriptInterface(Bridge(), "AndroidBridge")
             val html = assets.open("home.html").bufferedReader(Charsets.UTF_8).use { it.readText() }
             web.loadDataWithBaseURL(homeUrl, html, "text/html", "UTF-8", null)
         } catch (e: Exception) {
