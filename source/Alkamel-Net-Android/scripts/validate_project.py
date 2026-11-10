@@ -40,7 +40,7 @@ checks = {
     "internet permission": "android.permission.INTERNET" in MANIFEST,
     "leisure main section groups both lounges beside live tile": 'onclick="showPage(\'rest\')"' in HOME.read_text(encoding="utf-8") and 'id="rest"' in HOME.read_text(encoding="utf-8") and "الاستراحة الأولى" in HOME.read_text(encoding="utf-8") and "الاستراحة الثانية" in HOME.read_text(encoding="utf-8") and HOME.read_text(encoding="utf-8").find('class="tile tile-live"') < HOME.read_text(encoding="utf-8").find('onclick="showPage(\'rest\')"') < HOME.read_text(encoding="utf-8").find('class="tile tile-support"'),
     "network test page and native bridge": 'id="networkTest"' in HOME.read_text(encoding="utf-8") and "startNetworkTest()" in HOME.read_text(encoding="utf-8") and "runNetworkTest(planValue: String, selectedPlan: String)" in KOTLIN.read_text(encoding="utf-8") and "speed.cloudflare.com/__down?bytes=3000000" in KOTLIN.read_text(encoding="utf-8"),
-    "Wi-Fi link state is measured": "networkLink" in HOME.read_text(encoding="utf-8") and \"wifiConnected\" in KOTLIN.read_text(encoding="utf-8"),
+    "Wi-Fi link state is measured": "networkLink" in HOME.read_text(encoding="utf-8") and "wifiConnected" in KOTLIN.read_text(encoding="utf-8"),
     "fixed Wi-Fi preference labels": "!👑 #::A::5G الكامل(" in HOME.read_text(encoding="utf-8") and "!🌍2Gالكامل نت(" in HOME.read_text(encoding="utf-8"),
     "home asset": HOME.is_file() and HOME.stat().st_size > 0,
     "HD asset": HD.is_file() and HD.stat().st_size > 0,
