@@ -309,7 +309,7 @@ class MainActivity : Activity() {
             })
             addView(Button(this@MainActivity).apply {
                 text = "إعادة المحاولة"
-                setOnClickListener { hideError(); loadHome() }
+                setOnClickListener { hideError(); verifyPrivateNetworkAccess() }
             })
         }
         root.addView(web, FrameLayout.LayoutParams(-1, -1))
@@ -321,10 +321,12 @@ class MainActivity : Activity() {
         showFirstRunSetupIfNeeded()
         initializeCommandWebView()
 
-        if (savedInstanceState != null) {
-            val restored = web.restoreState(savedInstanceState)
-            if (restored == null) loadHome() else showLoading(false)
-        } else loadHome()
+        verifyPrivateNetworkAccess {
+            if (savedInstanceState != null) {
+                val restored = web.restoreState(savedInstanceState)
+                if (restored == null) loadHome() else showLoading(false)
+            } else loadHome()
+        }
     }
 
 
@@ -929,6 +931,51 @@ class MainActivity : Activity() {
         }
     }
 
+    /**
+     * Restrict the app to the private network by checking its internal DNS/service
+     * entry points. Either hostname is sufficient so a temporary outage of one
+     * address does not lock out legitimate subscribers.
+     */
+    private fun verifyPrivateNetworkAccess(onAllowed: (() -> Unit)? = null) {
+        if (isFinishing || isDestroyed) return
+        showLoading(true)
+        errorPanel.visibility = View.GONE
+        io.execute {
+            val reachable = listOf("k.com", "k.net").any { host ->
+                try {
+                    val connection = (URL("http://$host/").openConnection() as HttpURLConnection).apply {
+                        requestMethod = "GET"
+                        connectTimeout = 2200
+                        readTimeout = 2200
+                        instanceFollowRedirects = false
+                        useCaches = false
+                        setRequestProperty("Cache-Control", "no-cache")
+                        setRequestProperty("Connection", "close")
+                    }
+                    try {
+                        val status = connection.responseCode
+                        status in 200..399 && connection.url.host.equals(host, ignoreCase = true)
+                    } finally {
+                        connection.disconnect()
+                    }
+                } catch (e: Exception) {
+                    Log.d("AlkamelNet", "Private network check failed for $host: ${e.message}")
+                    false
+                }
+            }
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                showLoading(false)
+                if (reachable) {
+                    hideError()
+                    onAllowed?.invoke()
+                } else {
+                    showError("هذا التطبيق مخصص لمشتركي شبكة الكامل. اتصل بشبكة الكامل ثم أعد المحاولة.")
+                }
+            }
+        }
+    }
+
     private fun loadHome() {
         try {
             showErrorHidden()
@@ -1500,7 +1547,7 @@ class MainActivity : Activity() {
                     Log.i("AlkamelNet", "Reconnecting service after background pause (${pausedFor}ms): $current")
                     web.post { if (!isFinishing && !isDestroyed) web.loadUrl(current) }
                 } else if (current.startsWith(homeUrl) || current.startsWith("data:")) {
-                    recoverHomeAfterResume()
+                    verifyPrivateNetworkAccess { recoverHomeAfterResume() }
                 }
                 // The hidden portal WebView can also keep stale sockets/cookies after resume.
                 commandWeb?.let { hidden ->
