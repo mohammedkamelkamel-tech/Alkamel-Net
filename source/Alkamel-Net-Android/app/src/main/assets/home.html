@@ -331,7 +331,13 @@ body{background:radial-gradient(ellipse at 12% 0%,#4b164f66 0,transparent 34%),r
 .support-subpage{text-align:center;padding:30px 18px;min-height:190px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px}
 .support-subpage .support-placeholder-icon{font-size:44px}.support-subpage p{margin:0;color:#d8e5f7;line-height:1.8}
 @media(max-width:420px){.support-sections{gap:10px}.support-section-card{min-height:118px;padding:13px 9px;border-radius:17px}.support-section-card .support-section-icon{width:48px;height:48px}}
-.service-notes{margin-top:12px;border-color:#2a5474;background:linear-gradient(145deg,#142b46,#0c1b31)}.service-notes h3{font-size:16px;margin:0 0 12px;color:#7cecff}.service-notes ol{margin:0;padding:0 22px 0 0;color:#e7effa}.service-notes li{padding:8px 2px;line-height:1.85;font-size:13px;border-bottom:1px solid #ffffff12}.service-notes li:last-child{border-bottom:0}.service-notes bdi{color:#7cecff;font-weight:700}</style></head><body><main class="wrap">
+.service-notes{margin-top:12px;border-color:#2a5474;background:linear-gradient(145deg,#142b46,#0c1b31)}.service-notes h3{font-size:16px;margin:0 0 12px;color:#7cecff}.service-notes ol{margin:0;padding:0 22px 0 0;color:#e7effa}.service-notes li{padding:8px 2px;line-height:1.85;font-size:13px;border-bottom:1px solid #ffffff12}.service-notes li:last-child{border-bottom:0}.service-notes bdi{color:#7cecff;font-weight:700}/* Lightweight, GPU-friendly page transitions */
+.page.active{animation:pageEnterFast .16s cubic-bezier(.2,.75,.25,1) both;will-change:opacity,transform}
+@keyframes pageEnterFast{from{opacity:0;transform:translate3d(0,5px,0)}to{opacity:1;transform:translate3d(0,0,0)}}
+.tile,.btn,.back,.option{transition:transform .12s ease,filter .12s ease}
+.tile:active,.btn:active,.back:active,.option:active{transform:translate3d(0,1px,0) scale(.99)}
+@media(prefers-reduced-motion:reduce){.page.active{animation:none;will-change:auto}.tile,.btn,.back,.option{transition:none}}
+</style></head><body><main class="wrap">
 <header class="top"><div class="brand"><img class="brand-logo-img" src="brand-icon.webp" alt="شعار شبكة الكامل"><div><h1>شبكة الكامل</h1><div class="sub">خدمات الشبكة في مكان واحد</div></div></div><div class="state" id="connection">● جارٍ التحقق</div></header>
 <section id="home" class="page active"><p class="intro">اختر القسم الذي تريد استخدامه</p><div class="grid">
 <button class="tile tile-ads" onclick="openAds()"><div class="ico">▧</div><div><strong>الإعلانات والعروض</strong><br><small>أحدث الصور والعروض</small></div></button>
@@ -357,7 +363,7 @@ body{background:radial-gradient(ellipse at 12% 0%,#4b164f66 0,transparent 34%),r
 <footer class="foot">الكامل-نت · خدمات شبكة الكامل</footer></main>
 <script>
 const $=id=>document.getElementById(id);let lastData=null;
-function showPage(id){const target=$(id);if(!target||!target.classList.contains('page'))return;document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));target.classList.add('active');if(id==='query')refreshStatus();if(id==='speed')renderSpeeds();if(id==='ads')loadAds(true);}
+function showPage(id){const target=$(id);if(!target||!target.classList.contains('page'))return;if(target.classList.contains('active'))return;const current=document.querySelector('.page.active');if(current)current.classList.remove('active');target.classList.add('active');if(id==='query')refreshStatus();if(id==='speed')renderSpeeds();if(id==='ads')loadAds(true);}
 const internalServices={query:'http://k.com',rest1:'http://30.30.30.30:8096/web/index.html#!/home',rest2:'http://30.10.10.10/',live1:'http://30.30.30.30:8080/tv/',live2:'http://30.10.10.10:88/'};function go(url){if(window.AndroidBridge)AndroidBridge.openUrl(url);else location.href=url}function goService(key){if(internalServices[key])go(internalServices[key])}function logout(){if(window.AndroidBridge)AndroidBridge.logout()}function openHd(){if(window.AndroidBridge)AndroidBridge.openHd();else location.href='hd/index.html'}
 function player(pkg){const stream='http://10.10.10.10:8888/live/index.m3u8';if(window.AndroidBridge)AndroidBridge.externalPlayer(stream,pkg);else $('liveNotice').textContent='يتطلب فتح المشغل من تطبيق Android.'}
 function refreshStatus(){const notice=$('queryNotice');if(notice)notice.textContent='جارٍ تحديث البيانات…';if(window.AndroidBridge){try{AndroidBridge.refresh();}catch(e){if(notice)notice.textContent='تعذر بدء تحديث البيانات.';}return}fetch('http://k.com/status?var=callBack',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(update).catch(()=>{if(notice)notice.textContent='تعذر الاتصال ببوابة الشبكة.';})}
