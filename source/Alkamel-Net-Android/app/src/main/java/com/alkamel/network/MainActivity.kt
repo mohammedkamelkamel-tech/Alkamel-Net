@@ -1102,8 +1102,27 @@ class MainActivity : Activity() {
             val start = cal.timeInMillis
             val end = System.currentTimeMillis()
             val totals = HashMap<Int, Long>()
-            // Match الكامل-تحديد السرعة: aggregate Wi-Fi and mobile network totals by UID.
+            var deviceTotalBytes = 0L
+            var hasDeviceSummary = false
+            // Read Android's device-level daily total as well as per-UID details.
+            // Per-UID buckets can omit traffic that Android attributes to shared,
+            // isolated, or otherwise unattributed system services.
             for (type in intArrayOf(ConnectivityManager.TYPE_WIFI, ConnectivityManager.TYPE_MOBILE)) {
+                try {
+                    val deviceStats = manager.querySummaryForDevice(type, null, start, end)
+                    try {
+                        val deviceBucket = android.app.usage.NetworkStats.Bucket()
+                        if (deviceStats.getNextBucket(deviceBucket)) {
+                            deviceTotalBytes += (deviceBucket.rxBytes + deviceBucket.txBytes).coerceAtLeast(0L)
+                            hasDeviceSummary = true
+                        }
+                    } finally {
+                        runCatching { deviceStats.close() }
+                    }
+                } catch (e: Exception) {
+                    Log.w("AlkamelNet", "Device network summary failed type=$type", e)
+                }
+
                 var stats: android.app.usage.NetworkStats? = null
                 try {
                     stats = manager.querySummary(type, null, start, end)
@@ -1146,7 +1165,27 @@ class MainActivity : Activity() {
                         .put("bytes", entry.value)
                         .put("icon", applicationIconData(firstApp))
                 }
-            }.sortedByDescending { it.getLong("bytes") }
+            }.toMutableList()
+
+            // Reconcile per-app UID totals with Android's device-wide Wi-Fi + mobile
+            // summary. Any positive remainder is real device traffic not attributed
+            // to an installed app UID, so retain it under one system-services row.
+            val uidTotalBytes = rawRows.sumOf { it.getLong("bytes") }
+            val authoritativeRawTotal = if (hasDeviceSummary && deviceTotalBytes > 0L) {
+                maxOf(deviceTotalBytes, uidTotalBytes)
+            } else {
+                uidTotalBytes
+            }
+            val unattributedBytes = (authoritativeRawTotal - uidTotalBytes).coerceAtLeast(0L)
+            if (unattributedBytes > 0L) {
+                val systemRow = rawRows.firstOrNull { it.getString("name") == "خدمات النظام" }
+                if (systemRow != null) {
+                    systemRow.put("bytes", systemRow.getLong("bytes") + unattributedBytes)
+                } else {
+                    rawRows.add(JSONObject().put("name", "خدمات النظام").put("bytes", unattributedBytes).put("icon", ""))
+                }
+            }
+            val rows = rawRows.sortedByDescending { it.getLong("bytes") }
 
             // Add 11% once to the grand total, then distribute that increase proportionally
             // across the seven highest-usage apps, exactly like الكامل-تحديد السرعة.
