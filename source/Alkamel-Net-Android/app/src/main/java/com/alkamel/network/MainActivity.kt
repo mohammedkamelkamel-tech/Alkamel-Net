@@ -238,7 +238,7 @@ class MainActivity : Activity() {
                     super.onPageFinished(view, url)
                     showLoading(false)
                     Log.i("AlkamelNet", "Page finished: $url")
-                    if (url == homeUrl) {
+                    if (url == homeUrl || url?.startsWith(homeUrl) == true) {
                         val returnPage = pendingPageAfterHome
                         pendingPageAfterHome = null
                         if (returnPage == "live" || returnPage == "rest") {
@@ -329,12 +329,10 @@ class MainActivity : Activity() {
         // Initialize the hidden portal WebView only when a subscriber changes a setting.
         // Avoid loading a second k.com page during normal app startup.
 
-        verifyPrivateNetworkAccess {
-            if (savedInstanceState != null) {
-                val restored = web.restoreState(savedInstanceState)
-                if (restored == null) loadHome() else showLoading(false)
-            } else loadHome()
-        }
+        // Never restore a WebView history snapshot after Activity/process recreation.
+        // Such snapshots can point to expired LAN service sessions and leave the UI
+        // visible but unresponsive. Always rebuild the bundled home document instead.
+        verifyPrivateNetworkAccess { loadHome() }
     }
 
 
@@ -1681,8 +1679,24 @@ class MainActivity : Activity() {
                 if (isExternalServiceUrl(current)) {
                     Log.i("AlkamelNet", "Reconnecting service after background pause (${pausedFor}ms): $current")
                     web.post { if (!isFinishing && !isDestroyed) web.loadUrl(current) }
-                } else if (current.startsWith(homeUrl) || current.startsWith("data:")) {
-                    verifyPrivateNetworkAccess { recoverHomeAfterResume() }
+                } else {
+                    // A LAN service page may retain a dead HTTP/WebView session after
+                    // Android backgrounds the app. Return to the bundled home page and
+                    // restore the relevant section, so every service can be opened again.
+                    val returnPage = when {
+                        current.startsWith("http://30.30.30.30:8080/tv/") ||
+                            current.startsWith("http://30.10.10.10:88/") ||
+                            current.startsWith("https://appassets.androidplatform.net/assets/hd/") -> "live"
+                        current.startsWith("http://30.30.30.30:8096/") ||
+                            current.startsWith("http://30.10.10.10/") -> "rest"
+                        else -> null
+                    }
+                    if (returnPage != null) pendingPageAfterHome = returnPage
+                    verifyPrivateNetworkAccess {
+                        if (returnPage != null || (!current.startsWith(homeUrl) && !current.startsWith("data:"))) {
+                            loadHome()
+                        } else recoverHomeAfterResume()
+                    }
                 }
                 // The hidden portal WebView can also keep stale sockets/cookies after resume.
                 commandWeb?.let { hidden ->
