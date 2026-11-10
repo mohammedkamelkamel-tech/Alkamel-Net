@@ -1048,6 +1048,68 @@ class MainActivity : Activity() {
         }
 
         @JavascriptInterface
+        fun runNetworkTest(selectedPlan: String) {
+            if (selectedPlan.length > 100) return
+            io.execute {
+                val result = JSONObject()
+                try {
+                    val wifi = applicationContext.getSystemService(WIFI_SERVICE) as WifiManager
+                    val info = runCatching { wifi.connectionInfo }.getOrNull()
+                    val rawSsid = info?.ssid?.trim()?.removeSurrounding("\"")?.takeIf { it.isNotBlank() && it != "<unknown ssid>" }
+                    val apNumber = rawSsid?.let { Regex("\\((\\d+)\\)\\s*$").find(it)?.groupValues?.get(1) }
+                    val rssi = info?.rssi ?: -127
+                    val level = if (rssi in -100..-1) WifiManager.calculateSignalLevel(rssi, 5) else -1
+                    result.put("ssid", rawSsid ?: "غير متاح (قد يتطلب إذن الموقع في Android)")
+                    result.put("signal", if (level >= 0) "${rssi} dBm · ${level + 1}/5" else "غير متاح")
+                    result.put("apNumber", apNumber ?: "غير معروف")
+                    var pingText = "تعذر القياس"
+                    runCatching {
+                        val started = System.nanoTime()
+                        val conn = URL("https://www.google.com/generate_204").openConnection() as HttpURLConnection
+                        conn.connectTimeout = 7000; conn.readTimeout = 7000; conn.requestMethod = "GET"
+                        val code = conn.responseCode; conn.disconnect()
+                        if (code in 200..399) pingText = "${(System.nanoTime() - started) / 1_000_000} ms"
+                    }
+                    result.put("ping", pingText)
+                    var downloadText = "تعذر القياس"
+                    var measuredMbps = 0.0
+                    runCatching {
+                        val conn = URL("https://speed.cloudflare.com/__down?bytes=3000000").openConnection() as HttpURLConnection
+                        conn.connectTimeout = 10000; conn.readTimeout = 15000
+                        conn.setRequestProperty("Cache-Control", "no-cache")
+                        val started = System.nanoTime(); var total = 0L
+                        conn.inputStream.use { input ->
+                            val buffer = ByteArray(16384)
+                            while (true) { val count = input.read(buffer); if (count < 0) break; total += count }
+                        }
+                        val seconds = (System.nanoTime() - started) / 1_000_000_000.0
+                        conn.disconnect()
+                        if (total > 0 && seconds > 0.0) {
+                            measuredMbps = total * 8.0 / seconds / 1_000_000.0
+                            downloadText = String.format(java.util.Locale.US, "%.2f Mbps", measuredMbps)
+                        }
+                    }
+                    result.put("download", downloadText)
+                    val expected = Regex("(\\d+(?:[.,]\\d+)?)").find(selectedPlan)?.groupValues?.get(1)?.replace(',', '.')?.toDoubleOrNull()
+                    val planResult = when {
+                        expected == null || expected <= 0 -> "تعذرت قراءة سرعة الباقة: $selectedPlan"
+                        measuredMbps <= 0 -> "لم تكتمل مقارنة السرعة"
+                        measuredMbps >= expected * 0.8 -> "السرعة قريبة من الباقة أو أعلى منها ($selectedPlan)"
+                        else -> "السرعة المقاسة أقل من سرعة الباقة ($selectedPlan)"
+                    }
+                    result.put("planResult", planResult)
+                    if (pingText == "تعذر القياس" || downloadText == "تعذر القياس") result.put("error", "تعذر إكمال بعض القياسات؛ تحقق من اتصال الإنترنت. اختبار التنزيل يستهلك نحو 3 ميجابايت.")
+                } catch (e: Exception) {
+                    result.put("error", "حدث خطأ أثناء الاختبار: ${e.message ?: "تعذر الوصول للشبكة"}")
+                }
+                runOnUiThread {
+                    if (!isFinishing && !isDestroyed && ::web.isInitialized) {
+                        web.evaluateJavascript("window.onNetworkTestResult && window.onNetworkTestResult(${result})", null)
+                    }
+                }
+            }
+        }
+        @JavascriptInterface
         fun applyNetworkSetting(speed: String, googleFlag: String?) {
             runOnUiThread {
                 if (!speed.matches(Regex("[A-Za-z0-9./]+"))) {
