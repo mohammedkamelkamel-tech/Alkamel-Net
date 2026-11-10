@@ -666,12 +666,13 @@ class MainActivity : Activity() {
 
     private fun sendLanPacket(type: String, message: String) {
         if (!chatRunning.get()) return
+        val sessionId = chatSessionGeneration.get()
         val messageId = if (type == "message") java.util.UUID.randomUUID().toString() else ""
         val payload = JSONObject().put("type", type).put("id", chatId).put("name", chatNickname)
             .put("text", message).apply { if (messageId.isNotEmpty()) put("messageId", messageId) }
             .toString().toByteArray(Charsets.UTF_8)
         chatSendExecutor.execute {
-            if (!chatRunning.get()) return@execute
+            if (!chatRunning.get() || chatSessionGeneration.get() != sessionId) return@execute
             try {
                 val routes = chatBroadcastRoutes()
                 val limitedBroadcast = InetAddress.getByName("255.255.255.255")
@@ -687,13 +688,13 @@ class MainActivity : Activity() {
                         }
                         sender.bind(java.net.InetSocketAddress(0))
                         repeat(copies) { index ->
-                            if (chatRunning.get()) sender.send(DatagramPacket(payload, payload.size, limitedBroadcast, 39127))
+                            if (chatRunning.get() && chatSessionGeneration.get() == sessionId) sender.send(DatagramPacket(payload, payload.size, limitedBroadcast, 39127))
                             if (index < copies - 1) Thread.sleep(90)
                         }
                     }
                 } else {
                     routes.forEach { (localAddress, subnetBroadcast) ->
-                        if (!chatRunning.get()) return@forEach
+                        if (!chatRunning.get() || chatSessionGeneration.get() != sessionId) return@forEach
                         DatagramSocket(null).use { sender ->
                             sender.reuseAddress = true
                             sender.broadcast = true
@@ -705,7 +706,7 @@ class MainActivity : Activity() {
                             }
                             sender.bind(java.net.InetSocketAddress(localAddress, 0))
                             repeat(copies) { index ->
-                                if (chatRunning.get()) {
+                                if (chatRunning.get() && chatSessionGeneration.get() == sessionId) {
                                     sender.send(DatagramPacket(payload, payload.size, subnetBroadcast, 39127))
                                     // Limited broadcast is retained as a fallback for APs
                                     // that do not forward the calculated subnet broadcast.
@@ -726,6 +727,7 @@ class MainActivity : Activity() {
     }
     private fun sendPrivateLanPacket(type: String, targetId: String, requestId: String, message: String) {
         if (!chatRunning.get() || targetId.isBlank() || requestId.isBlank()) return
+        val sessionId = chatSessionGeneration.get()
         val address = chatPeerAddresses[targetId] ?: run {
             Log.w("AlkamelNet", "Private chat target is not present in the LAN peer table")
             return
@@ -739,7 +741,7 @@ class MainActivity : Activity() {
             .put("text", message.take(1000))
             .toString().toByteArray(Charsets.UTF_8)
         chatSendExecutor.execute {
-            if (!chatRunning.get()) return@execute
+            if (!chatRunning.get() || chatSessionGeneration.get() != sessionId) return@execute
             try {
                 DatagramSocket(null).use { sender ->
                     // Private unicast packets must follow the same Wi-Fi route as
