@@ -48,6 +48,9 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.webkit.WebViewAssetLoader
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -110,6 +113,12 @@ class MainActivity : Activity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val usageRefresh = PeriodicWorkRequestBuilder<AppNetworkUsageWorker>(15, java.util.concurrent.TimeUnit.MINUTES).build()
+        WorkManager.getInstance(applicationContext).enqueueUniquePeriodicWork(
+            "alkamel_app_network_usage_refresh",
+            ExistingPeriodicWorkPolicy.KEEP,
+            usageRefresh
+        )
         window.statusBarColor = Color.rgb(7, 20, 38)
         window.navigationBarColor = Color.rgb(7, 20, 38)
         CookieManager.getInstance().setAcceptCookie(true)
