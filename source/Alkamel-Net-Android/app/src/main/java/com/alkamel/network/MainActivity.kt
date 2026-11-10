@@ -1094,134 +1094,73 @@ class MainActivity : Activity() {
     }
 
     private fun collectAppNetworkUsage(): JSONObject {
-        if (!hasUsageStatsAccess()) return JSONObject().put("status", "permission").put("message", "يرجى السماح للتطبيق بالوصول إلى بيانات الاستخدام من إعدادات أندرويد.")
+        if (!hasUsageStatsAccess()) {
+            return JSONObject().put("status", "permission")
+                .put("message", "يرجى السماح للتطبيق بالوصول إلى بيانات الاستخدام من إعدادات أندرويد.")
+        }
         try {
-            val manager = getSystemService(NETWORK_STATS_SERVICE) as android.app.usage.NetworkStatsManager
-            val cal = java.util.Calendar.getInstance()
-            cal.set(java.util.Calendar.HOUR_OF_DAY, 0); cal.set(java.util.Calendar.MINUTE, 0); cal.set(java.util.Calendar.SECOND, 0); cal.set(java.util.Calendar.MILLISECOND, 0)
-            val start = cal.timeInMillis
+            val calendar = java.util.Calendar.getInstance()
+            calendar.set(java.util.Calendar.HOUR_OF_DAY, 0)
+            calendar.set(java.util.Calendar.MINUTE, 0)
+            calendar.set(java.util.Calendar.SECOND, 0)
+            calendar.set(java.util.Calendar.MILLISECOND, 0)
+            val start = calendar.timeInMillis
             val end = System.currentTimeMillis()
-            val totals = HashMap<Int, Long>()
-            var deviceTotalBytes = 0L
-            var hasDeviceSummary = false
-            // Read Android's device-level daily total as well as per-UID details.
-            // Per-UID buckets can omit traffic that Android attributes to shared,
-            // isolated, or otherwise unattributed system services.
-            for (type in intArrayOf(ConnectivityManager.TYPE_WIFI, ConnectivityManager.TYPE_MOBILE)) {
-                try {
-                    val deviceBucket = manager.querySummaryForDevice(type, null, start, end)
-                    deviceTotalBytes += (deviceBucket.rxBytes + deviceBucket.txBytes).coerceAtLeast(0L)
-                    hasDeviceSummary = true
-                } catch (e: Exception) {
-                    Log.w("AlkamelNet", "Device network summary failed type=$type", e)
-                }
+            val traffic = HashMap<Int, Pair<Long, Long>>()
+            val manager = getSystemService(NETWORK_STATS_SERVICE) as android.app.usage.NetworkStatsManager
 
+            // Keep the original الكامل-تحديد السرعة accounting method:
+            // collect Wi-Fi and mobile traffic per application UID, excluding system UIDs.
+            fun collect(networkType: Int) {
                 var stats: android.app.usage.NetworkStats? = null
                 try {
-                    stats = manager.querySummary(type, null, start, end)
+                    stats = manager.querySummary(networkType, null, start, end)
                     val bucket = android.app.usage.NetworkStats.Bucket()
                     while (stats.hasNextBucket()) {
                         if (!stats.getNextBucket(bucket)) break
-                        // Include system and user application UIDs so the report does not
-                        // silently drop traffic attributed by Android to system services.
-                        if (bucket.uid >= 0) {
-                            val bytes = (bucket.rxBytes + bucket.txBytes).coerceAtLeast(0L)
-                            if (bytes > 0L) totals[bucket.uid] = (totals[bucket.uid] ?: 0L) + bytes
+                        val uid = bucket.uid
+                        if (uid >= 10000) {
+                            val previous = traffic[uid] ?: (0L to 0L)
+                            traffic[uid] = (previous.first + bucket.rxBytes.coerceAtLeast(0L)) to
+                                (previous.second + bucket.txBytes.coerceAtLeast(0L))
                         }
                     }
-                } catch (e: Exception) {
-                    Log.w("AlkamelNet", "Network usage query failed type=$type", e)
                 } finally {
                     runCatching { stats?.close() }
                 }
             }
 
-            val appsByUid = HashMap<Int, MutableList<android.content.pm.ApplicationInfo>>()
-            for (app in packageManager.getInstalledApplications(PackageManager.GET_META_DATA)) {
-                if (app.uid >= 0) appsByUid.getOrPut(app.uid) { mutableListOf() }.add(app)
+            collect(ConnectivityManager.TYPE_WIFI)
+            try {
+                collect(ConnectivityManager.TYPE_MOBILE)
+            } catch (e: Exception) {
+                Log.w("AlkamelNet", "Mobile network usage query failed", e)
             }
 
-            // Merge every UID that has no installed package into ONE system-services row.
-            val rawRows = mutableListOf<JSONObject>()
-            var systemBytes = 0L
-            totals.forEach { (uid, bytes) ->
-                if (bytes <= 0L) return@forEach
-                val installed = appsByUid[uid]
-                if (installed.isNullOrEmpty()) {
-                    systemBytes += bytes
-                } else {
-                    val ordered = installed.sortedBy {
-                        runCatching { packageManager.getApplicationLabel(it).toString() }.getOrDefault(it.packageName)
-                    }
-                    val names = ordered.map {
-                        runCatching { packageManager.getApplicationLabel(it).toString() }.getOrDefault(it.packageName)
-                    }.distinct()
-                    rawRows.add(JSONObject()
-                        .put("name", names.joinToString(" / "))
-                        .put("bytes", bytes)
-                        .put("icon", applicationIconData(ordered.first())))
+            val apps = packageManager.getInstalledApplications(0)
+                .filter { it.uid >= 10000 }
+                .mapNotNull { app ->
+                    val usage = traffic[app.uid] ?: return@mapNotNull null
+                    val total = usage.first + usage.second
+                    if (total <= 0L) return@mapNotNull null
+                    Triple(app, usage, total)
                 }
-            }
-            if (systemBytes > 0L) {
-                val systemIcon = runCatching {
-                    applicationIconData(packageManager.getApplicationInfo("android", 0))
-                }.getOrDefault("")
-                rawRows.add(JSONObject()
-                    .put("name", "خدمات النظام")
-                    .put("bytes", systemBytes)
-                    .put("icon", systemIcon))
-            }
+                .sortedByDescending { it.third }
 
-            if (rawRows.isEmpty() && hasDeviceSummary && deviceTotalBytes > 0L) {
-                val systemIcon = runCatching {
-                    applicationIconData(packageManager.getApplicationInfo("android", 0))
-                }.getOrDefault("")
-                rawRows.add(JSONObject()
-                    .put("name", "خدمات النظام")
-                    .put("bytes", deviceTotalBytes)
-                    .put("icon", systemIcon))
-            }
-
-            // The device-level summary is the single source of truth for the daily
-            // total when Android provides it. Scale UID rows proportionally to that
-            // total instead of taking max(uidTotal, deviceTotal), which can inflate
-            // the report by counting overlapping accounting views.
-            if (hasDeviceSummary && deviceTotalBytes > 0L && rawRows.isNotEmpty()) {
-                val uidTotalBytes = rawRows.sumOf { it.getLong("bytes") }
-                if (uidTotalBytes > 0L && uidTotalBytes != deviceTotalBytes) {
-                    data class ScaledShare(val row: JSONObject, val remainder: Double)
-                    var assigned = 0L
-                    val shares = rawRows.map { row ->
-                        val exact = deviceTotalBytes.toDouble() * row.getLong("bytes").toDouble() / uidTotalBytes.toDouble()
-                        val whole = kotlin.math.floor(exact).toLong()
-                        row.put("bytes", whole)
-                        assigned += whole
-                        ScaledShare(row, exact - whole.toDouble())
-                    }
-                    var remaining = (deviceTotalBytes - assigned).coerceAtLeast(0L)
-                    shares.sortedByDescending { it.remainder }.forEach { share ->
-                        if (remaining > 0L) {
-                            share.row.put("bytes", share.row.getLong("bytes") + 1L)
-                            remaining--
-                        }
-                    }
-                }
-            }
-            val rows = rawRows.filter { it.getLong("bytes") > 0L }.sortedByDescending { it.getLong("bytes") }
-
-            // Add 11% once to the grand total, then distribute that increase proportionally
-            // across the seven highest-usage apps, exactly like الكامل-تحديد السرعة.
-            val rawOverallTotal = rows.sumOf { it.getLong("bytes") }
+            // Apply the same 11% once to the overall total, then distribute it
+            // proportionally among the seven highest-consuming applications.
+            val rawOverallTotal = apps.sumOf { it.third }
             val adjustedOverallTotal = kotlin.math.round(rawOverallTotal.toDouble() * 1.11).toLong()
             val extraBytes = (adjustedOverallTotal - rawOverallTotal).coerceAtLeast(0L)
-            val displayedTotals = LongArray(rows.size) { rows[it].getLong("bytes") }
-            if (rows.isNotEmpty() && extraBytes > 0L) {
-                val recipientsCount = minOf(7, rows.size)
-                val recipientBytes = rows.take(recipientsCount).sumOf { it.getLong("bytes") }
+            val displayedTotals = LongArray(apps.size) { apps[it].third }
+
+            if (apps.isNotEmpty() && extraBytes > 0L) {
+                val recipientsCount = minOf(7, apps.size)
+                val recipientBytes = apps.take(recipientsCount).sumOf { it.third }
                 if (recipientBytes > 0L) {
                     data class Share(val index: Int, val bytes: Long, val remainder: Double)
                     val shares = (0 until recipientsCount).map { index ->
-                        val exact = extraBytes.toDouble() * rows[index].getLong("bytes").toDouble() / recipientBytes.toDouble()
+                        val exact = extraBytes.toDouble() * apps[index].third.toDouble() / recipientBytes.toDouble()
                         val whole = kotlin.math.floor(exact).toLong()
                         displayedTotals[index] += whole
                         Share(index, whole, exact - whole.toDouble())
@@ -1236,17 +1175,21 @@ class MainActivity : Activity() {
                 }
             }
 
-            val apps = org.json.JSONArray()
-            var displayedTotal = 0L
-            rows.forEachIndexed { index, row ->
-                val finalBytes = displayedTotals[index]
-                displayedTotal += finalBytes
-                apps.put(JSONObject()
-                    .put("name", row.getString("name"))
-                    .put("bytes", finalBytes)
-                    .put("icon", row.optString("icon", "")))
+            val resultApps = org.json.JSONArray()
+            apps.forEachIndexed { index, item ->
+                resultApps.put(JSONObject()
+                    .put("name", runCatching {
+                        packageManager.getApplicationLabel(item.first).toString()
+                    }.getOrDefault(item.first.packageName))
+                    .put("bytes", displayedTotals[index])
+                    .put("icon", applicationIconData(item.first)))
             }
-            return JSONObject().put("status", "ok").put("apps", apps).put("totalBytes", displayedTotal).put("startTime", start).put("endTime", end)
+            return JSONObject()
+                .put("status", "ok")
+                .put("apps", resultApps)
+                .put("totalBytes", adjustedOverallTotal)
+                .put("startTime", start)
+                .put("endTime", end)
         } catch (e: Exception) {
             Log.e("AlkamelNet", "App usage read failed", e)
             return JSONObject().put("status", "error").put("message", "تعذر قراءة إحصاءات التطبيقات.")
