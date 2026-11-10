@@ -372,7 +372,7 @@ class MainActivity : Activity() {
         }
         AlertDialog.Builder(this)
             .setTitle("تفعيل عمل شبكة الكامل في الخلفية")
-            .setMessage("حتى تستمر خدمات الشبكة والدردشة في العمل عند تصغير التطبيق، فعّل السماح بالعمل في الخلفية، واجعل استخدام البطارية غير مقيّد. كما سنطلب إذن الإشعارات لتنبيهك بالرسائل والإعلانات المهمة.")
+            .setMessage("فعّل خدمة العمل في الخلفية لتستمر خدمات الشبكة والدردشة عند تصغير التطبيق. سنطلب إذن الإشعارات لتنبيهك بالرسائل والإعلانات المهمة.")
             .setCancelable(false)
             .setNegativeButton("لاحقاً") { _, _ ->
                 prefs.edit().putBoolean("first_run_setup_asked", true).apply()
@@ -380,14 +380,9 @@ class MainActivity : Activity() {
             .setPositiveButton("تفعيل الآن") { _, _ ->
                 prefs.edit().putBoolean("first_run_setup_asked", true).putBoolean("background_enabled", true).apply()
                 ensureBackgroundService()
-                requestNotificationsOnResume = true
-                try {
-                    startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
-                    Toast.makeText(this, "ابحث عن شبكة الكامل واختر السماح بالاستخدام دون قيود.", Toast.LENGTH_LONG).show()
-                } catch (e: Exception) {
-                    Log.w("AlkamelNet", "Battery settings screen unavailable", e)
-                    try { startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))) } catch (_: Exception) { }
-                }
+                requestNotificationsOnResume = false
+                requestNotificationPermission()
+                Toast.makeText(this, "تم تفعيل خدمة العمل في الخلفية.", Toast.LENGTH_SHORT).show()
             }
             .show()
     }
