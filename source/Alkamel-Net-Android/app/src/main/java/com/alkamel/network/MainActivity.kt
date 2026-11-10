@@ -191,8 +191,8 @@ class MainActivity : Activity() {
                     if (url == homeUrl) {
                         val returnPage = pendingPageAfterHome
                         pendingPageAfterHome = null
-                        if (returnPage == "live") {
-                            view?.evaluateJavascript("if(typeof showPage==='function')showPage('live');", null)
+                        if (returnPage == "live" || returnPage == "rest") {
+                            view?.evaluateJavascript("if(typeof showPage==='function')showPage('$returnPage');", null)
                         }
                         view?.evaluateJavascript("document.documentElement && document.body ? document.body.innerText.length : 0") { value ->
                             val hasContent = value != null && value != "null" && value != "0" && value != "\"\""
@@ -942,7 +942,13 @@ class MainActivity : Activity() {
             runOnUiThread {
                 val uri = runCatching { Uri.parse(url) }.getOrNull() ?: return@runOnUiThread
                 if (uri.scheme == "http" && uri.host in allowedHosts) {
-                    pendingPageAfterHome = if (url.startsWith("http://30.30.30.30:8080/tv/") || url.startsWith("http://30.10.10.10:88/")) "live" else null
+                    pendingPageAfterHome = when {
+                        url.startsWith("http://30.30.30.30:8080/tv/") ||
+                            url.startsWith("http://30.10.10.10:88/") -> "live"
+                        url.startsWith("http://30.30.30.30:8096/") ||
+                            url.startsWith("http://30.10.10.10/") -> "rest"
+                        else -> null
+                    }
                     web.loadUrl(url)
                 } else Toast.makeText(this@MainActivity, "الرابط غير مسموح به داخل التطبيق", Toast.LENGTH_SHORT).show()
             }
@@ -1065,11 +1071,16 @@ class MainActivity : Activity() {
             return
         }
         val currentUrl = web.url.orEmpty()
-        val isLivePlayer = currentUrl.startsWith("http://30.30.30.30:8080/tv/") ||
-            currentUrl.startsWith("http://30.10.10.10:88/") ||
-            currentUrl.startsWith("https://appassets.androidplatform.net/assets/hd/")
-        if (isLivePlayer) {
-            pendingPageAfterHome = "live"
+        val returnPage = when {
+            currentUrl.startsWith("http://30.30.30.30:8080/tv/") ||
+                currentUrl.startsWith("http://30.10.10.10:88/") ||
+                currentUrl.startsWith("https://appassets.androidplatform.net/assets/hd/") -> "live"
+            currentUrl.startsWith("http://30.30.30.30:8096/") ||
+                currentUrl.startsWith("http://30.10.10.10/") -> "rest"
+            else -> null
+        }
+        if (returnPage != null) {
+            pendingPageAfterHome = returnPage
             loadHome()
         } else if (currentUrl.startsWith(homeUrl) || currentUrl.startsWith("data:")) {
             web.evaluateJavascript(
