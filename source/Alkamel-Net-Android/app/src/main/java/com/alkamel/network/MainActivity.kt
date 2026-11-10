@@ -93,6 +93,7 @@ class MainActivity : Activity() {
     private var requestNotificationsOnResume = false
     private val chatRunning = AtomicBoolean(false)
     private val chatRequested = AtomicBoolean(false)
+    private val chatSessionGeneration = java.util.concurrent.atomic.AtomicInteger(0)
     @Volatile private var chatSocket: DatagramSocket? = null
     @Volatile private var chatMulticastLock: WifiManager.MulticastLock? = null
     @Volatile private var chatNickname = ""
@@ -511,21 +512,24 @@ class MainActivity : Activity() {
         }
         if (!chatRunning.compareAndSet(false, true)) {
             sendLanPacket("presence", "")
-            notifyChatState("joined", "")
             return
         }
+        val sessionId = chatSessionGeneration.incrementAndGet()
         chatExecutor.execute {
-            if (!chatRunning.get()) return@execute
+            var sessionSocket: DatagramSocket? = null
+            var sessionMulticastLock: WifiManager.MulticastLock? = null
             try {
+                if (chatSessionGeneration.get() != sessionId || !chatRunning.get()) return@execute
                 // Bind the receiver to Wi-Fi explicitly; wildcard UDP sockets can
                 // otherwise follow Android's cellular/default route and miss LAN packets.
                 val wifiNetwork = chatWifiNetwork()
                 val wifi = applicationContext.getSystemService(WIFI_SERVICE) as WifiManager
                 runCatching {
-                    chatMulticastLock = wifi.createMulticastLock("AlkamelNetChat").apply {
+                    sessionMulticastLock = wifi.createMulticastLock("AlkamelNetChat").apply {
                         setReferenceCounted(false)
                         acquire()
                     }
+                    chatMulticastLock = sessionMulticastLock
                 }.onFailure { Log.w("AlkamelNet", "Unable to acquire chat Wi-Fi receive lock", it) }
                 val socket = DatagramSocket(null).apply {
                     reuseAddress = true
@@ -536,14 +540,15 @@ class MainActivity : Activity() {
                     }
                     bind(java.net.InetSocketAddress(39127))
                 }
-                if (!chatRunning.get()) {
+                sessionSocket = socket
+                if (chatSessionGeneration.get() != sessionId || !chatRunning.get()) {
                     socket.close()
                     return@execute
                 }
                 chatSocket = socket
                 notifyChatState("joined", "")
                 var lastPresence = 0L
-                while (chatRunning.get()) {
+                while (chatRunning.get() && chatSessionGeneration.get() == sessionId) {
                     val now = System.currentTimeMillis()
                     if (now - lastPresence >= 5000) { sendLanPacket("presence", ""); lastPresence = now }
                     try {
@@ -573,15 +578,15 @@ class MainActivity : Activity() {
             } catch (e: SocketException) {
                 // Closing a DatagramSocket while receive() is blocked raises EBADF.
                 // Treat intentional shutdown as normal; retry unexpected socket loss.
-                if (chatRunning.get() && chatRequested.get()) {
+                if (chatRunning.get() && chatRequested.get() && chatSessionGeneration.get() == sessionId) {
                     Log.w("AlkamelNet", "LAN chat socket interrupted; preparing reconnect", e)
                     chatRunning.set(false)
                     notifyChatState("reconnecting", "انقطع اتصال الدردشة مؤقتاً، جارٍ إعادة الاتصال…")
                     try { Thread.sleep(1200) } catch (_: InterruptedException) { Thread.currentThread().interrupt() }
-                    if (chatRequested.get()) startLanChat(chatNickname, ensureService = false)
+                    if (chatRequested.get() && chatSessionGeneration.get() == sessionId) startLanChat(chatNickname, ensureService = false)
                 }
             } catch (e: Exception) {
-                if (chatRunning.get() && chatRequested.get()) {
+                if (chatRunning.get() && chatRequested.get() && chatSessionGeneration.get() == sessionId) {
                     Log.e("AlkamelNet", "LAN chat socket failed", e)
                     chatRunning.set(false)
                     notifyChatState("reconnecting", "حدث انقطاع في اتصال الدردشة، جارٍ إعادة المحاولة…")
@@ -591,8 +596,11 @@ class MainActivity : Activity() {
                     Log.d("AlkamelNet", "LAN chat receiver stopped during socket cleanup")
                 }
             } finally {
-                chatSocket?.close()
-                chatSocket = null
+                try { sessionSocket?.close() } catch (_: Exception) { }
+                if (chatSocket === sessionSocket) chatSocket = null
+                runCatching { sessionMulticastLock?.let { if (it.isHeld) it.release() } }
+                    .onFailure { Log.w("AlkamelNet", "Unable to release chat Wi-Fi lock", it) }
+                if (chatMulticastLock === sessionMulticastLock) chatMulticastLock = null
             }
         }
     }
@@ -752,6 +760,7 @@ class MainActivity : Activity() {
     }
 
     private fun stopLanChat() {
+        chatSessionGeneration.incrementAndGet()
         chatRequested.set(false)
         chatRunning.set(false)
         chatPeerAddresses.clear()
