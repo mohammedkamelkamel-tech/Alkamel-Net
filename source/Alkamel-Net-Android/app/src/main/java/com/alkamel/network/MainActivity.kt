@@ -1062,6 +1062,57 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun hasUsageStatsAccess(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return false
+        val ops = getSystemService(APP_OPS_SERVICE) as android.app.AppOpsManager
+        @Suppress("DEPRECATION")
+        return ops.checkOpNoThrow(android.app.AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), packageName) == android.app.AppOpsManager.MODE_ALLOWED
+    }
+
+    private fun collectAppNetworkUsage(): JSONObject {
+        if (!hasUsageStatsAccess()) return JSONObject().put("status", "permission").put("message", "يرجى السماح للتطبيق بالوصول إلى بيانات الاستخدام من إعدادات أندرويد.")
+        try {
+            val manager = getSystemService(NETWORK_STATS_SERVICE) as android.app.usage.NetworkStatsManager
+            val cal = java.util.Calendar.getInstance()
+            cal.set(java.util.Calendar.HOUR_OF_DAY, 0); cal.set(java.util.Calendar.MINUTE, 0); cal.set(java.util.Calendar.SECOND, 0); cal.set(java.util.Calendar.MILLISECOND, 0)
+            val start = cal.timeInMillis; val end = System.currentTimeMillis()
+            val totals = HashMap<Int, Long>()
+            for (type in intArrayOf(ConnectivityManager.TYPE_WIFI, ConnectivityManager.TYPE_MOBILE)) {
+                var stats: android.app.usage.NetworkStats? = null
+                try {
+                    stats = manager.querySummary(type, null, start, end)
+                    val bucket = android.app.usage.NetworkStats.Bucket()
+                    while (stats.hasNextBucket()) {
+                        if (!stats.getNextBucket(bucket)) break
+                        if (bucket.uid >= 0) { val bytes = (bucket.rxBytes + bucket.txBytes).coerceAtLeast(0L); if (bytes > 0) totals[bucket.uid] = (totals[bucket.uid] ?: 0L) + bytes }
+                    }
+                } catch (e: Exception) { Log.w("AlkamelNet", "Usage query failed type=$type", e) } finally { runCatching { stats?.close() } }
+            }
+            val labels = HashMap<Int, MutableList<String>>()
+            for (app in packageManager.getInstalledApplications(PackageManager.GET_META_DATA)) {
+                if (app.uid < 0 || app.uid == android.os.Process.myUid()) continue
+                val label = runCatching { packageManager.getApplicationLabel(app).toString() }.getOrDefault(app.packageName)
+                val list = labels.getOrPut(app.uid) { mutableListOf() }; if (!list.contains(label)) list.add(label)
+            }
+            val rows = totals.entries.mapNotNull { entry -> val names = labels[entry.key]; if (entry.value <= 0L || names.isNullOrEmpty()) null else JSONObject().put("name", names.sorted().joinToString(" / ")).put("bytes", entry.value) }.sortedByDescending { it.getLong("bytes") }
+            val base = rows.sumOf { it.getLong("bytes") }; val uplift = kotlin.math.round(base * 0.11).toLong()
+            val shown = LongArray(rows.size) { rows[it].getLong("bytes") }; val count = minOf(7, rows.size)
+            if (uplift > 0L && count > 0) {
+                val topBase = (0 until count).sumOf { rows[it].getLong("bytes") }; var used = 0L; val fractions = ArrayList<Pair<Int, Double>>()
+                for (i in 0 until count) { val exact = uplift.toDouble() * rows[i].getLong("bytes").toDouble() / topBase.toDouble(); val whole = kotlin.math.floor(exact).toLong(); shown[i] += whole; used += whole; fractions.add(i to (exact - whole)) }
+                var left = uplift - used; for ((i, _) in fractions.sortedByDescending { it.second }) { if (left <= 0L) break; shown[i]++; left-- }
+            }
+            val apps = org.json.JSONArray()
+            for (i in rows.indices) apps.put(JSONObject().put("name", rows[i].getString("name")).put("bytes", shown[i]).put("adjusted", i < count && uplift > 0L))
+            return JSONObject().put("status", "ok").put("apps", apps).put("totalBytes", shown.sum()).put("baseTotalBytes", base).put("startTime", start).put("endTime", end)
+        } catch (e: Exception) { Log.e("AlkamelNet", "App usage read failed", e); return JSONObject().put("status", "error").put("message", "تعذر قراءة إحصاءات التطبيقات.") }
+    }
+
+    private fun requestAppNetworkUsage() {
+        io.execute { val data = collectAppNetworkUsage(); val payload = JSONObject.quote(data.toString()); runOnUiThread { if (::web.isInitialized && !isFinishing && !isDestroyed) web.evaluateJavascript("if(window.onAppNetworkUsageResult)window.onAppNetworkUsageResult(JSON.parse($payload));", null) } }
+    }
+
+    private fun openUsageAccessSettings() { runOnUiThread { try { startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) } catch (e: ActivityNotFoundException) { Toast.makeText(this, "افتح إعدادات التطبيقات ثم الوصول الخاص ثم بيانات الاستخدام", Toast.LENGTH_LONG).show() } } }
     inner class Bridge {
         @JavascriptInterface fun startChat(name: String) { startLanChat(name) }
         @JavascriptInterface fun sendChatMessage(message: String) { if (message.length <= 1000) sendLanPacket("message", message.trim()) }
@@ -1077,6 +1128,8 @@ class MainActivity : Activity() {
         @JavascriptInterface fun leaveVoiceRoom() { stopVoiceRoom() }
 
         @JavascriptInterface fun scanNearbyWifi() { runOnUiThread { requestNearbyWifiScan() } }
+        @JavascriptInterface fun getAppNetworkUsage() { requestAppNetworkUsage() }
+        @JavascriptInterface fun openUsageAccessSettings() { openUsageAccessSettings() }
         @JavascriptInterface
         fun openUrl(url: String) {
             runOnUiThread {
