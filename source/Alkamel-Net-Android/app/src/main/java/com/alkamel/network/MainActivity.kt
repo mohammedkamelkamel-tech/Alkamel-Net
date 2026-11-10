@@ -100,6 +100,7 @@ class MainActivity : Activity() {
     private val voicePermissionRequest = 7412
     private var localFallbackAttempted = false
     private var pendingPageAfterHome: String? = null
+    @Volatile private var backgroundedAtMs: Long = 0L
     private val allowedHosts = setOf("k.com", "30.30.30.30", "30.10.10.10", "10.10.10.10")
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -174,6 +175,14 @@ class MainActivity : Activity() {
                     if (uri.host == "appassets.androidplatform.net" && uri.scheme == "https") return false
                     if (uri.scheme == "http" && uri.host in allowedHosts) return false
                     Log.w("AlkamelNet", "Blocked navigation: $uri")
+                    return true
+                }
+
+                override fun onRenderProcessGone(view: WebView?, detail: android.webkit.RenderProcessGoneDetail?): Boolean {
+                    Log.e("AlkamelNet", "WebView renderer exited; recovering Activity")
+                    runOnUiThread {
+                        if (!isFinishing && !isDestroyed) recreate()
+                    }
                     return true
                 }
 
@@ -1109,14 +1118,38 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         appInForeground = true
+        if (::web.isInitialized) {
+            web.onResume()
+            web.resumeTimers()
+            val pausedFor = if (backgroundedAtMs > 0L) System.currentTimeMillis() - backgroundedAtMs else 0L
+            val current = web.url.orEmpty()
+            // Reconnect embedded LAN services after returning from background; their
+            // HTTP players may keep stale sockets while Android suspends the WebView.
+            if (pausedFor >= 2500L && isExternalServiceUrl(current)) {
+                Log.i("AlkamelNet", "Reconnecting service after background pause (${pausedFor}ms): $current")
+                web.post { web.loadUrl(current) }
+            }
+            backgroundedAtMs = 0L
+        }
+        commandWeb?.onResume()
         if (requestNotificationsOnResume) {
             requestNotificationsOnResume = false
             requestNotificationPermission()
         }
     }
 
+    private fun isExternalServiceUrl(url: String): Boolean =
+        url.startsWith("http://30.30.30.30:8096/") ||
+        url.startsWith("http://30.10.10.10/") ||
+        url.startsWith("http://30.30.30.30:8080/tv/") ||
+        url.startsWith("http://30.10.10.10:88/") ||
+        url.startsWith("https://appassets.androidplatform.net/assets/hd/")
+
     override fun onPause() {
         appInForeground = false
+        backgroundedAtMs = System.currentTimeMillis()
+        if (::web.isInitialized) web.onPause()
+        commandWeb?.onPause()
         super.onPause()
     }
 
