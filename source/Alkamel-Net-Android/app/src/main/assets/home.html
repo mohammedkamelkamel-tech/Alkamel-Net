@@ -546,6 +546,7 @@ function leaveChatPage(){showPage('home');}
 function onChatServiceError(){const message='تعذر تشغيل خدمة الخلفية؛ قد يتوقف الاتصال عند إغلاق التطبيق.';if(chatPending){setChatJoinPending(true,message);}else{$('chatNotice').textContent=message;}}
 window.onLanChatPacket=receiveChatPacket;
 renderSpeeds();refreshStatus();setInterval(refreshStatus,30000);window.appBack=()=>showPage('home');
+window.appOnResume=function(){try{if($('query')?.classList.contains('active'))refreshStatus();if($('ads')?.classList.contains('active'))loadAds(true);if($('speed')?.classList.contains('active'))renderSpeeds();if($('ads')?.classList.contains('active'))startAdsTimer();}catch(e){console.error('Resume recovery failed',e);}};
 const adsSlider=$('adsSlider');if(adsSlider){adsSlider.addEventListener('touchstart',e=>{adsTouchStartX=e.changedTouches[0].screenX;},{passive:true});adsSlider.addEventListener('touchend',e=>{const delta=e.changedTouches[0].screenX-adsTouchStartX;if(Math.abs(delta)>40)showAd(adsIndex+(delta<0?1:-1));},{passive:true});}
 $('adsPrev')?.addEventListener('click',()=>showAd(adsIndex-1));$('adsNext')?.addEventListener('click',()=>showAd(adsIndex+1));
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stopAdsTimer();else if($('ads')?.classList.contains('active'))startAdsTimer();});
