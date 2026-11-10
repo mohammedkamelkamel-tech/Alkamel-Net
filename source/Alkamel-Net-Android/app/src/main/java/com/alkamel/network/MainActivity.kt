@@ -1102,30 +1102,31 @@ class MainActivity : Activity() {
             val start = cal.timeInMillis
             val end = System.currentTimeMillis()
             val totals = HashMap<Int, Long>()
-            // This dashboard intentionally reports Wi-Fi usage only; mobile data is excluded.
-            var wifiStats: android.app.usage.NetworkStats? = null
-            try {
-                wifiStats = manager.querySummary(ConnectivityManager.TYPE_WIFI, null, start, end)
-                val bucket = android.app.usage.NetworkStats.Bucket()
-                while (wifiStats.hasNextBucket()) {
-                    if (!wifiStats.getNextBucket(bucket)) break
-                    if (bucket.uid >= 0) {
-                        val bytes = (bucket.rxBytes + bucket.txBytes).coerceAtLeast(0L)
-                        if (bytes > 0) totals[bucket.uid] = (totals[bucket.uid] ?: 0L) + bytes
+            // Match الكامل-تحديد السرعة: aggregate Wi-Fi and mobile network totals by UID.
+            for (type in intArrayOf(ConnectivityManager.TYPE_WIFI, ConnectivityManager.TYPE_MOBILE)) {
+                var stats: android.app.usage.NetworkStats? = null
+                try {
+                    stats = manager.querySummary(type, null, start, end)
+                    val bucket = android.app.usage.NetworkStats.Bucket()
+                    while (stats.hasNextBucket()) {
+                        if (!stats.getNextBucket(bucket)) break
+                        if (bucket.uid >= 10000) {
+                            val bytes = (bucket.rxBytes + bucket.txBytes).coerceAtLeast(0L)
+                            if (bytes > 0L) totals[bucket.uid] = (totals[bucket.uid] ?: 0L) + bytes
+                        }
                     }
+                } catch (e: Exception) {
+                    Log.w("AlkamelNet", "Network usage query failed type=$type", e)
+                } finally {
+                    runCatching { stats?.close() }
                 }
-            } catch (e: Exception) {
-                Log.w("AlkamelNet", "Wi-Fi usage query failed", e)
-            } finally {
-                runCatching { wifiStats?.close() }
             }
 
             val appsByUid = HashMap<Int, MutableList<android.content.pm.ApplicationInfo>>()
             for (app in packageManager.getInstalledApplications(PackageManager.GET_META_DATA)) {
-                if (app.uid < 0 || app.uid == android.os.Process.myUid()) continue
+                if (app.uid < 10000 || app.uid == android.os.Process.myUid()) continue
                 appsByUid.getOrPut(app.uid) { mutableListOf() }.add(app)
             }
-
             val rows = totals.entries.mapNotNull { entry ->
                 val installed = appsByUid[entry.key]
                 if (entry.value <= 0L || installed.isNullOrEmpty()) null
@@ -1140,11 +1141,37 @@ class MainActivity : Activity() {
                 }
             }.sortedByDescending { it.getLong("bytes") }
 
+            // Add 11% once to the grand total, then distribute that increase proportionally
+            // across the seven highest-usage apps, exactly like الكامل-تحديد السرعة.
+            val rawOverallTotal = rows.sumOf { it.getLong("bytes") }
+            val adjustedOverallTotal = kotlin.math.round(rawOverallTotal.toDouble() * 1.11).toLong()
+            val extraBytes = (adjustedOverallTotal - rawOverallTotal).coerceAtLeast(0L)
+            val displayedTotals = LongArray(rows.size) { rows[it].getLong("bytes") }
+            if (rows.isNotEmpty() && extraBytes > 0L) {
+                val recipientsCount = minOf(7, rows.size)
+                val recipientBytes = rows.take(recipientsCount).sumOf { it.getLong("bytes") }
+                if (recipientBytes > 0L) {
+                    data class Share(val index: Int, val bytes: Long, val remainder: Double)
+                    val shares = (0 until recipientsCount).map { index ->
+                        val exact = extraBytes.toDouble() * rows[index].getLong("bytes").toDouble() / recipientBytes.toDouble()
+                        val whole = kotlin.math.floor(exact).toLong()
+                        displayedTotals[index] += whole
+                        Share(index, whole, exact - whole.toDouble())
+                    }
+                    var remaining = extraBytes - shares.sumOf { it.bytes }
+                    shares.sortedByDescending { it.remainder }.forEach { share ->
+                        if (remaining > 0L) {
+                            displayedTotals[share.index] += 1L
+                            remaining--
+                        }
+                    }
+                }
+            }
+
             val apps = org.json.JSONArray()
             var displayedTotal = 0L
-            for (row in rows) {
-                // Increase each app's Android-reported daily total by exactly 11%; expose only the final value.
-                val finalBytes = kotlin.math.round(row.getLong("bytes").toDouble() * 1.11).toLong()
+            rows.forEachIndexed { index, row ->
+                val finalBytes = displayedTotals[index]
                 displayedTotal += finalBytes
                 apps.put(JSONObject()
                     .put("name", row.getString("name"))
@@ -1159,7 +1186,27 @@ class MainActivity : Activity() {
     }
 
     private fun requestAppNetworkUsage() {
-        io.execute { val data = collectAppNetworkUsage(); val payload = JSONObject.quote(data.toString()); runOnUiThread { if (::web.isInitialized && !isFinishing && !isDestroyed) web.evaluateJavascript("if(window.onAppNetworkUsageResult)window.onAppNetworkUsageResult(JSON.parse($payload));", null) } }
+        io.execute {
+            val prefs = getSharedPreferences("app_network_usage", MODE_PRIVATE)
+            val cached = prefs.getString("latest_report", null)
+            if (!cached.isNullOrBlank()) {
+                val cachedPayload = JSONObject.quote(cached)
+                runOnUiThread {
+                    if (::web.isInitialized && !isFinishing && !isDestroyed)
+                        web.evaluateJavascript("if(window.onAppNetworkUsageResult)window.onAppNetworkUsageResult(JSON.parse($cachedPayload));", null)
+                }
+            }
+            val data = collectAppNetworkUsage()
+            if (data.optString("status") == "ok") prefs.edit()
+                .putString("latest_report", data.toString())
+                .putLong("updated_at", System.currentTimeMillis())
+                .apply()
+            val payload = JSONObject.quote(data.toString())
+            runOnUiThread {
+                if (::web.isInitialized && !isFinishing && !isDestroyed)
+                    web.evaluateJavascript("if(window.onAppNetworkUsageResult)window.onAppNetworkUsageResult(JSON.parse($payload));", null)
+            }
+        }
     }
 
     private fun openUsageAccessSettings() {
