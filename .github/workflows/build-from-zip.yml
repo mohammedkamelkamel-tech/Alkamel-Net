@@ -1,4 +1,4 @@
-name: Build Alkamel-Net APK from repository source v1.6.9
+name: Build Alkamel-Net APK from repository source v1.7.0
 on:
   workflow_dispatch:
   push:
@@ -108,7 +108,7 @@ jobs:
           s,n=re.subn(r'(?m)^(\s*versionName\s*=\s*)"[^"]+"',r'\g<1>"1.6.9"',s)
           if n!=1: raise SystemExit(f"Expected one versionName, found {n}")
           p.write_text(s)
-          print("Application ID and version set to 1.6.9 (53)")
+          print("Application ID and version set to 1.7.0 (54)")
           PY
       - uses: actions/setup-java@v4
         with:
