@@ -103,6 +103,7 @@ class MainActivity : Activity() {
     private val voiceExecutor = Executors.newSingleThreadExecutor()
     private val voiceReceiveExecutor = Executors.newSingleThreadExecutor()
     private val voiceRunning = AtomicBoolean(false)
+    private val voiceSessionGeneration = java.util.concurrent.atomic.AtomicInteger(0)
     private val voiceMuted = AtomicBoolean(false)
     @Volatile private var voiceSocket: java.net.MulticastSocket? = null
     @Volatile private var multicastLock: WifiManager.MulticastLock? = null
@@ -796,6 +797,7 @@ class MainActivity : Activity() {
             return
         }
         if (!voiceRunning.compareAndSet(false, true)) return
+        val sessionId = voiceSessionGeneration.incrementAndGet()
         voiceMuted.set(false)
         voiceExecutor.execute {
             var recorder: AudioRecord? = null
@@ -803,9 +805,13 @@ class MainActivity : Activity() {
             var echoCanceler: AcousticEchoCanceler? = null
             var noiseSuppressor: NoiseSuppressor? = null
             var automaticGain: AutomaticGainControl? = null
+            var sessionSocket: java.net.MulticastSocket? = null
+            var sessionMulticastLock: WifiManager.MulticastLock? = null
             try {
+                if (voiceSessionGeneration.get() != sessionId || !voiceRunning.get()) return@execute
                 val wifi = applicationContext.getSystemService(WIFI_SERVICE) as WifiManager
-                multicastLock = wifi.createMulticastLock("AlkamelNetVoice").apply { setReferenceCounted(false); acquire() }
+                sessionMulticastLock = wifi.createMulticastLock("AlkamelNetVoice").apply { setReferenceCounted(false); acquire() }
+                multicastLock = sessionMulticastLock
                 // Select the active Wi-Fi interface explicitly; Android may otherwise
                 // attach multicast traffic to a mobile/virtual interface.
                 val connectivity = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
@@ -827,6 +833,7 @@ class MainActivity : Activity() {
                     networkInterface = wifiInterface
                     joinGroup(java.net.InetSocketAddress(voiceGroup, voicePort), wifiInterface)
                 }
+                sessionSocket = socket
                 voiceSocket = socket
                 val rate = 16000
                 val inputMask = AudioFormat.CHANNEL_IN_MONO
@@ -887,7 +894,7 @@ class MainActivity : Activity() {
 
                 voiceReceiveExecutor.execute {
                     val incoming = ByteArray(1200)
-                    while (voiceRunning.get()) {
+                    while (voiceRunning.get() && voiceSessionGeneration.get() == sessionId) {
                         try {
                             val packet = DatagramPacket(incoming, incoming.size)
                             socket.receive(packet)
@@ -911,12 +918,12 @@ class MainActivity : Activity() {
                 val outgoing = ByteArray(prefix.size + frame)
                 System.arraycopy(prefix, 0, outgoing, 0, prefix.size)
                 var lastUi = 0L
-                while (voiceRunning.get()) {
+                while (voiceRunning.get() && voiceSessionGeneration.get() == sessionId) {
                     // Non-blocking reads let the stop flag end the audio loop
                     // immediately; READ_BLOCKING can strand the single voice worker
                     // after leaving a room and prevent joining again.
                     val count = activeRecorder.read(pcm, 0, pcm.size, AudioRecord.READ_NON_BLOCKING)
-                    if (!voiceRunning.get()) break
+                    if (!voiceRunning.get() || voiceSessionGeneration.get() != sessionId) break
                     if (count == AudioRecord.ERROR_INVALID_OPERATION || count == AudioRecord.ERROR_BAD_VALUE || count == AudioRecord.ERROR_DEAD_OBJECT) {
                         throw IllegalStateException("توقف تسجيل الميكروفون (رمز " + count + ")")
                     }
@@ -965,9 +972,11 @@ class MainActivity : Activity() {
                 }
             } catch (e: Exception) {
                 Log.e("AlkamelNet", "Voice room failed", e)
-                runOnUiThread { if (!isFinishing) web.evaluateJavascript("window.onVoiceState&&window.onVoiceState('error'," + JSONObject.quote(e.localizedMessage ?: "Voice room error") + ");", null) }
+                if (voiceSessionGeneration.get() == sessionId) {
+                    runOnUiThread { if (!isFinishing) web.evaluateJavascript("window.onVoiceState&&window.onVoiceState('error'," + JSONObject.quote(e.localizedMessage ?: "Voice room error") + ");", null) }
+                }
             } finally {
-                voiceRunning.set(false)
+                if (voiceSessionGeneration.get() == sessionId) voiceRunning.set(false)
                 try { recorder?.stop() } catch (_: Exception) { }
                 try { echoCanceler?.release() } catch (_: Exception) { }
                 try { noiseSuppressor?.release() } catch (_: Exception) { }
@@ -975,10 +984,10 @@ class MainActivity : Activity() {
                 try { recorder?.release() } catch (_: Exception) { }
                 try { player?.stop() } catch (_: Exception) { }
                 try { player?.release() } catch (_: Exception) { }
-                voiceSocket?.let { try { it.leaveGroup(voiceGroup); it.close() } catch (_: Exception) { } }
-                voiceSocket = null
-                multicastLock?.let { try { if (it.isHeld) it.release() } catch (_: Exception) { } }
-                multicastLock = null
+                sessionSocket?.let { try { it.leaveGroup(voiceGroup); it.close() } catch (_: Exception) { } }
+                if (voiceSocket === sessionSocket) voiceSocket = null
+                sessionMulticastLock?.let { try { if (it.isHeld) it.release() } catch (_: Exception) { } }
+                if (multicastLock === sessionMulticastLock) multicastLock = null
                 val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     try { audioManager.clearCommunicationDevice() } catch (_: Exception) { }
@@ -999,6 +1008,9 @@ class MainActivity : Activity() {
     }
 
     private fun stopVoiceRoom() {
+        // Invalidate the current worker before closing its socket. A rapid leave/join
+        // must never let an older worker keep running or clear the newer session.
+        voiceSessionGeneration.incrementAndGet()
         voiceRunning.set(false)
         voiceSocket?.close()
         voiceSocket = null
