@@ -105,7 +105,7 @@ jobs:
           if n!=1: raise SystemExit(f"Expected one applicationId, found {n}")
           s,n=re.subn(r'(?m)^(\s*versionCode\s*=\s*)\d+',r'\g<1>47',s)
           if n!=1: raise SystemExit(f"Expected one versionCode, found {n}")
-          s,n=re.subn(r'(?m)^(\s*versionName\s*=\s*)"[^"]+"',r'\g<1>"1.6.3"',s)
+          s,n=re.subn(r'(?m)^(\s*versionName\s*=\s*)"[^"]+"',r'\g<1>"1.6.4"',s)
           if n!=1: raise SystemExit(f"Expected one versionName, found {n}")
           p.write_text(s)
           print("Application ID and version set to 1.6.3 (47)")
