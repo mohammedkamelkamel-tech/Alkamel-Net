@@ -19,6 +19,7 @@ import android.os.IBinder
 class ChatKeepAliveService : Service() {
     private val adsChecker = Executors.newSingleThreadScheduledExecutor()
     @Volatile private var adsCheckStarted = false
+    @Volatile private var networkFailureCount = 0
     companion object {
         const val ACTION_START = "com.alkamel.network.action.START_CHAT"
         const val ACTION_STOP = "com.alkamel.network.action.STOP_CHAT"
@@ -47,6 +48,47 @@ class ChatKeepAliveService : Service() {
             getSystemService(NotificationManager::class.java).createNotificationChannel(events)
         }
         startAdsUpdateMonitor()
+        startPrivateNetworkMonitor()
+    }
+
+
+    private fun startPrivateNetworkMonitor() {
+        adsChecker.scheduleWithFixedDelay({
+            val reachable = listOf("k.com", "k.net").any { host ->
+                val connection = try {
+                    (URL("http://$host/").openConnection() as HttpURLConnection).apply {
+                        requestMethod = "GET"
+                        connectTimeout = 2200
+                        readTimeout = 2200
+                        instanceFollowRedirects = false
+                        useCaches = false
+                        setRequestProperty("Cache-Control", "no-cache, no-store")
+                        setRequestProperty("Connection", "close")
+                    }
+                } catch (e: Exception) {
+                    Log.d("AlkamelNet-Service", "Private network check failed for $host", e)
+                    null
+                }
+                if (connection == null) false else try {
+                    val status = connection.responseCode
+                    status in 200..399 && connection.url.host.equals(host, ignoreCase = true)
+                } catch (e: Exception) {
+                    false
+                } finally {
+                    connection.disconnect()
+                }
+            }
+            if (reachable) {
+                networkFailureCount = 0
+            } else {
+                networkFailureCount++
+                if (networkFailureCount >= 2) {
+                    Log.w("AlkamelNet-Service", "Private network lost; stopping background service")
+                    stopForegroundCompat()
+                    stopSelf()
+                }
+            }
+        }, 5, 5, TimeUnit.SECONDS)
     }
 
     private fun startAdsUpdateMonitor() {
