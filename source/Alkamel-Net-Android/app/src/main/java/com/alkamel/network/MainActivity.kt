@@ -109,6 +109,7 @@ class MainActivity : Activity() {
     @Volatile private var mqttClient: MqttAsyncClient? = null
     @Volatile private var mqttConnecting = false
     private val mqttGroupTopic = "alkamel/chat/room"
+    private val mqttPresenceTask = object : Runnable { override fun run() { if (chatRequested.get() && mqttClient?.isConnected == true) { publishMqtt("presence", ""); mainHandler.postDelayed(this, 5000L) } } }
     private val chatId = java.util.UUID.randomUUID().toString()
     private val chatPeerAddresses = ConcurrentHashMap<String, InetAddress>()
     private val chatExecutor = Executors.newSingleThreadExecutor()
@@ -697,6 +698,8 @@ class MainActivity : Activity() {
                             client.subscribe(arrayOf(mqttGroupTopic, "alkamel/chat/private/$chatId"), intArrayOf(1, 1), null, null)
                             chatRunning.set(true)
                             publishMqtt("presence", "")
+                            mainHandler.removeCallbacks(mqttPresenceTask)
+                            mainHandler.postDelayed(mqttPresenceTask, 5000L)
                             notifyChatState("joined", "")
                         } catch (e: Exception) {
                             Log.e("AlkamelNet", "MQTT subscribe failed", e)
@@ -774,6 +777,7 @@ class MainActivity : Activity() {
     private fun stopMqttChat() {
         chatRequested.set(false)
         chatRunning.set(false)
+        mainHandler.removeCallbacks(mqttPresenceTask)
         mqttConnecting = false
         val client = mqttClient
         mqttClient = null
