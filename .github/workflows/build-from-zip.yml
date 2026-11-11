@@ -224,6 +224,7 @@ jobs:
           unzip -p "$FULL_PACKAGE" "$PACKAGE_DIR/اقرأني.txt" | grep -F "رقم الإصدار الداخلي: $VERSION_CODE"
           test -s "$FULL_PACKAGE"
       - name: Publish APK and project in one ZIP
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: alkamel-net-v${{ env.APP_VERSION }}-code${{ env.VERSION_CODE }}-build-${{ github.run_number }}
