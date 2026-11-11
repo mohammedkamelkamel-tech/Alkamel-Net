@@ -9,6 +9,9 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.IntentFilter
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.media.AudioFormat
@@ -88,6 +91,24 @@ class MainActivity : Activity() {
     private var networkFailureCount = 0
     private var networkSuccessCount = 0
     private val mainHandler = Handler(Looper.getMainLooper())
+    private var mqttReceiverRegistered = false
+    private val mqttEventReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val state = intent?.getStringExtra(MqttChatService.EXTRA_STATE)
+            if (state != null) {
+                chatRunning.set(state == "joined")
+                val detail = intent.getStringExtra(MqttChatService.EXTRA_DETAIL).orEmpty()
+                notifyChatState(state, detail)
+            }
+            val raw = intent?.getStringExtra(MqttChatService.EXTRA_RAW)
+            if (!raw.isNullOrBlank()) {
+                runCatching { notifyIncomingChat(JSONObject(raw)) }
+                if (::web.isInitialized && !isFinishing && !isDestroyed) {
+                    web.evaluateJavascript("if(window.onLanChatPacket)window.onLanChatPacket(${JSONObject.quote(raw)});", null)
+                }
+            }
+        }
+    }
     @Volatile private var resumeRecoveryToken = 0
     @Volatile private var appInForeground = false
     private val notificationChannelId = "alkamel_events"
@@ -99,7 +120,7 @@ class MainActivity : Activity() {
     @Volatile private var chatSocket: DatagramSocket? = null
     @Volatile private var chatMulticastLock: WifiManager.MulticastLock? = null
     @Volatile private var chatNickname = ""
-    private val chatId = java.util.UUID.randomUUID().toString()
+    private val chatId by lazy { getSharedPreferences("alkamel_mqtt", MODE_PRIVATE).getString("device_id", null) ?: java.util.UUID.randomUUID().toString().also { getSharedPreferences("alkamel_mqtt", MODE_PRIVATE).edit().putString("device_id", it).apply() } }
     private val chatPeerAddresses = ConcurrentHashMap<String, InetAddress>()
     private val chatExecutor = Executors.newSingleThreadExecutor()
     private val chatSendExecutor = Executors.newSingleThreadExecutor()
@@ -121,6 +142,10 @@ class MainActivity : Activity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val mqttFilter = IntentFilter(MqttChatService.ACTION_EVENT)
+        if (Build.VERSION.SDK_INT >= 33) registerReceiver(mqttEventReceiver, mqttFilter, Context.RECEIVER_NOT_EXPORTED)
+        else registerReceiver(mqttEventReceiver, mqttFilter)
+        mqttReceiverRegistered = true
         window.statusBarColor = Color.rgb(7, 20, 38)
         window.navigationBarColor = Color.rgb(7, 20, 38)
         CookieManager.getInstance().setAcceptCookie(true)
@@ -1913,6 +1938,7 @@ class MainActivity : Activity() {
             chatExecutor.shutdownNow()
             chatSendExecutor.shutdownNow()
         }
+        if (mqttReceiverRegistered) { runCatching { unregisterReceiver(mqttEventReceiver) }; mqttReceiverRegistered = false }
         networkGuard.shutdownNow()
         if (::web.isInitialized) {
             web.removeJavascriptInterface("AndroidBridge")
