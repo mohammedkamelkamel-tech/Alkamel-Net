@@ -52,14 +52,6 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.webkit.WebViewAssetLoader
 import org.json.JSONObject
-import org.eclipse.paho.client.mqttv3.MqttAsyncClient
-import org.eclipse.paho.client.mqttv3.MqttConnectOptions
-import org.eclipse.paho.client.mqttv3.MqttMessage
-import org.eclipse.paho.client.mqttv3.MqttCallbackExtended
-import org.eclipse.paho.client.mqttv3.IMqttToken
-import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken
-import org.eclipse.paho.client.mqttv3.IMqttActionListener
-import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.DatagramPacket
@@ -107,10 +99,6 @@ class MainActivity : Activity() {
     @Volatile private var chatSocket: DatagramSocket? = null
     @Volatile private var chatMulticastLock: WifiManager.MulticastLock? = null
     @Volatile private var chatNickname = ""
-    @Volatile private var mqttClient: MqttAsyncClient? = null
-    @Volatile private var mqttConnecting = false
-    private val mqttGroupTopic = "alkamel/chat/room"
-    private val mqttPresenceTask = object : Runnable { override fun run() { if (chatRequested.get() && mqttClient?.isConnected == true) { publishMqtt("presence", ""); mainHandler.postDelayed(this, 5000L) } } }
     private val chatId = java.util.UUID.randomUUID().toString()
     private val chatPeerAddresses = ConcurrentHashMap<String, InetAddress>()
     private val chatExecutor = Executors.newSingleThreadExecutor()
@@ -629,13 +617,20 @@ class MainActivity : Activity() {
             catch (e: Exception) { Log.e("AlkamelNet", "Unable to start chat keep-alive service", e) }
         }
         val prefs = getSharedPreferences("alkamel_mqtt", MODE_PRIVATE)
-        val password = prefs.getString("password", "").orEmpty()
-        if (password.isBlank()) {
+        if (prefs.getString("password", "").isNullOrBlank()) {
             runOnUiThread { showMqttCredentialsDialog(clean) }
             return
         }
-        connectMqtt(clean, prefs.getString("host", "10.10.10.10").orEmpty(), prefs.getInt("port", 1883),
-            prefs.getString("username", "alkamel").orEmpty(), password)
+        val intent = Intent(this, MqttChatService::class.java).apply {
+            action = MqttChatService.ACTION_CONNECT
+            putExtra(MqttChatService.EXTRA_NAME, clean)
+        }
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent) else startService(intent)
+        } catch (e: Exception) {
+            Log.e("AlkamelNet", "Unable to start MQTT chat service", e)
+            notifyChatState("error", "تعذر تشغيل خدمة الدردشة في الخلفية.")
+        }
     }
 
     private fun showMqttCredentialsDialog(name: String) {
@@ -665,125 +660,31 @@ class MainActivity : Activity() {
                             return@setOnClickListener
                         }
                         getSharedPreferences("alkamel_mqtt", MODE_PRIVATE).edit()
-                            .putString("host", h).putInt("port", p!!).putString("username", u)
+                            .putString("host", h).putInt("port", p).putString("username", u)
                             .putString("password", pass).apply()
                         dialog.dismiss()
-                        connectMqtt(name, h, p, u, pass)
+                        startMqttChat(name, ensureService = false)
                     }
                 }
                 dialog.show()
             }
     }
 
-    private fun connectMqtt(name: String, host: String, port: Int, username: String, password: String) {
-        if (mqttClient?.isConnected == true) {
-            chatRunning.set(true)
-            publishMqtt("presence", "")
-            notifyChatState("joined", "")
-            return
-        }
-        if (mqttConnecting) return
-        mqttConnecting = true
-        chatNickname = name
-        chatRequested.set(true)
-        notifyChatState("reconnecting", "جارٍ الاتصال بخادم الدردشة…")
-        chatSendExecutor.execute {
-            try {
-                val client = MqttAsyncClient("tcp://$host:$port", "alkamel-$chatId", MemoryPersistence())
-                mqttClient = client
-                client.setCallback(object : MqttCallbackExtended {
-                    override fun connectComplete(reconnect: Boolean, serverURI: String?) {
-                        mqttConnecting = false
-                        if (!chatRequested.get()) return
-                        try {
-                            client.subscribe(arrayOf(mqttGroupTopic, "alkamel/chat/private/$chatId"), intArrayOf(1, 1), null, null)
-                            chatRunning.set(true)
-                            publishMqtt("presence", "")
-                            mainHandler.removeCallbacks(mqttPresenceTask)
-                            mainHandler.postDelayed(mqttPresenceTask, 5000L)
-                            notifyChatState("joined", "")
-                        } catch (e: Exception) {
-                            Log.e("AlkamelNet", "MQTT subscribe failed", e)
-                            notifyChatState("error", "اتصل الخادم لكن تعذر الاشتراك في غرفة الدردشة.")
-                        }
-                    }
-                    override fun connectionLost(cause: Throwable?) {
-                        chatRunning.set(false)
-                        if (chatRequested.get()) notifyChatState("reconnecting", "انقطع اتصال الخادم، جارٍ إعادة الاتصال…")
-                    }
-                    override fun messageArrived(topic: String?, message: MqttMessage?) {
-                        val raw = message?.payload?.toString(Charsets.UTF_8) ?: return
-                        try {
-                            val obj = JSONObject(raw)
-                            if (obj.optString("id") == chatId) return
-                            if (topic == "alkamel/chat/private/$chatId" && obj.optString("to") != chatId) return
-                            val type = obj.optString("type")
-                            if (type in setOf("presence", "message", "private_request", "private_response", "private_message")) {
-                                if (type == "message" || type == "private_message" || type == "private_request") {
-                                    runCatching { notifyIncomingChat(obj) }
-                                }
-                                runOnUiThread {
-                                    if (::web.isInitialized && !isFinishing && !isDestroyed)
-                                        web.evaluateJavascript("if(window.onLanChatPacket)window.onLanChatPacket(${JSONObject.quote(raw)});", null)
-                                }
-                            }
-                        } catch (e: Exception) { Log.w("AlkamelNet", "Invalid MQTT chat packet", e) }
-                    }
-                    override fun deliveryComplete(token: IMqttDeliveryToken?) {}
-                })
-                val options = MqttConnectOptions().apply {
-                    userName = username
-                    setPassword(password.toCharArray())
-                    isAutomaticReconnect = true
-                    isCleanSession = true
-                    connectionTimeout = 10
-                    keepAliveInterval = 30
-                    setMaxInflight(50)
-                }
-                client.connect(options, null, object : IMqttActionListener {
-                    override fun onSuccess(asyncActionToken: IMqttToken?) { mqttConnecting = false }
-                    override fun onFailure(asyncActionToken: IMqttToken?, exception: Throwable?) {
-                        mqttConnecting = false
-                        Log.e("AlkamelNet", "MQTT connection failed", exception)
-                        chatRunning.set(false)
-                        notifyChatState("error", "تعذر الاتصال بخادم الدردشة. تحقق من بيانات الدخول وتشغيل Mosquitto.")
-                    }
-                })
-            } catch (e: Exception) {
-                mqttConnecting = false
-                Log.e("AlkamelNet", "Unable to create MQTT client", e)
-                notifyChatState("error", "تعذر بدء اتصال MQTT: ${e.message ?: "خطأ غير معروف"}")
-            }
-        }
-    }
-
     private fun publishMqtt(type: String, message: String, targetId: String? = null, requestId: String? = null) {
-        val client = mqttClient ?: return
-        if (!client.isConnected) return
-        val obj = JSONObject().put("type", type).put("id", chatId).put("name", chatNickname)
-            .put("text", message.take(1000))
-        if (!targetId.isNullOrBlank()) obj.put("to", targetId)
-        if (!requestId.isNullOrBlank()) obj.put("requestId", requestId)
-        if (type == "message") obj.put("messageId", java.util.UUID.randomUUID().toString())
-        val topic = if (type in setOf("private_request", "private_response", "private_message") && !targetId.isNullOrBlank())
-            "alkamel/chat/private/$targetId" else mqttGroupTopic
-        runCatching {
-            client.publish(topic, MqttMessage(obj.toString().toByteArray(Charsets.UTF_8)).apply {
-                setQos(1)
-                setRetained(false)
-            })
-        }.onFailure { Log.w("AlkamelNet", "MQTT publish failed", it) }
+        val intent = Intent(this, MqttChatService::class.java).apply {
+            action = MqttChatService.ACTION_PUBLISH
+            putExtra(MqttChatService.EXTRA_TYPE, type)
+            putExtra(MqttChatService.EXTRA_TEXT, message.take(1000))
+            targetId?.let { putExtra(MqttChatService.EXTRA_TARGET, it) }
+            requestId?.let { putExtra(MqttChatService.EXTRA_REQUEST_ID, it) }
+        }
+        runCatching { startService(intent) }.onFailure { Log.w("AlkamelNet", "Unable to queue MQTT message", it) }
     }
 
     private fun stopMqttChat() {
         chatRequested.set(false)
         chatRunning.set(false)
-        mainHandler.removeCallbacks(mqttPresenceTask)
-        mqttConnecting = false
-        val client = mqttClient
-        mqttClient = null
-        runCatching { if (client?.isConnected == true) client.disconnect() }
-        runCatching { client?.close() }
+        runCatching { stopService(Intent(this, MqttChatService::class.java)) }
         notifyChatState("stopped", "")
     }
 
