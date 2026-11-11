@@ -194,8 +194,8 @@ class MqttChatService : Service() {
                 })
             } catch (e: Exception) {
                 connecting = false
-                Log.e("AlkamelNet-MQTT", "Unable to create MQTT client", e)
-                emitState("error", "تعذر بدء اتصال MQTT.")
+                Log.e("AlkamelNet-MQTT", "Unable to create MQTT client: ${e.javaClass.simpleName}: ${e.message}", e)
+                emitState("error", "تعذر بدء اتصال MQTT: ${e.javaClass.simpleName}: ${e.message ?: "لا توجد تفاصيل"}")
             }
         }
     }
