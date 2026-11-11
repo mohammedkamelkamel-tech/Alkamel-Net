@@ -7,8 +7,10 @@ android {
     namespace = "com.alkamel.network"
     compileSdk = 35
     defaultConfig {
-        buildConfigField("String", "MQTT_USERNAME", "\"alkamel_app\"")
+        val mqttUsername = providers.gradleProperty("MQTT_USERNAME").orElse(providers.environmentVariable("MQTT_USERNAME")).orElse("alkamel_app").get()
         val mqttPassword = providers.gradleProperty("MQTT_PASSWORD").orElse(providers.environmentVariable("MQTT_PASSWORD")).getOrElse("")
+        if (mqttPassword.isBlank()) throw GradleException("MQTT_PASSWORD is missing. Add it as a GitHub Actions secret before building.")
+        buildConfigField("String", "MQTT_USERNAME", "\"$mqttUsername\"")
         buildConfigField("String", "MQTT_PASSWORD", "\"$mqttPassword\"")
         applicationId = "com.mohammedkamel.alkamelnet.portal2026"
         minSdk = 24
