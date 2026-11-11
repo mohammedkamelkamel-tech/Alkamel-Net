@@ -658,7 +658,7 @@ class MainActivity : Activity() {
                         val p = port.text.toString().toIntOrNull()
                         val u = username.text.toString().trim()
                         val pass = password.text.toString()
-                        if (h.isBlank() || p !in 1..65535 || u.isBlank() || pass.isBlank()) {
+                        if (h.isBlank() || p == null || p !in 1..65535 || u.isBlank() || pass.isBlank()) {
                             Toast.makeText(this, "أكمل بيانات الخادم بشكل صحيح", Toast.LENGTH_SHORT).show()
                             return@setOnClickListener
                         }
