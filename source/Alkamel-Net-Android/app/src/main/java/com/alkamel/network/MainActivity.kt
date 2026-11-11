@@ -178,6 +178,14 @@ class MainActivity : Activity() {
                 settings.offscreenPreRaster = true
             }
             webChromeClient = object : WebChromeClient() {
+                override fun onPermissionRequest(request: android.webkit.PermissionRequest) {
+                    runOnUiThread {
+                        val trusted = request.origin?.host == "appassets.androidplatform.net"
+                        val audioOnly = request.resources.all { it == android.webkit.PermissionRequest.RESOURCE_AUDIO_CAPTURE }
+                        val granted = Build.VERSION.SDK_INT < 23 || checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+                        if (trusted && audioOnly && granted) request.grant(request.resources) else request.deny()
+                    }
+                }
                 override fun onConsoleMessage(message: android.webkit.ConsoleMessage): Boolean {
                     Log.d("AlkamelNet-Web", "${message.message()} -- ${message.sourceId()}:${message.lineNumber()}")
                     return true
@@ -516,12 +524,11 @@ class MainActivity : Activity() {
         val privateRequest = type == "private_request" && obj.optString("to") == chatId
         val nickname = chatNickname.trim()
         val mentioned = nickname.isNotEmpty() && message.contains(nickname, ignoreCase = true)
-        if (type != "message" && !privateMessage && !privateRequest) return
+        if (!privateMessage && !privateRequest && !(type == "message" && mentioned)) return
         val title = when {
             privateRequest -> "طلب محادثة خاصة جديد"
             privateMessage -> "رسالة خاصة جديدة من $sender"
-            mentioned -> "تم ذكرك في دردشة شبكة الكامل"
-            else -> "رسالة جديدة في دردشة شبكة الكامل"
+            else -> "تم ذكرك في دردشة شبكة الكامل"
         }
         val body = when {
             privateRequest -> "يريد $sender بدء محادثة خاصة معك."
@@ -664,7 +671,7 @@ class MainActivity : Activity() {
         val intent = Intent(this, MqttChatService::class.java).apply {
             action = MqttChatService.ACTION_PUBLISH
             putExtra(MqttChatService.EXTRA_TYPE, type)
-            putExtra(MqttChatService.EXTRA_TEXT, message.take(1000))
+            putExtra(MqttChatService.EXTRA_TEXT, message.take(if (type == "voice_message") 1_200_000 else 1000))
             targetId?.let { putExtra(MqttChatService.EXTRA_TARGET, it) }
             requestId?.let { putExtra(MqttChatService.EXTRA_REQUEST_ID, it) }
         }
@@ -1536,6 +1543,10 @@ class MainActivity : Activity() {
     inner class Bridge {
         @JavascriptInterface fun startChat(name: String) { startMqttChat(name) }
         @JavascriptInterface fun sendChatMessage(message: String) { if (message.length <= 1000) publishMqtt("message", message.trim()) }
+        @JavascriptInterface fun sendVoiceMessage(dataUrl: String) {
+            if (dataUrl.length in 1..1_200_000 && dataUrl.startsWith("data:audio/")) publishMqtt("voice_message", dataUrl)
+            else runOnUiThread { Toast.makeText(this@MainActivity, "المقطع الصوتي كبير أو غير صالح", Toast.LENGTH_SHORT).show() }
+        }
         @JavascriptInterface
         fun sendPrivateChatPacket(type: String, targetId: String, requestId: String, message: String) {
             if (type in setOf("private_request", "private_response", "private_message") && targetId.length <= 64 && requestId.length <= 64 && message.length <= 1000) {
