@@ -99,7 +99,7 @@ class MqttChatService : Service() {
         when (intent?.action) {
             ACTION_PUBLISH -> {
                 val type = intent.getStringExtra(EXTRA_TYPE).orEmpty()
-                if (type in setOf("message", "voice_message", "gift", "private_request", "private_response", "private_message")) {
+                if (type in setOf("message", "voice_message", "gift", "profile_photo", "private_request", "private_response", "private_message")) {
                     publish(type, intent.getStringExtra(EXTRA_TEXT).orEmpty(),
                         intent.getStringExtra(EXTRA_TARGET), intent.getStringExtra(EXTRA_REQUEST_ID))
                 }
@@ -173,7 +173,7 @@ class MqttChatService : Service() {
                             if (obj.optString("id") == deviceId) return
                             if (topic == "alkamel/chat/private/$deviceId" && obj.optString("to") != deviceId) return
                             val type = obj.optString("type")
-                            if (type in setOf("presence", "message", "voice_message", "gift", "voice_seat", "private_request", "private_response", "private_message")) {
+                            if (type in setOf("presence", "message", "voice_message", "gift", "profile_photo", "voice_seat", "private_request", "private_response", "private_message")) {
                                 if (type == "message" || type == "private_message" || type == "private_request" || type == "gift") notifyIncoming(obj)
                                 emitPacket(raw)
                             }
@@ -212,7 +212,7 @@ class MqttChatService : Service() {
             Log.w("AlkamelNet-MQTT", "Message skipped because broker is disconnected")
             return
         }
-        val maxPayloadChars = if (type == "voice_message") 1_200_000 else 1000
+        val maxPayloadChars = when (type) { "voice_message" -> 1_200_000; "profile_photo" -> 78_000; else -> 1000 }
         if (text.length > maxPayloadChars) return
         val packet = JSONObject().put("type", type).put("id", deviceId).put("name", nickname)
             .put("text", text)
