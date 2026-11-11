@@ -958,8 +958,6 @@ class MainActivity : Activity() {
                     noiseSuppressor = runCatching { NoiseSuppressor.create(activeRecorder.audioSessionId)?.apply { enabled = true } }
                         .onFailure { Log.w("AlkamelNet", "Noise suppression unavailable", it) }.getOrNull()
                 }
-                        .onFailure { Log.w("AlkamelNet", "Automatic gain control unavailable", it) }.getOrNull()
-                }
                 activeRecorder.startRecording()
                 if (activeRecorder.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
                     throw IllegalStateException("الميكروفون لم يبدأ التسجيل. تحقق من إذن الميكروفون")
