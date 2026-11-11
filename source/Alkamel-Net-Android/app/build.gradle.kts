@@ -40,5 +40,6 @@ android {
 
 dependencies {
     implementation("androidx.webkit:webkit:1.12.1")
+    // MQTT transport for group chat, private messages, and member presence.
     implementation("org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5")
 }
