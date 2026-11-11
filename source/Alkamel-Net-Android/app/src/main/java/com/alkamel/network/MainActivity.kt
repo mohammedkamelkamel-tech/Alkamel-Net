@@ -131,6 +131,7 @@ class MainActivity : Activity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        restoreFirewallIfNeeded()
         window.statusBarColor = Color.rgb(7, 20, 38)
         window.navigationBarColor = Color.rgb(7, 20, 38)
         CookieManager.getInstance().setAcceptCookie(true)
@@ -1517,6 +1518,13 @@ class MainActivity : Activity() {
     }
     private val firewallConsentRequest = 7420
     private var pendingFirewallPackages: Set<String>? = null
+    private fun restoreFirewallIfNeeded() {
+        if (firewallBlockedPackages().isEmpty()) return
+        if (android.net.VpnService.prepare(this) == null) {
+            runCatching { startFirewallService() }
+                .onFailure { Log.e("AlkamelFirewall", "Unable to restore saved firewall", it) }
+        }
+    }
     private fun firewallPrefs() = getSharedPreferences("app_firewall", MODE_PRIVATE)
     private fun firewallBlockedPackages(): Set<String> = firewallPrefs().getStringSet("blocked_packages", emptySet())?.toSet() ?: emptySet()
     private fun setFirewallPackages(packages: Set<String>) {
