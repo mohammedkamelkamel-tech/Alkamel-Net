@@ -1575,6 +1575,35 @@ class MainActivity : Activity() {
             }
         }
     }
+    private val firewallConsentRequest = 7420
+    private var pendingFirewallPackages: Set<String>? = null
+    private fun firewallPrefs() = getSharedPreferences("app_firewall", MODE_PRIVATE)
+    private fun firewallBlockedPackages(): Set<String> = firewallPrefs().getStringSet("blocked_packages", emptySet())?.toSet() ?: emptySet()
+    private fun setFirewallPackages(packages: Set<String>) {
+        firewallPrefs().edit().putStringSet("blocked_packages", packages.toSet()).apply()
+        if (packages.isEmpty()) stopService(Intent(this, AppFirewallVpnService::class.java)) else {
+            val consent = android.net.VpnService.prepare(this)
+            if (consent != null) { pendingFirewallPackages = packages.toSet(); startActivityForResult(consent, firewallConsentRequest) } else startFirewallService()
+        }
+        notifyFirewallStatus()
+    }
+    private fun startFirewallService() { val i = Intent(this, AppFirewallVpnService::class.java); if (Build.VERSION.SDK_INT >= 26) startForegroundService(i) else startService(i) }
+    private fun notifyFirewallStatus() { if (!::web.isInitialized || isFinishing || isDestroyed) return; val count=firewallBlockedPackages().size; web.post { web.evaluateJavascript("window.onFirewallStatus && window.onFirewallStatus($count)",null) } }
+    private fun firewallAppsJson(): String {
+        val pm=packageManager; val blocked=firewallBlockedPackages()
+        val apps=pm.getInstalledApplications(PackageManager.GET_META_DATA).filter { it.packageName != packageName && pm.getLaunchIntentForPackage(it.packageName)!=null }
+            .map { a -> JSONObject().put("packageName",a.packageName).put("name",pm.getApplicationLabel(a).toString()).put("blocked",blocked.contains(a.packageName)) }
+            .sortedBy { it.optString("name").lowercase(java.util.Locale.getDefault()) }
+        return org.json.JSONArray(apps).toString()
+    }
+    @Suppress("DEPRECATION")
+    override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?) {
+        super.onActivityResult(requestCode,resultCode,data)
+        if(requestCode==firewallConsentRequest) { val pending=pendingFirewallPackages; pendingFirewallPackages=null
+            if(resultCode==Activity.RESULT_OK && pending!=null) startFirewallService() else { firewallPrefs().edit().putStringSet("blocked_packages",emptySet()).apply(); Toast.makeText(this,"يلزم السماح باتصال VPN لتفعيل منع التطبيقات",Toast.LENGTH_LONG).show() }
+            notifyFirewallStatus(); if(::web.isInitialized) web.evaluateJavascript("window.onFirewallApps && window.onFirewallApps(JSON.parse(${JSONObject.quote(firewallAppsJson())}))",null)
+        }
+    }
     inner class Bridge {
         @JavascriptInterface fun startChat(name: String) { startMqttChat(name) }
         @JavascriptInterface fun sendChatMessage(message: String) { if (message.length <= 1000) publishMqtt("message", message.trim()) }
@@ -1601,6 +1630,8 @@ class MainActivity : Activity() {
         @JavascriptInterface fun setVoicePlaybackMuted(muted: Boolean) { setVoicePlaybackMute(muted) }
         @JavascriptInterface fun leaveVoiceRoom() { stopVoiceRoom() }
 
+        @JavascriptInterface fun getFirewallApps() { val p=JSONObject.quote(firewallAppsJson()); runOnUiThread { if(::web.isInitialized && !isFinishing) web.evaluateJavascript("window.onFirewallApps && window.onFirewallApps(JSON.parse($p))",null) } }
+        @JavascriptInterface fun setFirewallAppBlocked(packageName:String,blocked:Boolean) { if(packageName.isBlank() || packageName==this@MainActivity.packageName || packageName.length>255)return; runOnUiThread { val s=firewallBlockedPackages().toMutableSet(); if(blocked)s.add(packageName) else s.remove(packageName); setFirewallPackages(s); getFirewallApps() } }
         @JavascriptInterface fun scanNearbyWifi() { runOnUiThread { requestNearbyWifiScan() } }
         @JavascriptInterface fun getAppNetworkUsage() { requestAppNetworkUsage() }
         @JavascriptInterface fun openUsageAccessSettings() { this@MainActivity.openUsageAccessSettings() }

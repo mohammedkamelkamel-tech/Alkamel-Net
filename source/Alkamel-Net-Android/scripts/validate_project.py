@@ -35,7 +35,7 @@ checks = {
     "logout button is below subscriber refresh": HOME.read_text(encoding="utf-8").find("onclick=\"refreshStatus()\"") < HOME.read_text(encoding="utf-8").find("onclick=\"logout()\"") and "إنهاء جلسة الحساب" not in HOME.read_text(encoding="utf-8"),
     "minSdk 24": "minSdk = 24" in GRADLE,
     "targetSdk 35": "targetSdk = 35" in GRADLE,
-    "app version 1.8.9": "versionCode = 73" in GRADLE and 'versionName = "1.8.9"' in GRADLE,
+    "app version 1.8.9": "versionCode = 74" in GRADLE and 'versionName = "1.9.0"' in GRADLE,
     "continuous private-network enforcement and automatic recovery": "startNetworkAccessGuard()" in KOTLIN.read_text(encoding="utf-8") and "scheduleWithFixedDelay" in KOTLIN.read_text(encoding="utf-8") and "networkAccessBlocked" in KOTLIN.read_text(encoding="utf-8") and "تم استعادة الاتصال بشبكة الكامل" in KOTLIN.read_text(encoding="utf-8"),
     "app label": 'android:label="شبكة الكامل"' in MANIFEST,
     "launcher icon uses approved artwork": 'android:icon="@drawable/ic_launcher"' in MANIFEST and 'android:roundIcon="@drawable/ic_launcher"' in MANIFEST and (APP / "res/drawable-nodpi/ic_launcher.webp").is_file() and (APP / "res/drawable-nodpi/ic_launcher.webp").stat().st_size > 4000 and (APP / "res/drawable-nodpi/ic_launcher.webp").read_bytes()[:4] == b"RIFF" and (APP / "res/drawable-nodpi/ic_launcher.webp").read_bytes()[8:12] == b"WEBP",
@@ -129,7 +129,7 @@ purchase_home = HOME.read_text(encoding="utf-8")
 purchase_checks = {
     "card purchase guide includes transfer warning and support number": all(x in purchase_home for x in ("لا تقوم بتحويل عبر الرسائل النصية أو بدون إنترنت", "772072056", "لكي تشتغل الخدمة لديه بشكل مستمر")),
     "card purchase guide lists all approved denominations": all(x in purchase_home for x in ("99 ريال", "100 ريال", "200 ريال", "245 ريال", "250 ريال", "500 ريال", "1000 ريال")),
-    "support section four has the requested application internet-blocking title": "منع بعض التطبيقات من استخدام الانترنت" in purchase_home,
+    "support section four has functional firewall UI": "loadFirewallApps()" in purchase_home and "toggleFirewallApp" in purchase_home and "getFirewallApps()" in KOTLIN.read_text(encoding="utf-8") and "setFirewallAppBlocked" in KOTLIN.read_text(encoding="utf-8"),
 }
 for label, passed in purchase_checks.items():
     print(("PASS" if passed else "FAIL") + " - " + label)
@@ -151,7 +151,7 @@ checks_mqtt = {
     "Activity lifecycle distinguishes onStop from onPause": "override fun onStop()" in KOTLIN.read_text(encoding="utf-8") and "backgroundedAtMs = System.currentTimeMillis()" in KOTLIN.read_text(encoding="utf-8"),
     "Activity destruction releases native LAN workers": "Release Activity-owned LAN sockets and workers on every destruction path." in KOTLIN.read_text(encoding="utf-8"),
     "Wi-Fi and notification permission request identifiers are distinct": "private val notificationPermissionRequest = 7413" in KOTLIN.read_text(encoding="utf-8") and "private val wifiScanPermissionRequest = 7414" in KOTLIN.read_text(encoding="utf-8") and KOTLIN.read_text(encoding="utf-8").count("private val wifiScanPermissionRequest") == 1,
-    "integrated repair version": "versionCode = 73" in gradle_source and 'versionName = "1.8.9"' in gradle_source,
+    "integrated repair version": "versionCode = 74" in gradle_source and 'versionName = "1.9.0"' in gradle_source,
 }
 for label, passed in checks_mqtt.items():
     print(("PASS" if passed else "FAIL") + " - " + label)
