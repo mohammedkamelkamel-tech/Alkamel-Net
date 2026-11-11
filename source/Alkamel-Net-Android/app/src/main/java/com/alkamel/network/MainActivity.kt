@@ -1761,9 +1761,6 @@ class MainActivity : Activity() {
                         }
                     }
                 }
-            } else if (current.isNotBlank() && current != "about:blank") {
-                // Do not probe the first WebView load before onPageFinished has run.
-                recoverHomeAfterResume()
             }
             backgroundedAtMs = 0L
         }
