@@ -1213,7 +1213,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private val wifiScanPermissionRequest = 7413
+    private val wifiScanPermissionRequest = 7414
 
     private fun requestNearbyWifiScan() {
         if (checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
