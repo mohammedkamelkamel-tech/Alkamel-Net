@@ -99,7 +99,7 @@ class MqttChatService : Service() {
         when (intent?.action) {
             ACTION_PUBLISH -> {
                 val type = intent.getStringExtra(EXTRA_TYPE).orEmpty()
-                if (type in setOf("message", "private_request", "private_response", "private_message")) {
+                if (type in setOf("message", "voice_message", "private_request", "private_response", "private_message")) {
                     publish(type, intent.getStringExtra(EXTRA_TEXT).orEmpty(),
                         intent.getStringExtra(EXTRA_TARGET), intent.getStringExtra(EXTRA_REQUEST_ID))
                 }
@@ -173,7 +173,7 @@ class MqttChatService : Service() {
                             if (obj.optString("id") == deviceId) return
                             if (topic == "alkamel/chat/private/$deviceId" && obj.optString("to") != deviceId) return
                             val type = obj.optString("type")
-                            if (type in setOf("presence", "message", "private_request", "private_response", "private_message")) {
+                            if (type in setOf("presence", "message", "voice_message", "private_request", "private_response", "private_message")) {
                                 if (type == "message" || type == "private_message" || type == "private_request") notifyIncoming(obj)
                                 emitPacket(raw)
                             }
@@ -212,8 +212,10 @@ class MqttChatService : Service() {
             Log.w("AlkamelNet-MQTT", "Message skipped because broker is disconnected")
             return
         }
+        val maxPayloadChars = if (type == "voice_message") 1_200_000 else 1000
+        if (text.length > maxPayloadChars) return
         val packet = JSONObject().put("type", type).put("id", deviceId).put("name", nickname)
-            .put("text", text.take(1000))
+            .put("text", text)
         if (!targetId.isNullOrBlank()) packet.put("to", targetId)
         if (!requestId.isNullOrBlank()) packet.put("requestId", requestId)
         if (type == "message") packet.put("messageId", UUID.randomUUID().toString())
@@ -238,12 +240,11 @@ class MqttChatService : Service() {
         val private = type == "private_message" && obj.optString("to") == deviceId
         val request = type == "private_request" && obj.optString("to") == deviceId
         val mentioned = nickname.isNotBlank() && message.contains(nickname, ignoreCase = true)
-        if (type != "message" && !private && !request) return
+        if (!private && !request && !(type == "message" && mentioned)) return
         val title = when {
             request -> "طلب محادثة خاصة جديد"
             private -> "رسالة خاصة جديدة من $sender"
-            mentioned -> "تم ذكرك في دردشة شبكة الكامل"
-            else -> "رسالة جديدة في دردشة شبكة الكامل"
+            else -> "تم ذكرك في دردشة شبكة الكامل"
         }
         val body = if (request) "يريد $sender بدء محادثة خاصة معك." else "$sender: $message"
         val manager = getSystemService(NotificationManager::class.java)
