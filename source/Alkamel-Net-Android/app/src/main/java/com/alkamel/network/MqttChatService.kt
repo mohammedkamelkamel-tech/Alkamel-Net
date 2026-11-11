@@ -114,7 +114,7 @@ class MqttChatService : Service() {
             else -> {
                 val prefs = getSharedPreferences("alkamel_mqtt", MODE_PRIVATE)
                 nickname = prefs.getString("nickname", "").orEmpty()
-                if (prefs.getString("password", "").isNullOrBlank() || nickname.isBlank()) {
+                if (nickname.isBlank()) {
                     stopSelf()
                     return START_NOT_STICKY
                 }
@@ -149,18 +149,11 @@ class MqttChatService : Service() {
         val prefs = getSharedPreferences("alkamel_mqtt", MODE_PRIVATE)
         val host = prefs.getString("host", "10.10.10.10").orEmpty()
         val port = prefs.getInt("port", 1883)
-        val username = prefs.getString("username", "alkamel").orEmpty()
-        val password = prefs.getString("password", "").orEmpty()
-        if (password.isBlank()) {
-            emitState("error", "بيانات اتصال الخادم غير مكتملة.")
-            stopSelf()
-            return
-        }
         connecting = true
         emitState("reconnecting", "جارٍ الاتصال بخادم الدردشة…")
         worker.execute {
             try {
-                val mqtt = MqttAsyncClient("tcp://$host:$port", "alkamel-$deviceId", MemoryPersistence())
+                val mqtt = MqttAsyncClient("tcp://$host:$port", deviceId, MemoryPersistence())
                 client = mqtt
                 mqtt.setCallback(object : MqttCallbackExtended {
                     override fun connectComplete(reconnect: Boolean, serverURI: String?) {
@@ -187,8 +180,6 @@ class MqttChatService : Service() {
                     override fun deliveryComplete(token: IMqttDeliveryToken?) {}
                 })
                 val options = MqttConnectOptions().apply {
-                    userName = username
-                    setPassword(password.toCharArray())
                     isAutomaticReconnect = true
                     isCleanSession = true
                     connectionTimeout = 10
