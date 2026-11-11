@@ -35,7 +35,7 @@ checks = {
     "logout button is below subscriber refresh": HOME.read_text(encoding="utf-8").find("onclick=\"refreshStatus()\"") < HOME.read_text(encoding="utf-8").find("onclick=\"logout()\"") and "إنهاء جلسة الحساب" not in HOME.read_text(encoding="utf-8"),
     "minSdk 24": "minSdk = 24" in GRADLE,
     "targetSdk 35": "targetSdk = 35" in GRADLE,
-    "app version 1.8.5": "versionCode = 69" in GRADLE and 'versionName = "1.8.5"' in GRADLE,
+    "app version 1.8.8": "versionCode = 72" in GRADLE and 'versionName = "1.8.8"' in GRADLE,
     "continuous private-network enforcement and automatic recovery": "startNetworkAccessGuard()" in KOTLIN.read_text(encoding="utf-8") and "scheduleWithFixedDelay" in KOTLIN.read_text(encoding="utf-8") and "networkAccessBlocked" in KOTLIN.read_text(encoding="utf-8") and "تم استعادة الاتصال بشبكة الكامل" in KOTLIN.read_text(encoding="utf-8"),
     "app label": 'android:label="شبكة الكامل"' in MANIFEST,
     "launcher icon uses approved artwork": 'android:icon="@drawable/ic_launcher"' in MANIFEST and 'android:roundIcon="@drawable/ic_launcher"' in MANIFEST and (APP / "res/drawable-nodpi/ic_launcher.webp").is_file() and (APP / "res/drawable-nodpi/ic_launcher.webp").stat().st_size > 4000 and (APP / "res/drawable-nodpi/ic_launcher.webp").read_bytes()[:4] == b"RIFF" and (APP / "res/drawable-nodpi/ic_launcher.webp").read_bytes()[8:12] == b"WEBP",
@@ -123,6 +123,18 @@ for required in (
     if required not in kotlin and required not in (APP / "assets/hd/index.html").read_text(encoding="utf-8"):
         raise SystemExit(f"FAIL - required native action or stream missing: {required}")
 print("PASS - logout actions and HD stream are present")
+
+# Latest subscriber purchase instructions and support section labels.
+purchase_home = HOME.read_text(encoding="utf-8")
+purchase_checks = {
+    "card purchase guide includes transfer warning and support number": all(x in purchase_home for x in ("لا تقوم بتحويل عبر الرسائل النصية أو بدون إنترنت", "772072056", "لكي تشتغل الخدمة لديه بشكل مستمر")),
+    "card purchase guide lists all approved denominations": all(x in purchase_home for x in ("99 ريال", "100 ريال", "200 ريال", "245 ريال", "250 ريال", "500 ريال", "1000 ريال")),
+    "support section four has the requested application internet-blocking title": "منع بعض التطبيقات من استخدام الانترنت" in purchase_home,
+}
+for label, passed in purchase_checks.items():
+    print(("PASS" if passed else "FAIL") + " - " + label)
+if not all(purchase_checks.values()):
+    raise SystemExit(1)
 
 # MQTT chat, persistent seat/profile state, and lifecycle recovery checks.
 MQTT = APP / "java/com/alkamel/network/MqttChatService.kt"
