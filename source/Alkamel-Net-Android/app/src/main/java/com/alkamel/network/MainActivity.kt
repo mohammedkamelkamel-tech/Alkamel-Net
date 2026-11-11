@@ -1761,8 +1761,8 @@ class MainActivity : Activity() {
                         }
                     }
                 }
-            } else {
-                // Also run a lightweight health check on cold/first foreground entry.
+            } else if (current.isNotBlank() && current != "about:blank") {
+                // Do not probe the first WebView load before onPageFinished has run.
                 recoverHomeAfterResume()
             }
             backgroundedAtMs = 0L
