@@ -99,7 +99,7 @@ class MqttChatService : Service() {
         when (intent?.action) {
             ACTION_PUBLISH -> {
                 val type = intent.getStringExtra(EXTRA_TYPE).orEmpty()
-                if (type in setOf("message", "voice_message", "private_request", "private_response", "private_message")) {
+                if (type in setOf("message", "voice_message", "gift", "private_request", "private_response", "private_message")) {
                     publish(type, intent.getStringExtra(EXTRA_TEXT).orEmpty(),
                         intent.getStringExtra(EXTRA_TARGET), intent.getStringExtra(EXTRA_REQUEST_ID))
                 }
@@ -173,8 +173,8 @@ class MqttChatService : Service() {
                             if (obj.optString("id") == deviceId) return
                             if (topic == "alkamel/chat/private/$deviceId" && obj.optString("to") != deviceId) return
                             val type = obj.optString("type")
-                            if (type in setOf("presence", "message", "voice_message", "private_request", "private_response", "private_message")) {
-                                if (type == "message" || type == "private_message" || type == "private_request") notifyIncoming(obj)
+                            if (type in setOf("presence", "message", "voice_message", "gift", "private_request", "private_response", "private_message")) {
+                                if (type == "message" || type == "private_message" || type == "private_request" || type == "gift") notifyIncoming(obj)
                                 emitPacket(raw)
                             }
                         } catch (e: Exception) { Log.w("AlkamelNet-MQTT", "Invalid packet", e) }
