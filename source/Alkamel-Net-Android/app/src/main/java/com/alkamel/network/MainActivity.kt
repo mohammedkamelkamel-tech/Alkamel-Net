@@ -140,6 +140,7 @@ class MainActivity : Activity() {
     private val voiceGroup = InetAddress.getByName("239.10.10.10")
     private val voicePort = 39128
     private val voicePermissionRequest = 7412
+    @Volatile private var pendingWebAudioPermissionRequest: android.webkit.PermissionRequest? = null
     private var localFallbackAttempted = false
     private var pendingPageAfterHome: String? = null
     @Volatile private var backgroundedAtMs: Long = 0L
@@ -182,9 +183,24 @@ class MainActivity : Activity() {
                 override fun onPermissionRequest(request: android.webkit.PermissionRequest) {
                     runOnUiThread {
                         val trusted = request.origin?.host == "appassets.androidplatform.net"
-                        val audioOnly = request.resources.all { it == android.webkit.PermissionRequest.RESOURCE_AUDIO_CAPTURE }
+                        val audioOnly = request.resources.isNotEmpty() && request.resources.all { it == android.webkit.PermissionRequest.RESOURCE_AUDIO_CAPTURE }
+                        if (!trusted || !audioOnly) {
+                            request.deny()
+                            return@runOnUiThread
+                        }
                         val granted = Build.VERSION.SDK_INT < 23 || checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-                        if (trusted && audioOnly && granted) request.grant(request.resources) else request.deny()
+                        if (granted) {
+                            request.grant(request.resources)
+                        } else if (pendingWebAudioPermissionRequest == null) {
+                            pendingWebAudioPermissionRequest = request
+                            if (Build.VERSION.SDK_INT >= 23) requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), voicePermissionRequest)
+                            else {
+                                pendingWebAudioPermissionRequest = null
+                                request.deny()
+                            }
+                        } else {
+                            request.deny()
+                        }
                     }
                 }
                 override fun onConsoleMessage(message: android.webkit.ConsoleMessage): Boolean {
@@ -876,7 +892,17 @@ class MainActivity : Activity() {
             return
         }
         if (requestCode == voicePermissionRequest) {
-            if (grantResults.isNotEmpty() && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            val permissionGranted = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
+            val webRequest = pendingWebAudioPermissionRequest
+            pendingWebAudioPermissionRequest = null
+            if (webRequest != null) {
+                runOnUiThread {
+                    if (permissionGranted) webRequest.grant(webRequest.resources) else webRequest.deny()
+                    if (!permissionGranted && ::web.isInitialized) {
+                        web.evaluateJavascript("if(window.onVoiceNotePermissionError)window.onVoiceNotePermissionError();", null)
+                    }
+                }
+            } else if (permissionGranted) {
                 startVoiceRoom()
             } else {
                 runOnUiThread { web.evaluateJavascript("window.onVoiceState&&window.onVoiceState('error','لم تسمح باستخدام الميكروفون');", null) }
