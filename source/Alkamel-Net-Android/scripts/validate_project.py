@@ -35,7 +35,7 @@ checks = {
     "logout button is below subscriber refresh": HOME.read_text(encoding="utf-8").find("onclick=\"refreshStatus()\"") < HOME.read_text(encoding="utf-8").find("onclick=\"logout()\"") and "إنهاء جلسة الحساب" not in HOME.read_text(encoding="utf-8"),
     "minSdk 24": "minSdk = 24" in GRADLE,
     "targetSdk 35": "targetSdk = 35" in GRADLE,
-    "app version 1.8.8": "versionCode = 72" in GRADLE and 'versionName = "1.8.8"' in GRADLE,
+    "app version 1.8.8": "versionCode = 73" in GRADLE and 'versionName = "1.8.9"' in GRADLE,
     "continuous private-network enforcement and automatic recovery": "startNetworkAccessGuard()" in KOTLIN.read_text(encoding="utf-8") and "scheduleWithFixedDelay" in KOTLIN.read_text(encoding="utf-8") and "networkAccessBlocked" in KOTLIN.read_text(encoding="utf-8") and "تم استعادة الاتصال بشبكة الكامل" in KOTLIN.read_text(encoding="utf-8"),
     "app label": 'android:label="شبكة الكامل"' in MANIFEST,
     "launcher icon uses approved artwork": 'android:icon="@drawable/ic_launcher"' in MANIFEST and 'android:roundIcon="@drawable/ic_launcher"' in MANIFEST and (APP / "res/drawable-nodpi/ic_launcher.webp").is_file() and (APP / "res/drawable-nodpi/ic_launcher.webp").stat().st_size > 4000 and (APP / "res/drawable-nodpi/ic_launcher.webp").read_bytes()[:4] == b"RIFF" and (APP / "res/drawable-nodpi/ic_launcher.webp").read_bytes()[8:12] == b"WEBP",
@@ -151,7 +151,7 @@ checks_mqtt = {
     "Activity lifecycle distinguishes onStop from onPause": "override fun onStop()" in KOTLIN.read_text(encoding="utf-8") and "backgroundedAtMs = System.currentTimeMillis()" in KOTLIN.read_text(encoding="utf-8"),
     "Activity destruction releases native LAN workers": "Release Activity-owned LAN sockets and workers on every destruction path." in KOTLIN.read_text(encoding="utf-8"),
     "Wi-Fi and notification permission request identifiers are distinct": "private val notificationPermissionRequest = 7413" in KOTLIN.read_text(encoding="utf-8") and "private val wifiScanPermissionRequest = 7414" in KOTLIN.read_text(encoding="utf-8") and KOTLIN.read_text(encoding="utf-8").count("private val wifiScanPermissionRequest") == 1,
-    "integrated repair version": "versionCode = 72" in gradle_source and 'versionName = "1.8.8"' in gradle_source,
+    "integrated repair version": "versionCode = 73" in gradle_source and 'versionName = "1.8.9"' in gradle_source,
 }
 for label, passed in checks_mqtt.items():
     print(("PASS" if passed else "FAIL") + " - " + label)
