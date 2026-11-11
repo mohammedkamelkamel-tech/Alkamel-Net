@@ -127,7 +127,7 @@ class MainActivity : Activity() {
     @Volatile private var chatSocket: DatagramSocket? = null
     @Volatile private var chatMulticastLock: WifiManager.MulticastLock? = null
     @Volatile private var chatNickname = ""
-    private val chatId by lazy { getSharedPreferences("alkamel_mqtt", MODE_PRIVATE).getString("device_id", null) ?: java.util.UUID.randomUUID().toString().also { getSharedPreferences("alkamel_mqtt", MODE_PRIVATE).edit().putString("device_id", it).apply() } }
+    private val chatId by lazy { getSharedPreferences("alkamel_lan_chat", MODE_PRIVATE).getString("device_id", null) ?: java.util.UUID.randomUUID().toString().also { getSharedPreferences("alkamel_lan_chat", MODE_PRIVATE).edit().putString("device_id", it).apply() } }
     private val chatPeerAddresses = ConcurrentHashMap<String, InetAddress>()
     private val chatExecutor = Executors.newSingleThreadExecutor()
     private val chatSendExecutor = Executors.newSingleThreadExecutor()
@@ -621,10 +621,10 @@ class MainActivity : Activity() {
                             // Learn the sender's current LAN address from both presence and
                             // private handshake packets. The receiver may not have seen the
                             // sender's latest broadcast yet when it needs to accept/reject.
-                            if (packetType in setOf("presence", "private_request", "private_response", "private_message")) {
+                            if (packetType in setOf("presence", "profile_photo", "private_request", "private_response", "private_message")) {
                                 chatPeerAddresses[senderId] = packet.address
                             }
-                            val isPublicPacket = packetType in setOf("presence", "message")
+                            val isPublicPacket = packetType in setOf("presence", "message", "profile_photo", "gift", "voice_seat")
                             val isPrivatePacket = packetType in setOf("private_request", "private_response", "private_message") && obj.optString("to") == chatId
                             if (isPublicPacket || isPrivatePacket) {
                                 if (packetType == "message" || packetType == "private_message" || packetType == "private_request") {
@@ -771,6 +771,10 @@ class MainActivity : Activity() {
         val payload = JSONObject().put("type", type).put("id", chatId).put("name", chatNickname)
             .put("text", message).apply { if (messageId.isNotEmpty()) put("messageId", messageId) }
             .toString().toByteArray(Charsets.UTF_8)
+        if (payload.size > 3900) {
+            Log.w("AlkamelNet", "LAN packet too large and was not sent: $type (${payload.size} bytes)")
+            return
+        }
         chatSendExecutor.execute {
             if (!chatRunning.get() || chatSessionGeneration.get() != sessionId) return@execute
             try {
@@ -1623,26 +1627,23 @@ class MainActivity : Activity() {
         }
     }
     inner class Bridge {
-        @JavascriptInterface fun startChat(name: String) { startMqttChat(name) }
-        @JavascriptInterface fun sendChatMessage(message: String) { if (message.length <= 1000) publishMqtt("message", message.trim()) }
-        @JavascriptInterface fun sendChatGift(giftId: String) { if (giftId in setOf("rose", "heart", "crown", "diamond", "trophy", "fireworks")) publishMqtt("gift", giftId) }
-        @JavascriptInterface fun sendProfilePhoto(dataUrl: String) { if (dataUrl.isEmpty() || (dataUrl.length <= 78000 && dataUrl.startsWith("data:image/jpeg;base64,"))) publishMqtt("profile_photo", dataUrl) }
+        @JavascriptInterface fun startChat(name: String) { startLanChat(name) }
+        @JavascriptInterface fun sendChatMessage(message: String) { if (message.isNotBlank() && message.length <= 1000) sendLanPacket("message", message.trim()) }
+        @JavascriptInterface fun sendChatGift(giftId: String) { if (giftId in setOf("rose", "heart", "crown", "diamond", "trophy", "fireworks")) sendLanPacket("gift", giftId) }
+        @JavascriptInterface fun sendProfilePhoto(dataUrl: String) { if (dataUrl.isEmpty() || (dataUrl.length <= 3500 && dataUrl.startsWith("data:image/jpeg;base64,"))) sendLanPacket("profile_photo", dataUrl) }
         @JavascriptInterface fun sendVoiceSeatEvent(action: String, seat: Int) {
-            if (action in setOf("join", "leave") && seat in 0..4) {
-                publishMqtt("voice_seat", JSONObject().put("action", action).put("seat", seat).put("muted", false).toString())
-            }
+            if (action in setOf("join", "leave") && seat in 0..4) sendLanPacket("voice_seat", JSONObject().put("action", action).put("seat", seat).put("muted", false).toString())
         }
         @JavascriptInterface fun sendVoiceMessage(dataUrl: String) {
-            if (dataUrl.length in 1..1_200_000 && dataUrl.startsWith("data:audio/")) publishMqtt("voice_message", dataUrl)
-            else runOnUiThread { Toast.makeText(this@MainActivity, "المقطع الصوتي كبير أو غير صالح", Toast.LENGTH_SHORT).show() }
+            runOnUiThread { Toast.makeText(this@MainActivity, "الرسائل الصوتية تحتاج قناة نقل مخصصة؛ استخدم مجلس الصوت المباشر حالياً", Toast.LENGTH_LONG).show() }
         }
         @JavascriptInterface
         fun sendPrivateChatPacket(type: String, targetId: String, requestId: String, message: String) {
             if (type in setOf("private_request", "private_response", "private_message") && targetId.length <= 64 && requestId.length <= 64 && message.length <= 1000) {
-                publishMqtt(type, message.trim(), targetId, requestId)
+                sendPrivateLanPacket(type, targetId, requestId, message.trim())
             }
         }
-        @JavascriptInterface fun stopChat() { stopVoiceRoom(); stopMqttChat(); stopLanChat() }
+        @JavascriptInterface fun stopChat() { stopVoiceRoom(); stopLanChat() }
         @JavascriptInterface fun joinVoiceRoom() { requestVoiceRoom() }
         @JavascriptInterface fun setVoiceMuted(muted: Boolean) { setVoiceMute(muted) }
         @JavascriptInterface fun setVoicePlaybackMuted(muted: Boolean) { setVoicePlaybackMute(muted) }
