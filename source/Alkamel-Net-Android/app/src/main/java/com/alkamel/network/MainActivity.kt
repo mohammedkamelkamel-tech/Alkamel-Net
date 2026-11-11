@@ -641,11 +641,6 @@ class MainActivity : Activity() {
             try { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(keepAlive) else startService(keepAlive) }
             catch (e: Exception) { Log.e("AlkamelNet", "Unable to start chat keep-alive service", e) }
         }
-        val prefs = getSharedPreferences("alkamel_mqtt", MODE_PRIVATE)
-        if (prefs.getString("password", "").isNullOrBlank()) {
-            runOnUiThread { showMqttCredentialsDialog(clean) }
-            return
-        }
         val intent = Intent(this, MqttChatService::class.java).apply {
             action = MqttChatService.ACTION_CONNECT
             putExtra(MqttChatService.EXTRA_NAME, clean)
@@ -656,44 +651,6 @@ class MainActivity : Activity() {
             Log.e("AlkamelNet", "Unable to start MQTT chat service", e)
             notifyChatState("error", "تعذر تشغيل خدمة الدردشة في الخلفية.")
         }
-    }
-
-    private fun showMqttCredentialsDialog(name: String) {
-        val saved = getSharedPreferences("alkamel_mqtt", MODE_PRIVATE)
-        val host = EditText(this).apply { setSingleLine(true); hint = "عنوان الخادم"; setText(saved.getString("host", "10.10.10.10")) }
-        val port = EditText(this).apply { setSingleLine(true); hint = "المنفذ"; inputType = InputType.TYPE_CLASS_NUMBER; setText(saved.getInt("port", 1883).toString()) }
-        val username = EditText(this).apply { setSingleLine(true); hint = "اسم المستخدم"; setText(saved.getString("username", "alkamel")) }
-        val password = EditText(this).apply { setSingleLine(true); hint = "كلمة مرور Mosquitto (تُحفظ على هذا الجهاز)"; inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD; setText(saved.getString("password", "")) }
-        val form = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(28, 8, 28, 0)
-            addView(host); addView(port); addView(username); addView(password)
-        }
-        AlertDialog.Builder(this).setTitle("إعداد اتصال الدردشة")
-            .setMessage("تُحفظ بيانات الاتصال داخل التطبيق على هذا الجهاز، ولن تحتاج إلى إدخالها عند كل دخول للدردشة.")
-            .setView(form)
-            .setNegativeButton("إلغاء") { _, _ -> notifyChatState("error", "تم إلغاء إعداد اتصال الخادم.") }
-            .setPositiveButton("اتصال", null)
-            .create().also { dialog ->
-                dialog.setOnShowListener {
-                    dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                        val h = host.text.toString().trim()
-                        val p = port.text.toString().toIntOrNull()
-                        val u = username.text.toString().trim()
-                        val pass = password.text.toString()
-                        if (h.isBlank() || p == null || p !in 1..65535 || u.isBlank() || pass.isBlank()) {
-                            Toast.makeText(this, "أكمل بيانات الخادم بشكل صحيح", Toast.LENGTH_SHORT).show()
-                            return@setOnClickListener
-                        }
-                        getSharedPreferences("alkamel_mqtt", MODE_PRIVATE).edit()
-                            .putString("host", h).putInt("port", p).putString("username", u)
-                            .putString("password", pass).apply()
-                        dialog.dismiss()
-                        startMqttChat(name, ensureService = false)
-                    }
-                }
-                dialog.show()
-            }
     }
 
     private fun publishMqtt(type: String, message: String, targetId: String? = null, requestId: String? = null) {
