@@ -16,6 +16,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: alkamel-net-3-0-0-uploaded-zip-build
+  cancel-in-progress: true
+
 jobs:
   build-merged-3-0-0:
     name: Build the uploaded Alkamel-Net-3.0.0-Full-Merged-Source.zip
