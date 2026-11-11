@@ -3,9 +3,13 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 android {
+    buildFeatures { buildConfig = true }
     namespace = "com.alkamel.network"
     compileSdk = 35
     defaultConfig {
+        buildConfigField("String", "MQTT_USERNAME", "\"alkamel_app\"")
+        val mqttPassword = providers.gradleProperty("MQTT_PASSWORD").orElse(providers.environmentVariable("MQTT_PASSWORD")).getOrElse("")
+        buildConfigField("String", "MQTT_PASSWORD", "\"$mqttPassword\"")
         applicationId = "com.mohammedkamel.alkamelnet.portal2026"
         minSdk = 24
         targetSdk = 35
