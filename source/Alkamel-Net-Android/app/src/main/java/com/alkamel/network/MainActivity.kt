@@ -1930,7 +1930,6 @@ class MainActivity : Activity() {
         // Keep LAN workers alive when Android backgrounds/recreates the Activity.
         if (isFinishing) {
             stopVoiceRoom()
-            stopMqttChat()
             stopLanChat()
             io.shutdownNow()
             voiceExecutor.shutdownNow()
