@@ -14,6 +14,7 @@ HD = APP / "assets/hd/index.html"
 KOTLIN = APP / "java/com/alkamel/network/MainActivity.kt"
 
 checks = {
+    "notification and Wi-Fi scan permission request codes are distinct": "private val notificationPermissionRequest = 7413" in KOTLIN.read_text(encoding="utf-8") and "private val wifiScanPermissionRequest = 7414" in KOTLIN.read_text(encoding="utf-8"),
     "portal commands wait for subscriber status before submitting": "waitingForSubscriber" in KOTLIN.read_text(encoding="utf-8") and "target.postDelayed({ runPendingCommand() }, 500)" in KOTLIN.read_text(encoding="utf-8"),
     "hardware back from support subpages returns to support menu": "function appBack(){const active=document.querySelector('.page.active');const pageId=active?.id||'home';if(/^support[1-6]$/.test(pageId)){showPage('support');return;}if(pageId==='support'){showPage('home');return;}showPage('home');}" in HOME.read_text(encoding="utf-8"),
     "resume recovery probes and reloads a broken WebView on every foreground return": "recoverHomeAfterResume()" in KOTLIN.read_text(encoding="utf-8") and "Foreground WebView health check failed" in KOTLIN.read_text(encoding="utf-8") and "Foreground WebView health probe timed out; reloading bundled home" in KOTLIN.read_text(encoding="utf-8") and "pausedFor >= 2500L" not in KOTLIN.read_text(encoding="utf-8") and "web.pauseTimers()" in KOTLIN.read_text(encoding="utf-8"),
