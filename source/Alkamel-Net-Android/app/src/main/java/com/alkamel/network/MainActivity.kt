@@ -118,6 +118,7 @@ class MainActivity : Activity() {
     @Volatile private var appInForeground = false
     private val notificationChannelId = "alkamel_events"
     private val notificationPermissionRequest = 7413
+    private val wifiScanPermissionRequest = 7414
     private var requestNotificationsOnResume = false
     private val chatRunning = AtomicBoolean(false)
     private val chatRequested = AtomicBoolean(false)
@@ -1581,7 +1582,11 @@ class MainActivity : Activity() {
         @JavascriptInterface fun sendChatMessage(message: String) { if (message.length <= 1000) publishMqtt("message", message.trim()) }
         @JavascriptInterface fun sendChatGift(giftId: String) { if (giftId in setOf("rose", "heart", "crown", "diamond", "trophy", "fireworks")) publishMqtt("gift", giftId) }
         @JavascriptInterface fun sendProfilePhoto(dataUrl: String) { if (dataUrl.isEmpty() || (dataUrl.length <= 78000 && dataUrl.startsWith("data:image/jpeg;base64,"))) publishMqtt("profile_photo", dataUrl) }
-        @JavascriptInterface fun sendVoiceSeatEvent(action: String, seat: Int) { if (action in setOf("join", "leave") && seat in 0..4) publishMqtt("voice_seat", JSONObject().put("action", action).put("seat", seat).toString()) }
+        @JavascriptInterface fun sendVoiceSeatEvent(action: String, seat: Int) {
+            if (action in setOf("join", "leave") && seat in 0..4) {
+                publishMqtt("voice_seat", JSONObject().put("action", action).put("seat", seat).put("muted", false).toString())
+            }
+        }
         @JavascriptInterface fun sendVoiceMessage(dataUrl: String) {
             if (dataUrl.length in 1..1_200_000 && dataUrl.startsWith("data:audio/")) publishMqtt("voice_message", dataUrl)
             else runOnUiThread { Toast.makeText(this@MainActivity, "المقطع الصوتي كبير أو غير صالح", Toast.LENGTH_SHORT).show() }
@@ -1954,11 +1959,21 @@ class MainActivity : Activity() {
         url.startsWith("http://30.10.10.10:88/") ||
         url.startsWith("https://appassets.androidplatform.net/assets/hd/")
 
+    override fun onStop() {
+        // onPause also runs for permission prompts and transient system dialogs.
+        // Record the background transition only once the Activity is no longer visible.
+        backgroundedAtMs = System.currentTimeMillis()
+        super.onStop()
+    }
+
     override fun onPause() {
         appInForeground = false
-        backgroundedAtMs = System.currentTimeMillis()
-        if (::web.isInitialized) web.onPause()
+        if (::web.isInitialized) {
+            web.onPause()
+            web.pauseTimers()
+        }
         commandWeb?.onPause()
+        commandWeb?.pauseTimers()
         super.onPause()
     }
 
@@ -1968,16 +1983,14 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
-        // Keep LAN workers alive when Android backgrounds/recreates the Activity.
-        if (isFinishing) {
-            stopVoiceRoom()
-            stopLanChat()
-            io.shutdownNow()
-            voiceExecutor.shutdownNow()
-            voiceReceiveExecutor.shutdownNow()
-            chatExecutor.shutdownNow()
-            chatSendExecutor.shutdownNow()
-        }
+        // Release Activity-owned LAN sockets and workers on every destruction path.
+        stopVoiceRoom()
+        stopLanChat()
+        io.shutdownNow()
+        voiceExecutor.shutdownNow()
+        voiceReceiveExecutor.shutdownNow()
+        chatExecutor.shutdownNow()
+        chatSendExecutor.shutdownNow()
         if (mqttReceiverRegistered) { runCatching { unregisterReceiver(mqttEventReceiver) }; mqttReceiverRegistered = false }
         networkGuard.shutdownNow()
         if (::web.isInitialized) {
