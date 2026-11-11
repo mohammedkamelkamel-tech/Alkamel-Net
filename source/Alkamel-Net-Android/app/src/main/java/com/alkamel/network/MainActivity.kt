@@ -659,17 +659,18 @@ class MainActivity : Activity() {
     }
 
     private fun showMqttCredentialsDialog(name: String) {
-        val host = EditText(this).apply { setSingleLine(true); hint = "عنوان الخادم"; setText("10.10.10.10") }
-        val port = EditText(this).apply { setSingleLine(true); hint = "المنفذ"; inputType = InputType.TYPE_CLASS_NUMBER; setText("1883") }
-        val username = EditText(this).apply { setSingleLine(true); hint = "اسم المستخدم"; setText("alkamel") }
-        val password = EditText(this).apply { setSingleLine(true); hint = "كلمة مرور Mosquitto"; inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD }
+        val saved = getSharedPreferences("alkamel_mqtt", MODE_PRIVATE)
+        val host = EditText(this).apply { setSingleLine(true); hint = "عنوان الخادم"; setText(saved.getString("host", "10.10.10.10")) }
+        val port = EditText(this).apply { setSingleLine(true); hint = "المنفذ"; inputType = InputType.TYPE_CLASS_NUMBER; setText(saved.getInt("port", 1883).toString()) }
+        val username = EditText(this).apply { setSingleLine(true); hint = "اسم المستخدم"; setText(saved.getString("username", "alkamel")) }
+        val password = EditText(this).apply { setSingleLine(true); hint = "كلمة مرور Mosquitto (تُحفظ على هذا الجهاز)"; inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD; setText(saved.getString("password", "")) }
         val form = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(28, 8, 28, 0)
             addView(host); addView(port); addView(username); addView(password)
         }
         AlertDialog.Builder(this).setTitle("إعداد اتصال الدردشة")
-            .setMessage("أدخل كلمة مرور مستخدم Mosquitto التي أنشأتها على الخادم. لن تُحفظ في المستودع.")
+            .setMessage("تُحفظ بيانات الاتصال داخل التطبيق على هذا الجهاز، ولن تحتاج إلى إدخالها عند كل دخول للدردشة.")
             .setView(form)
             .setNegativeButton("إلغاء") { _, _ -> notifyChatState("error", "تم إلغاء إعداد اتصال الخادم.") }
             .setPositiveButton("اتصال", null)
