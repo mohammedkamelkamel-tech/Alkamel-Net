@@ -5,6 +5,8 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
@@ -218,7 +220,16 @@ class MqttChatService : Service() {
                     }
                     override fun deliveryComplete(token: IMqttDeliveryToken?) {}
                 })
+                val connectivity = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+                val wifiNetwork = buildList {
+                    connectivity.activeNetwork?.let { add(it) }
+                    addAll(connectivity.allNetworks)
+                }.distinct().firstOrNull { network ->
+                    connectivity.getNetworkCapabilities(network)?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+                } ?: throw IllegalStateException("لا يوجد اتصال Wi-Fi بالشبكة المحلية")
                 val options = MqttConnectOptions().apply {
+                    // Force MQTT sockets through the subscriber's Wi-Fi LAN, not mobile data/default routing.
+                    socketFactory = wifiNetwork.socketFactory
                     // Broker access is configured for anonymous LAN clients; no credentials are embedded in the APK.
                     isAutomaticReconnect = true
                     isCleanSession = true
