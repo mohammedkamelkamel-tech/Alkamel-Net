@@ -134,7 +134,7 @@ class MqttChatService : Service() {
     private fun subscribeAndAnnounce(mqtt: MqttAsyncClient) {
         if (!requested || !mqtt.isConnected) return
         try {
-            mqtt.subscribe(arrayOf(GROUP_TOPIC, "alkamel/chat/private/$deviceId", "alkamel/chat/seats/+"), intArrayOf(1, 1, 1), null, null)
+            mqtt.subscribe(arrayOf(GROUP_TOPIC, "alkamel/chat/private/$deviceId", "alkamel/chat/seats/+", "alkamel/chat/profiles/+"), intArrayOf(1, 1, 1, 1), null, null)
             publish("presence", "")
             while (mqtt.isConnected) {
                 val pending = synchronized(pendingLock) { if (pendingPublishes.isEmpty()) null else pendingPublishes.removeFirst() } ?: break
@@ -175,10 +175,16 @@ class MqttChatService : Service() {
                     }
                     override fun messageArrived(topic: String?, message: MqttMessage?) {
                         val payload = message?.payload ?: return
-                        if (topic?.startsWith("alkamel/chat/seats/") == true && payload.isEmpty()) {
+                        if (payload.isEmpty() && topic?.startsWith("alkamel/chat/seats/") == true) {
                             val seat = topic.substringAfterLast('/').toIntOrNull() ?: return
                             val clear = JSONObject().put("type", "voice_seat").put("id", "server").put("name", "النظام")
                                 .put("text", JSONObject().put("action", "clear").put("seat", seat).toString())
+                            emitPacket(clear.toString())
+                            return
+                        }
+                        if (payload.isEmpty() && topic?.startsWith("alkamel/chat/profiles/") == true) {
+                            val ownerId = topic.substringAfterLast('/')
+                            val clear = JSONObject().put("type", "profile_photo").put("id", ownerId).put("name", "عضو").put("text", "")
                             emitPacket(clear.toString())
                             return
                         }
@@ -262,12 +268,14 @@ class MqttChatService : Service() {
         val topic = when {
             type.startsWith("private_") && !targetId.isNullOrBlank() -> "alkamel/chat/private/$targetId"
             type == "voice_seat" && seat in 0..4 -> "alkamel/chat/seats/$seat"
+            type == "profile_photo" -> "alkamel/chat/profiles/$deviceId"
             else -> GROUP_TOPIC
         }
         runCatching {
             val leaving = type == "voice_seat" && runCatching { JSONObject(text).optString("action") == "leave" }.getOrDefault(false)
-            val payload = if (leaving) ByteArray(0) else packet.toString().toByteArray(Charsets.UTF_8)
-            mqtt.publish(topic, MqttMessage(payload).apply { qos = 1; isRetained = type == "voice_seat" })
+            val clearing = leaving || (type == "profile_photo" && text.isEmpty())
+            val payload = if (clearing) ByteArray(0) else packet.toString().toByteArray(Charsets.UTF_8)
+            mqtt.publish(topic, MqttMessage(payload).apply { qos = 1; isRetained = type == "voice_seat" || type == "profile_photo" })
         }.onFailure { Log.w("AlkamelNet-MQTT", "$type publish failed", it) }
     }
 
