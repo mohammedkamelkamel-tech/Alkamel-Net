@@ -197,6 +197,13 @@ class MqttChatService : Service() {
                             if (obj.optString("id") == deviceId) return
                             if (topic == "alkamel/chat/private/$deviceId" && obj.optString("to") != deviceId) return
                             val type = obj.optString("type")
+                            if (type == "voice_seat") {
+                                val occupiedSeat = runCatching { JSONObject(obj.optString("text")).optInt("seat", -1) }.getOrDefault(-1)
+                                if (occupiedSeat == activeSeatIndex && obj.optString("id") != deviceId) {
+                                    activeSeatIndex = -1
+                                    activeSeatText = ""
+                                }
+                            }
                             if (type == "voice_seat" && System.currentTimeMillis() - obj.optLong("sentAt", 0L) > 20000L) {
                                 if (topic?.startsWith("alkamel/chat/seats/") == true) {
                                     runCatching { mqtt.publish(topic, MqttMessage(ByteArray(0)).apply { qos = 1; isRetained = true }) }
