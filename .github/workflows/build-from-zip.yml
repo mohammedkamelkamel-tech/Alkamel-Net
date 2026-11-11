@@ -232,11 +232,10 @@ jobs:
           files: output/Alkamel-Net-Full-Package-v${{ env.APP_VERSION }}-code${{ env.VERSION_CODE }}.zip
           fail_on_unmatched_files: true
           generate_release_notes: false
-      - name: Upload optional Actions artifact
+      - name: Upload single package containing APK and full project
         uses: actions/upload-artifact@v4
-        continue-on-error: true
         with:
-          name: Alkamel-Net-v${{ env.APP_VERSION }}-code${{ env.VERSION_CODE }}
-          path: output/Alkamel-Net-v${{ env.APP_VERSION }}-code${{ env.VERSION_CODE }}.apk
+          name: Alkamel-Net-Full-Package-v${{ env.APP_VERSION }}-code${{ env.VERSION_CODE }}
+          path: output/Alkamel-Net-Full-Package-v${{ env.APP_VERSION }}-code${{ env.VERSION_CODE }}.zip
           if-no-files-found: error
           retention-days: 7

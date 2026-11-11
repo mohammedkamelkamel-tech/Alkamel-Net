@@ -16,7 +16,7 @@ KOTLIN = APP / "java/com/alkamel/network/MainActivity.kt"
 checks = {
     "portal commands wait for subscriber status before submitting": "waitingForSubscriber" in KOTLIN.read_text(encoding="utf-8") and "target.postDelayed({ runPendingCommand() }, 500)" in KOTLIN.read_text(encoding="utf-8"),
     "hardware back from support subpages returns to support menu": "function appBack(){const active=document.querySelector('.page.active');const pageId=active?.id||'home';if(/^support[1-6]$/.test(pageId)){showPage('support');return;}if(pageId==='support'){showPage('home');return;}showPage('home');}" in HOME.read_text(encoding="utf-8"),
-    "resume recovery detects an unresponsive home WebView": "recoverHomeAfterResume()" in KOTLIN.read_text(encoding="utf-8") and "Home WebView did not answer resume health check" in KOTLIN.read_text(encoding="utf-8") and "mainHandler.postDelayed" in KOTLIN.read_text(encoding="utf-8"),
+    "resume recovery probes and reloads a broken WebView on every foreground return": "recoverHomeAfterResume()" in KOTLIN.read_text(encoding="utf-8") and "Foreground WebView health check failed" in KOTLIN.read_text(encoding="utf-8") and "Foreground WebView health probe timed out; reloading bundled home" in KOTLIN.read_text(encoding="utf-8") and "pausedFor >= 2500L" not in KOTLIN.read_text(encoding="utf-8") and "web.pauseTimers()" in KOTLIN.read_text(encoding="utf-8"),
     "resume recovery refreshes active sections": "window.appOnResume=function()" in HOME.read_text(encoding="utf-8") and "window.appOnResume==='function'" in KOTLIN.read_text(encoding="utf-8"),
     "hidden portal command WebView reconnects after background": 'hidden.loadUrl("http://k.com/")' in KOTLIN.read_text(encoding="utf-8") and "commandPageReady = false" in KOTLIN.read_text(encoding="utf-8"),
     "JavaScript bridge is restricted to bundled app pages": "urlIsLocal(url) || url?.startsWith(\"data:\") == true" in KOTLIN.read_text(encoding="utf-8") and "else {" in KOTLIN.read_text(encoding="utf-8") and "view?.removeJavascriptInterface(\"AndroidBridge\")" in KOTLIN.read_text(encoding="utf-8"),
@@ -35,7 +35,7 @@ checks = {
     "logout button is below subscriber refresh": HOME.read_text(encoding="utf-8").find("onclick=\"refreshStatus()\"") < HOME.read_text(encoding="utf-8").find("onclick=\"logout()\"") and "إنهاء جلسة الحساب" not in HOME.read_text(encoding="utf-8"),
     "minSdk 24": "minSdk = 24" in GRADLE,
     "targetSdk 35": "targetSdk = 35" in GRADLE,
-    "app version 1.8.5": "versionCode = 69" in GRADLE and 'versionName = "1.8.5"' in GRADLE,
+    "app version 1.8.6 build 70": "versionCode = 70" in GRADLE and 'versionName = "1.8.6"' in GRADLE,
     "continuous private-network enforcement and automatic recovery": "startNetworkAccessGuard()" in KOTLIN.read_text(encoding="utf-8") and "scheduleWithFixedDelay" in KOTLIN.read_text(encoding="utf-8") and "networkAccessBlocked" in KOTLIN.read_text(encoding="utf-8") and "تم استعادة الاتصال بشبكة الكامل" in KOTLIN.read_text(encoding="utf-8"),
     "app label": 'android:label="شبكة الكامل"' in MANIFEST,
     "launcher icon uses approved artwork": 'android:icon="@drawable/ic_launcher"' in MANIFEST and 'android:roundIcon="@drawable/ic_launcher"' in MANIFEST and (APP / "res/drawable-nodpi/ic_launcher.webp").is_file() and (APP / "res/drawable-nodpi/ic_launcher.webp").stat().st_size > 4000 and (APP / "res/drawable-nodpi/ic_launcher.webp").read_bytes()[:4] == b"RIFF" and (APP / "res/drawable-nodpi/ic_launcher.webp").read_bytes()[8:12] == b"WEBP",
