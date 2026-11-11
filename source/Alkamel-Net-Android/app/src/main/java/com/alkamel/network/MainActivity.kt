@@ -426,7 +426,7 @@ class MainActivity : Activity() {
         }
         AlertDialog.Builder(this)
             .setTitle("تفعيل عمل شبكة الكامل في الخلفية")
-            .setMessage("فعّل خدمة العمل في الخلفية لتستمر خدمات الشبكة والدردشة عند تصغير التطبيق. سنطلب إذن الإشعارات لتنبيهك بالرسائل والإعلانات المهمة.")
+            .setMessage("فعّل خدمة مراقبة اتصال الشبكة وتنبيهات الإعلانات أثناء استخدام تطبيقات أخرى. تنبيه: الدردشة والصوت يعتمدان حالياً على بقاء التطبيق واتصاله نشطاً، ولا تضمن هذه الخدمة استمرار الدردشة بعد إغلاق التطبيق أو إنهاء النظام له. سنطلب إذن الإشعارات لتنبيهك بالإعلانات والرسائل الواردة عندما يكون اتصال الدردشة نشطاً.")
             .setCancelable(false)
             .setNegativeButton("لاحقاً") { _, _ ->
                 prefs.edit().putBoolean("first_run_setup_asked", true).apply()
@@ -436,7 +436,7 @@ class MainActivity : Activity() {
                 ensureBackgroundService()
                 requestNotificationsOnResume = false
                 requestNotificationPermission()
-                Toast.makeText(this, "تم تفعيل خدمة العمل في الخلفية.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "تم تفعيل مراقبة الشبكة وتنبيهات الإعلانات.", Toast.LENGTH_SHORT).show()
             }
             .show()
     }
