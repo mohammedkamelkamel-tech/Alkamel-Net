@@ -131,7 +131,7 @@ purchase_checks = {
     "card purchase guide lists all approved denominations": all(x in purchase_home for x in ("99 ريال", "100 ريال", "200 ريال", "245 ريال", "250 ريال", "500 ريال", "1000 ريال")),
     "support section four has functional firewall UI": "loadFirewallApps()" in purchase_home and "toggleFirewallApp" in purchase_home and "getFirewallApps()" in KOTLIN.read_text(encoding="utf-8") and "setFirewallAppBlocked" in KOTLIN.read_text(encoding="utf-8"),
     "firewall application icons are returned and rendered": '"icon",iconData' in KOTLIN.read_text(encoding="utf-8") and "firewall-app-icon" in purchase_home and "x.icon" in purchase_home,
-    "MQTT is routed through the local Wi-Fi network": "wifiNetwork.socketFactory" in (APP / "java/com/alkamel/network/MqttChatService.kt").read_text(encoding="utf-8") and "TRANSPORT_WIFI" in (APP / "java/com/alkamel/network/MqttChatService.kt").read_text(encoding="utf-8),
+    "MQTT is routed through the local Wi-Fi network": "wifiNetwork.socketFactory" in (APP / "java/com/alkamel/network/MqttChatService.kt").read_text(encoding="utf-8") and "TRANSPORT_WIFI" in (APP / "java/com/alkamel/network/MqttChatService.kt").read_text(encoding="utf-8"),
 }
 for label, passed in purchase_checks.items():
     print(("PASS" if passed else "FAIL") + " - " + label)
