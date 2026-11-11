@@ -57,6 +57,7 @@ import org.eclipse.paho.client.mqttv3.MqttConnectOptions
 import org.eclipse.paho.client.mqttv3.MqttMessage
 import org.eclipse.paho.client.mqttv3.MqttCallbackExtended
 import org.eclipse.paho.client.mqttv3.IMqttToken
+import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken
 import org.eclipse.paho.client.mqttv3.IMqttActionListener
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
 import java.net.HttpURLConnection
@@ -728,16 +729,16 @@ class MainActivity : Activity() {
                             }
                         } catch (e: Exception) { Log.w("AlkamelNet", "Invalid MQTT chat packet", e) }
                     }
-                    override fun deliveryComplete(token: IMqttToken?) {}
+                    override fun deliveryComplete(token: IMqttDeliveryToken?) {}
                 })
                 val options = MqttConnectOptions().apply {
                     userName = username
-                    password = password.toCharArray()
+                    setPassword(password.toCharArray())
                     isAutomaticReconnect = true
                     isCleanSession = true
                     connectionTimeout = 10
                     keepAliveInterval = 30
-                    maxInflight = 50
+                    setMaxInflight(50)
                 }
                 client.connect(options, null, object : IMqttActionListener {
                     override fun onSuccess(asyncActionToken: IMqttToken?) { mqttConnecting = false }
