@@ -46,8 +46,6 @@ jobs:
         run: python3 scripts/validate_project.py
 
       - name: Build debug APK
-        env:
-          MQTT_PASSWORD: ${{ secrets.MQTT_PASSWORD }}
         run: gradle --no-daemon --stacktrace :app:assembleDebug
 
       - name: Verify APK
