@@ -601,7 +601,11 @@ class MainActivity : Activity() {
                     chatRunning.set(false)
                     notifyChatState("reconnecting", "حدث انقطاع في اتصال الدردشة، جارٍ إعادة المحاولة…")
                     try { Thread.sleep(1500) } catch (_: InterruptedException) { Thread.currentThread().interrupt() }
-                    if (chatRequested.get()) startLanChat(chatNickname, ensureService = false)
+                    // Do not let a stale receiver resurrect itself after the user
+                    // has stopped chat or a newer session has already started.
+                    if (chatRequested.get() && chatSessionGeneration.get() == sessionId) {
+                        startLanChat(chatNickname, ensureService = false)
+                    }
                 } else {
                     Log.d("AlkamelNet", "LAN chat receiver stopped during socket cleanup")
                 }
