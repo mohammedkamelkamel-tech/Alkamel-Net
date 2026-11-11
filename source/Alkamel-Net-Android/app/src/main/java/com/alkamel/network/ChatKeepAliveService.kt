@@ -37,7 +37,7 @@ class ChatKeepAliveService : Service() {
                 "اتصال شبكة الكامل",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "إشعار دائم أثناء استمرار الدردشة وغرفة الصوت في الخلفية"
+                description = "مراقبة اتصال الشبكة وتنبيهات الإعلانات أثناء عمل التطبيق"
                 setShowBadge(false)
             }
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
@@ -153,7 +153,7 @@ class ChatKeepAliveService : Service() {
             Notification.Builder(this)
         }.setSmallIcon(android.R.drawable.stat_notify_chat)
             .setContentTitle("شبكة الكامل تعمل في الخلفية")
-            .setContentText("خدمات الشبكة والدردشة متاحة أثناء استخدام تطبيقات أخرى")
+            .setContentText("مراقبة اتصال الشبكة وتنبيهات الإعلانات أثناء استخدام تطبيقات أخرى")
             .setCategory(Notification.CATEGORY_SERVICE)
             .setOngoing(true)
             .setContentIntent(openApp)
