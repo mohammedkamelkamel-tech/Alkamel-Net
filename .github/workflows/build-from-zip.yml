@@ -1,242 +1,123 @@
-name: Build Alkamel-Net APK from the single project version
+name: Build Alkamel-Net 3.0.0 from uploaded merged ZIP
+
 on:
   workflow_dispatch:
-  pull_request:
-    branches: [main]
-    paths:
-      - 'source/Alkamel-Net-Android/**'
-      - '.github/workflows/build-from-zip.yml'
   push:
-    branches: [main]
+    branches: ["3.0.0"]
     paths:
-      - 'source/Alkamel-Net-Android/**'
-      - '.github/workflows/build-from-zip.yml'
+      - "Alkamel-Net-3.0.0-Full-Merged-Source.zip"
+      - ".github/workflows/build-from-zip.yml"
+  pull_request:
+    branches: ["3.0.0"]
+    paths:
+      - "Alkamel-Net-3.0.0-Full-Merged-Source.zip"
+      - ".github/workflows/build-from-zip.yml"
+
 permissions:
-  contents: write
+  contents: read
+
 jobs:
-  build:
+  build-merged-3-0-0:
+    name: Build the uploaded Alkamel-Net-3.0.0-Full-Merged-Source.zip
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Use latest Android project from repository
+      - name: Checkout this branch
+        uses: actions/checkout@v4
+
+      - name: Confirm and extract the exact uploaded merged ZIP
         shell: bash
         run: |
           set -euxo pipefail
-          PROJECT_DIR="$GITHUB_WORKSPACE/source/Alkamel-Net-Android"
-          test -f "$PROJECT_DIR/settings.gradle.kts" -o -f "$PROJECT_DIR/settings.gradle"
-          test -f "$PROJECT_DIR/app/build.gradle.kts" -o -f "$PROJECT_DIR/app/build.gradle"
+          ZIP_FILE="$GITHUB_WORKSPACE/Alkamel-Net-3.0.0-Full-Merged-Source.zip"
+          test -s "$ZIP_FILE"
+          unzip -t "$ZIP_FILE"
+          mkdir -p "$GITHUB_WORKSPACE/merged-upload"
+          unzip -q "$ZIP_FILE" -d "$GITHUB_WORKSPACE/merged-upload"
+          PROJECT_DIR="$GITHUB_WORKSPACE/merged-upload/Alkamel-Net-3.0.0-Merged"
+          test -s "$PROJECT_DIR/settings.gradle.kts"
+          test -s "$PROJECT_DIR/app/build.gradle.kts"
+          test -s "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
+          test -s "$PROJECT_DIR/app/src/main/assets/googleai/index.html"
           test -s "$PROJECT_DIR/app/src/main/assets/home.html"
+          test -s "$PROJECT_DIR/scripts/validate_merged_project.py"
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-          echo "Building repository source: $PROJECT_DIR"
-          find "$PROJECT_DIR" -maxdepth 3 -type f -name '*gradle*' -print
-      - name: Restore approved launcher artwork
+          echo "SOURCE_ZIP=$ZIP_FILE" >> "$GITHUB_ENV"
+          echo "Building ONLY the project extracted from: $ZIP_FILE"
+          echo "Extracted project: $PROJECT_DIR"
+
+      - name: Validate uploaded source identity and complete merge
         shell: bash
         run: |
           set -euxo pipefail
-          ICON_B64="$PROJECT_DIR/app/src/main/res/drawable-nodpi/ic_launcher.webp.b64"
-          ICON="$PROJECT_DIR/app/src/main/res/drawable-nodpi/ic_launcher.webp"
-          test -s "$ICON_B64"
-          base64 --decode "$ICON_B64" > "$ICON"
-          python3 - "$ICON" <<'PY'
-          import pathlib,sys
-          p=pathlib.Path(sys.argv[1]); b=p.read_bytes()
-          if len(b)<4000 or b[:4]!=b'RIFF' or b[8:12]!=b'WEBP':
-              raise SystemExit('Invalid launcher artwork: expected a valid WebP file')
-          print(f'PASS - launcher artwork restored and verified ({len(b)} bytes)')
+          cd "$PROJECT_DIR"
+          python3 scripts/validate_merged_project.py
+          python3 - <<'PY'
+          import pathlib,re,json
+          p=pathlib.Path("app/build.gradle.kts")
+          s=p.read_text()
+          checks={
+            "versionName": r'(?m)^\s*versionName\s*=\s*"([^"]+)"',
+            "versionCode": r'(?m)^\s*versionCode\s*=\s*(\d+)',
+            "applicationId": r'(?m)^\s*applicationId\s*=\s*"([^"]+)"',
+          }
+          values={k:re.search(v,s).group(1) if re.search(v,s) else None for k,v in checks.items()}
+          expected={"versionName":"3.0.0","versionCode":"300","applicationId":"com.mohammedkamel.alkamelnet.portal2026.v300"}
+          if values != expected:
+              raise SystemExit(f"Wrong source selected; expected {expected}, found {values}")
+          audit=json.loads(pathlib.Path("MERGE-AUDIT.json").read_text())
+          if audit.get("output_version")!="3.0.0" or audit.get("version_code")!=300:
+              raise SystemExit("Merge audit does not identify version 3.0.0 / code 300")
+          print("PASS - exact uploaded ZIP is the independent 3.0.0 source")
+          print(values)
           PY
-          mkdir -p "$PROJECT_DIR/app/src/main/assets"
-          cp "$ICON" "$PROJECT_DIR/app/src/main/assets/brand-icon.webp"
-          test -s "$PROJECT_DIR/app/src/main/assets/brand-icon.webp"
-          rm "$ICON_B64"
-      - name: Inspect original portal UI source
-        shell: bash
-        run: |
-          set -euxo pipefail
-          echo "HTML and JS assets:"
-          find "$PROJECT_DIR/app/src/main/assets" -type f | sort
-          echo "Relevant source matches:"
-          grep -RniE 'البث المباشر|بث HD|سرعة الكرت|تحديثات جوجل|استراحة|استراحه|اعتماد السرعة|سرعة حالية|1536k|4096k|تم تحديث بيانات الحساب|اسم المشترك|m3u8|\.mp4|stream|live|tv\.html|openHd|applySelectedSpeed|speedOptions|function player' "$PROJECT_DIR/app/src/main/assets" --include='*.html' --include='*.js' | head -450 || true
-          echo "Wrapper JavaScript lines 23-42:"
-          sed -n '23,42p' "$PROJECT_DIR/app/src/main/assets/home.html"
-          echo "Portal live controls:"
-          sed -n '35,55p' "$PROJECT_DIR/app/src/main/assets/original/index.html"
-      - name: Inspect stream URLs and speed handlers
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - "$PROJECT_DIR/app/src/main/assets" <<'PY'
-          import pathlib,sys,re
-          root=pathlib.Path(sys.argv[1])
-          terms=('m3u8','live','stream','player(','openHd','speed','applySelectedSpeed','onchange','syy','changeSpeed','setSpeed')
-          for p in root.rglob('*'):
-              if not p.is_file() or p.suffix.lower() not in ('.html','.js','.json'): continue
-              try: s=p.read_text(encoding='utf-8',errors='ignore')
-              except Exception: continue
-              for term in terms:
-                  start=0; hits=0
-                  while hits<4:
-                      i=s.lower().find(term.lower(),start)
-                      if i<0: break
-                      a=max(0,i-180); b=min(len(s),i+320)
-                      print(f'\nSOURCE {p.relative_to(root)} TERM {term}: {s[a:b]}')
-                      start=i+len(term); hits+=1
-          PY
-      - name: Verify repository project and preserve HD stream
-        shell: bash
-        run: |
-          set -euo pipefail
-          HD_FILE="$PROJECT_DIR/app/src/main/assets/hd/index.html"
-          test -s "$HD_FILE"
-          grep -q "goService('live1')" "$PROJECT_DIR/app/src/main/assets/home.html"
-          grep -q "goService('live2')" "$PROJECT_DIR/app/src/main/assets/home.html"
-          grep -q "AndroidBridge.applyNetworkSetting(o.value,flag)" "$PROJECT_DIR/app/src/main/assets/home.html"
-          grep -q "speed-blink" "$PROJECT_DIR/app/src/main/assets/home.html"
-          grep -q "maskCardNumber(d.username)" "$PROJECT_DIR/app/src/main/assets/home.html"
-          grep -q "status-blink" "$PROJECT_DIR/app/src/main/assets/home.html"
-          ! grep -q "اعتماد السرعة المختارة" "$PROJECT_DIR/app/src/main/assets/home.html"
-          ! grep -q "v.textContent=o.value" "$PROJECT_DIR/app/src/main/assets/home.html"
-          python3 "$PROJECT_DIR/scripts/validate_project.py"
-      - name: Set package identity and preserve validated release version
-        shell: bash
-        run: |
-          set -euxo pipefail
-          GRADLE_FILE="$PROJECT_DIR/app/build.gradle.kts"
-          test -f "$GRADLE_FILE"
-          python3 - "$GRADLE_FILE" <<'PY'
-          import os,pathlib,re,sys
-          p=pathlib.Path(sys.argv[1]); s=p.read_text()
-          s,n=re.subn(r'(?m)^(\s*applicationId\s*=\s*)"[^"]+"',r'\1"com.mohammedkamel.alkamelnet.portal2026"',s)
-          if n!=1: raise SystemExit(f"Expected one applicationId, found {n}")
-          version=re.search(r'(?m)^\s*versionName\s*=\s*"([^"]+)"',s)
-          code=re.search(r'(?m)^\s*versionCode\s*=\s*(\d+)',s)
-          if not version or not code: raise SystemExit("Missing versionName/versionCode in Gradle")
-          if not re.fullmatch(r"\d+\.\d+\.\d+",version.group(1)): raise SystemExit("Invalid semantic versionName")
-          if int(code.group(1))<1: raise SystemExit("Invalid versionCode")
-          p.write_text(s)
-          with open(os.environ["GITHUB_ENV"],"a") as env:
-              env.write("APP_VERSION="+version.group(1)+"\n")
-              env.write("VERSION_CODE="+code.group(1)+"\n")
-          print(f"Application ID set; preserving source version {version.group(1)} ({code.group(1)})")
-          PY
-      - uses: actions/setup-java@v4
+          echo "APP_VERSION=3.0.0" >> "$GITHUB_ENV"
+          echo "VERSION_CODE=300" >> "$GITHUB_ENV"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
-      - name: Set up Android SDK
+          java-version: "17"
+
+      - name: Set up Android SDK 35
         uses: android-actions/setup-android@v3
         with:
           api-level: 35
           build-tools: 35.0.0
           packages: platform-tools
-      - name: Prepare Gradle
+
+      - name: Set up Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Build APK from the uploaded ZIP only
         shell: bash
         run: |
           set -euxo pipefail
           cd "$PROJECT_DIR"
-          if [ -f gradlew ]; then
-            chmod +x gradlew
-            ./gradlew --version
-          else
-            echo "No Gradle wrapper; using Gradle 8.9 from setup-gradle"
-            gradle --version
-          fi
-      - name: Build debug APK
-        shell: bash
-        run: |
-          set -euxo pipefail
-          cd "$PROJECT_DIR"
-          if [ -f gradlew ]; then
-            ./gradlew --no-daemon --stacktrace :app:assembleDebug
-          else
-            gradle --no-daemon --stacktrace :app:assembleDebug
-          fi
-      - name: Inspect APK package identity
-        shell: bash
-        run: |
-          set -euxo pipefail
-          APK="$PROJECT_DIR/app/build/outputs/apk/debug/app-debug.apk"
-          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort | tail -n 1)"
-          BADGING="$("$AAPT" dump badging "$APK")"
-          printf '%s\n' "$BADGING" | grep -E "^(package:|application-label:|application-icon-)"
-          python3 - "$PROJECT_DIR/app/build.gradle.kts" "$BADGING" <<'PY'
-          import pathlib,re,sys
-          gradle=pathlib.Path(sys.argv[1]).read_text()
-          badging=sys.argv[2]
-          name=re.search(r'(?m)^\s*versionName\s*=\s*"([^"]+)"',gradle)
-          code=re.search(r'(?m)^\s*versionCode\s*=\s*(\d+)',gradle)
-          if not name or not code: raise SystemExit("FAIL - missing source version")
-          match=re.search(r"^package:.*?versionCode='(\d+)'.*?versionName='([^']+)'",badging,re.M)
-          if not match: raise SystemExit("FAIL - APK version metadata missing")
-          if match.group(1)!=code.group(1) or match.group(2)!=name.group(1):
-              raise SystemExit(f"FAIL - APK version {match.group(2)} ({match.group(1)}) differs from source {name.group(1)} ({code.group(1)})")
-          print(f"PASS - APK version matches source: {name.group(1)} ({code.group(1)})")
-          PY
-      - name: Verify packaged launcher artwork
-        shell: bash
-        run: |
-          set -euxo pipefail
-          APK="$PROJECT_DIR/app/build/outputs/apk/debug/app-debug.apk"
-          unzip -p "$APK" res/drawable-nodpi-v4/ic_launcher.webp > /tmp/alkamel-launcher.webp
-          python3 - /tmp/alkamel-launcher.webp <<'PY'
-          import pathlib,sys
-          b=pathlib.Path(sys.argv[1]).read_bytes()
-          if len(b)<4000 or b[:4]!=b'RIFF' or b[8:12]!=b'WEBP':
-              raise SystemExit('FAIL - packaged launcher icon is missing or invalid')
-          print(f'PASS - APK contains approved launcher artwork ({len(b)} bytes)')
-          PY
-      - name: Verify and upload APK
+          gradle --no-daemon --stacktrace :app:assembleDebug
+
+      - name: Verify APK package and version
         shell: bash
         run: |
           set -euxo pipefail
           APK="$PROJECT_DIR/app/build/outputs/apk/debug/app-debug.apk"
           test -s "$APK"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort | tail -n 1)"
+          test -x "$AAPT"
+          BADGING="$("$AAPT" dump badging "$APK")"
+          printf '%s\n' "$BADGING" | grep -F "package: name='com.mohammedkamel.alkamelnet.portal2026.v300' versionCode='300' versionName='3.0.0'"
           mkdir -p "$GITHUB_WORKSPACE/output"
-          cp "$APK" "$GITHUB_WORKSPACE/output/Alkamel-Net-v${APP_VERSION}-code${VERSION_CODE}.apk"
-      - name: Package modified Android project
-        shell: bash
-        run: |
-          set -euxo pipefail
-          mkdir -p "$GITHUB_WORKSPACE/output"
-          cd "$(dirname "$PROJECT_DIR")"
-          zip -qr "$GITHUB_WORKSPACE/output/Alkamel-Net-Android-Project-v${APP_VERSION}-code${VERSION_CODE}.zip" "$(basename "$PROJECT_DIR")" -x '*/.gradle/*' '*/build/*' '*/.idea/*' '*/local.properties'
-          test -s "$GITHUB_WORKSPACE/output/Alkamel-Net-Android-Project-v${APP_VERSION}-code${VERSION_CODE}.zip"
-      - name: Create single package with APK and project
-        shell: bash
-        run: |
-          set -euxo pipefail
-          cd "$GITHUB_WORKSPACE/output"
-          APK_NAME="Alkamel-Net-v${APP_VERSION}-code${VERSION_CODE}.apk"
-          PROJECT_NAME="Alkamel-Net-Android-Project-v${APP_VERSION}-code${VERSION_CODE}.zip"
-          PACKAGE_DIR="Alkamel-Net-v${APP_VERSION}-code${VERSION_CODE}"
-          FULL_PACKAGE="Alkamel-Net-Full-Package-v${APP_VERSION}-code${VERSION_CODE}.zip"
-          test -s "$APK_NAME" && test -s "$PROJECT_NAME"
-          mkdir -p "$PACKAGE_DIR"
-          cp "$APK_NAME" "$PROJECT_NAME" "$PACKAGE_DIR/"
-          printf 'شبكة الكامل\nالإصدار: %s\nرقم الإصدار الداخلي: %s\nرقم تشغيل البناء: %s\n' "$APP_VERSION" "$VERSION_CODE" "$GITHUB_RUN_NUMBER" > "$PACKAGE_DIR/اقرأني.txt"
-          zip -qr "$FULL_PACKAGE" "$PACKAGE_DIR"
-          unzip -t "$FULL_PACKAGE"
-          unzip -Z1 "$FULL_PACKAGE" | grep -F "$PACKAGE_DIR/$APK_NAME"
-          unzip -Z1 "$FULL_PACKAGE" | grep -F "$PACKAGE_DIR/$PROJECT_NAME"
-          unzip -p "$FULL_PACKAGE" "$PACKAGE_DIR/اقرأني.txt" | grep -F "الإصدار: $APP_VERSION"
-          unzip -p "$FULL_PACKAGE" "$PACKAGE_DIR/اقرأني.txt" | grep -F "رقم الإصدار الداخلي: $VERSION_CODE"
-          test -s "$FULL_PACKAGE"
-      - name: Publish APK and project in one ZIP
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: alkamel-net-v${{ env.APP_VERSION }}-code${{ env.VERSION_CODE }}-build-${{ github.run_number }}
-          name: شبكة الكامل v${{ env.APP_VERSION }} (versionCode ${{ env.VERSION_CODE }}) - build ${{ github.run_number }}
-          files: output/Alkamel-Net-Full-Package-v${{ env.APP_VERSION }}-code${{ env.VERSION_CODE }}.zip
-          fail_on_unmatched_files: true
-          generate_release_notes: false
-      - name: Upload optional Actions artifact
+          cp "$APK" "$GITHUB_WORKSPACE/output/Alkamel-Net-3.0.0-code300-debug.apk"
+          cp "$SOURCE_ZIP" "$GITHUB_WORKSPACE/output/Alkamel-Net-3.0.0-Full-Merged-Source.zip"
+
+      - name: Upload APK and the exact source ZIP as build artifacts
         uses: actions/upload-artifact@v4
-        continue-on-error: true
         with:
-          name: Alkamel-Net-v${{ env.APP_VERSION }}-code${{ env.VERSION_CODE }}
-          path: output/Alkamel-Net-v${{ env.APP_VERSION }}-code${{ env.VERSION_CODE }}.apk
+          name: Alkamel-Net-3.0.0-code300
+          path: |
+            output/Alkamel-Net-3.0.0-code300-debug.apk
+            output/Alkamel-Net-3.0.0-Full-Merged-Source.zip
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 30
