@@ -37,6 +37,8 @@ class MqttChatService : Service() {
         const val EXTRA_STATE = "state"
         const val EXTRA_DETAIL = "detail"
         const val EXTRA_RAW = "raw"
+        const val EXTRA_OPEN_CHAT = "open_chat"
+        const val EXTRA_CHAT_KIND = "chat_kind"
         private const val CHANNEL_ID = "alkamel_mqtt_service"
         private const val NOTIFICATION_ID = 39128
         private const val GROUP_TOPIC = "alkamel/chat/room"
@@ -247,8 +249,17 @@ class MqttChatService : Service() {
         val manager = getSystemService(NotificationManager::class.java)
         val notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) Notification.Builder(this, "alkamel_events")
             else @Suppress("DEPRECATION") Notification.Builder(this)
+        val notificationIntent = Intent(this, MainActivity::class.java).apply {
+            action = "com.alkamel.network.OPEN_CHAT_NOTIFICATION"
+            putExtra(EXTRA_OPEN_CHAT, true)
+            putExtra(EXTRA_CHAT_KIND, type)
+            putExtra(EXTRA_TARGET, obj.optString("id"))
+            putExtra(EXTRA_NAME, sender)
+            putExtra(EXTRA_REQUEST_ID, obj.optString("requestId"))
+            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        }
         val open = PendingIntent.getActivity(this, (System.currentTimeMillis() % 2000000000L).toInt(),
-            Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            notificationIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or if (Build.VERSION.SDK_INT >= 23) PendingIntent.FLAG_IMMUTABLE else 0)
         manager.notify((System.currentTimeMillis() % 2000000000L).toInt(),
             notification.setSmallIcon(android.R.drawable.stat_notify_chat).setContentTitle(title)
