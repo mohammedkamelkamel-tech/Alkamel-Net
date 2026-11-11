@@ -922,7 +922,7 @@ class MainActivity : Activity() {
                 if (minIn <= 0 || minOut <= 0) throw IllegalStateException("Audio device unavailable")
                 val frame = 640
                 recorder = AudioRecord.Builder()
-                    .setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
+                    .setAudioSource(MediaRecorder.AudioSource.MIC)
                     .setAudioFormat(AudioFormat.Builder().setSampleRate(rate).setEncoding(encoding).setChannelMask(inputMask).build())
                     .setBufferSizeInBytes(maxOf(minIn, frame * 8)).build()
                 if (recorder?.state != AudioRecord.STATE_INITIALIZED) {
@@ -958,8 +958,6 @@ class MainActivity : Activity() {
                     noiseSuppressor = runCatching { NoiseSuppressor.create(activeRecorder.audioSessionId)?.apply { enabled = true } }
                         .onFailure { Log.w("AlkamelNet", "Noise suppression unavailable", it) }.getOrNull()
                 }
-                if (AutomaticGainControl.isAvailable()) {
-                    automaticGain = runCatching { AutomaticGainControl.create(activeRecorder.audioSessionId)?.apply { enabled = true } }
                         .onFailure { Log.w("AlkamelNet", "Automatic gain control unavailable", it) }.getOrNull()
                 }
                 activeRecorder.startRecording()
