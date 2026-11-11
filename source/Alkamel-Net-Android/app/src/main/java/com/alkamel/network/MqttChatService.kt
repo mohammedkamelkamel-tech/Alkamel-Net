@@ -180,6 +180,8 @@ class MqttChatService : Service() {
                     override fun deliveryComplete(token: IMqttDeliveryToken?) {}
                 })
                 val options = MqttConnectOptions().apply {
+                    userName = BuildConfig.MQTT_USERNAME
+                    password = BuildConfig.MQTT_PASSWORD.toCharArray()
                     isAutomaticReconnect = true
                     isCleanSession = true
                     connectionTimeout = 10
