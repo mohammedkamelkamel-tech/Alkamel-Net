@@ -1716,15 +1716,19 @@ class MainActivity : Activity() {
             web.resumeTimers()
             val pausedFor = if (backgroundedAtMs > 0L) System.currentTimeMillis() - backgroundedAtMs else 0L
             val current = web.url.orEmpty()
-            if (pausedFor >= 2500L) {
-                // LAN players often retain dead HTTP sockets after Android suspends WebView.
+            // Recovery must not depend on an arbitrary background duration. Android may
+            // suspend WebView/Chromium even during a very short app switch.
+            if (pausedFor > 0L) {
+                Log.i("AlkamelNet", "Running foreground recovery after ${pausedFor}ms background")
                 if (isExternalServiceUrl(current)) {
-                    Log.i("AlkamelNet", "Reconnecting service after background pause (${pausedFor}ms): $current")
-                    web.post { if (!isFinishing && !isDestroyed) web.loadUrl(current) }
+                    // Recreate stale HTTP/media sessions, but keep the exact service URL.
+                    web.post {
+                        if (!isFinishing && !isDestroyed) {
+                            web.stopLoading()
+                            web.loadUrl(current)
+                        }
+                    }
                 } else {
-                    // A LAN service page may retain a dead HTTP/WebView session after
-                    // Android backgrounds the app. Return to the bundled home page and
-                    // restore the relevant section, so every service can be opened again.
                     val returnPage = when {
                         current.startsWith("http://30.30.30.30:8080/tv/") ||
                             current.startsWith("http://30.10.10.10:88/") ||
@@ -1734,13 +1738,19 @@ class MainActivity : Activity() {
                         else -> null
                     }
                     if (returnPage != null) pendingPageAfterHome = returnPage
-                    verifyPrivateNetworkAccess {
+                    if (networkAccessBlocked) {
+                        verifyPrivateNetworkAccess {
+                            if (returnPage != null || (!current.startsWith(homeUrl) && !current.startsWith("data:"))) {
+                                loadHome()
+                            } else recoverHomeAfterResume()
+                        }
+                    } else {
                         if (returnPage != null || (!current.startsWith(homeUrl) && !current.startsWith("data:"))) {
                             loadHome()
                         } else recoverHomeAfterResume()
                     }
                 }
-                // The hidden portal WebView can also keep stale sockets/cookies after resume.
+                // Reconnect the hidden MikroTik portal WebView independently.
                 commandWeb?.let { hidden ->
                     commandPageReady = false
                     commandAttemptInProgress = false
@@ -1751,6 +1761,9 @@ class MainActivity : Activity() {
                         }
                     }
                 }
+            } else {
+                // Also run a lightweight health check on cold/first foreground entry.
+                recoverHomeAfterResume()
             }
             backgroundedAtMs = 0L
         }
@@ -1762,16 +1775,27 @@ class MainActivity : Activity() {
     }
 
     /**
-     * Verify that the home page JavaScript and click-navigation functions are alive
-     * after returning from background. Recover a broken WebView instead of leaving
-     * the user with an interface that looks active but ignores every section tap.
+     * Probe the actual JavaScript runtime and navigation contract after every resume.
+     * A visible WebView is not considered healthy unless its event loop, bridge and
+     * page navigation functions answer. Reload the bundled document as a contained
+     * recovery; do not destroy/recreate the whole Activity on a delayed JS callback.
      */
     private fun recoverHomeAfterResume() {
+        if (!::web.isInitialized || isFinishing || isDestroyed) return
         val token = ++resumeRecoveryToken
         var callbackReceived = false
-        web.evaluateJavascript(
-            "(function(){try{return document.body && typeof showPage==='function' && document.querySelector('.page') ? 'ok' : 'broken';}catch(e){return 'broken';}})()"
-        ) { result ->
+        val probe = """
+            (function(){
+              try {
+                if (!document || !document.body || document.readyState === 'loading') return 'broken';
+                if (typeof window.showPage !== 'function') return 'broken';
+                if (!document.querySelector('.page')) return 'broken';
+                if (!window.AndroidBridge) return 'broken';
+                return 'ok';
+              } catch (e) { return 'broken'; }
+            })()
+        """.trimIndent()
+        web.evaluateJavascript(probe) { result ->
             if (token != resumeRecoveryToken || isFinishing || isDestroyed) return@evaluateJavascript
             callbackReceived = true
             if (result?.contains("ok") == true) {
@@ -1781,20 +1805,18 @@ class MainActivity : Activity() {
                     "window.dispatchEvent(new Event('focus'));if(typeof window.appOnResume==='function')window.appOnResume();",
                     null
                 )
-                Log.i("AlkamelNet", "Home WebView passed resume health check")
+                Log.i("AlkamelNet", "Foreground WebView health check passed")
             } else {
-                Log.w("AlkamelNet", "Home WebView failed resume health check; reloading home")
+                Log.w("AlkamelNet", "Foreground WebView health check failed; reloading bundled home")
                 loadHome()
             }
         }
         mainHandler.postDelayed({
-            if (token == resumeRecoveryToken && !callbackReceived) {
-                if (!isFinishing && !isDestroyed) {
-                    Log.e("AlkamelNet", "Home WebView did not answer resume health check; recreating Activity")
-                    recreate()
-                }
+            if (token == resumeRecoveryToken && !callbackReceived && !isFinishing && !isDestroyed) {
+                Log.e("AlkamelNet", "Foreground WebView health probe timed out; reloading bundled home")
+                loadHome()
             }
-        }, 3500L)
+        }, 1800L)
     }
 
     private fun isExternalServiceUrl(url: String): Boolean =
@@ -1807,8 +1829,12 @@ class MainActivity : Activity() {
     override fun onPause() {
         appInForeground = false
         backgroundedAtMs = System.currentTimeMillis()
-        if (::web.isInitialized) web.onPause()
+        if (::web.isInitialized) {
+            web.onPause()
+            web.pauseTimers()
+        }
         commandWeb?.onPause()
+        commandWeb?.pauseTimers()
         super.onPause()
     }
 
