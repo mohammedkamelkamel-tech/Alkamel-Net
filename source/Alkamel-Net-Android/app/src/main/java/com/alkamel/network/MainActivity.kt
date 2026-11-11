@@ -90,6 +90,11 @@ class MainActivity : Activity() {
     private var networkFailureCount = 0
     private var networkSuccessCount = 0
     private val mainHandler = Handler(Looper.getMainLooper())
+    @Volatile private var pendingNotificationChatRoute = false
+    @Volatile private var pendingNotificationChatKind = "message"
+    @Volatile private var pendingNotificationPeerId = ""
+    @Volatile private var pendingNotificationPeerName = ""
+    @Volatile private var pendingNotificationRequestId = ""
     @Volatile private var resumeRecoveryToken = 0
     @Volatile private var appInForeground = false
     private val notificationChannelId = "alkamel_events"
