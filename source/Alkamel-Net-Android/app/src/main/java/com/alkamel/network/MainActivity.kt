@@ -768,8 +768,8 @@ class MainActivity : Activity() {
             "alkamel/chat/private/$targetId" else mqttGroupTopic
         runCatching {
             client.publish(topic, MqttMessage(obj.toString().toByteArray(Charsets.UTF_8)).apply {
-                qos = 1
-                isRetained = false
+                setQos(1)
+                setRetained(false)
             })
         }.onFailure { Log.w("AlkamelNet", "MQTT publish failed", it) }
     }
