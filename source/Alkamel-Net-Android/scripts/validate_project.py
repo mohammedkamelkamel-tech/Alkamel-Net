@@ -131,33 +131,31 @@ purchase_checks = {
     "card purchase guide lists all approved denominations": all(x in purchase_home for x in ("99 ريال", "100 ريال", "200 ريال", "245 ريال", "250 ريال", "500 ريال", "1000 ريال")),
     "support section four has functional firewall UI": "loadFirewallApps()" in purchase_home and "toggleFirewallApp" in purchase_home and "getFirewallApps()" in KOTLIN.read_text(encoding="utf-8") and "setFirewallAppBlocked" in KOTLIN.read_text(encoding="utf-8"),
     "firewall application icons are returned and rendered": '"icon",iconData' in KOTLIN.read_text(encoding="utf-8") and "firewall-app-icon" in purchase_home and "x.icon" in purchase_home,
-    "MQTT is routed through the local Wi-Fi network": "wifiNetwork.socketFactory" in (APP / "java/com/alkamel/network/MqttChatService.kt").read_text(encoding="utf-8") and "TRANSPORT_WIFI" in (APP / "java/com/alkamel/network/MqttChatService.kt").read_text(encoding="utf-8"),
 }
 for label, passed in purchase_checks.items():
     print(("PASS" if passed else "FAIL") + " - " + label)
 if not all(purchase_checks.values()):
     raise SystemExit(1)
 
-# MQTT chat, persistent seat/profile state, and lifecycle recovery checks.
-MQTT = APP / "java/com/alkamel/network/MqttChatService.kt"
-mqtt_source = MQTT.read_text(encoding="utf-8")
-gradle_source = GRADLE
-checks_mqtt = {
-    "MQTT chat service declared and broker address defaults to local Windows host": MQTT.is_file() and "MqttChatService" in MANIFEST and 'getString("host", "10.10.10.10")' in mqtt_source and 'getInt("port", 1883)' in mqtt_source,
-    "MQTT anonymous broker settings match documented Mosquitto ACL": "MQTT_PASSWORD" not in gradle_source and "MQTT_USERNAME" not in gradle_source and "isAutomaticReconnect = true" in mqtt_source,
-    "MQTT group, private, seat, and profile topics are subscribed": all(x in mqtt_source for x in ("alkamel/chat/room", "alkamel/chat/private/", "alkamel/chat/seats/+", "alkamel/chat/profiles/+")),
-    "five voice seats persist and refresh with expiring leases": "isRetained = type == \"voice_seat\" || type == \"profile_photo\"" in mqtt_source and "activeSeatText" in mqtt_source and "sentAt" in mqtt_source,
-    "profile pictures are retained for members joining later": '"alkamel/chat/profiles/$deviceId"' in mqtt_source and "profile_photo" in mqtt_source,
-    "chat UI receives sender identity for seat synchronization": "receiveVoiceSeatEvent({...JSON.parse(p.text),id:p.id,name:p.name})" in HOME.read_text(encoding="utf-8"),
-    "chat UI handles MQTT reconnecting state": "state==='reconnecting'" in HOME.read_text(encoding="utf-8"),
-    "Activity lifecycle distinguishes onStop from onPause": "override fun onStop()" in KOTLIN.read_text(encoding="utf-8") and "backgroundedAtMs = System.currentTimeMillis()" in KOTLIN.read_text(encoding="utf-8"),
-    "Activity destruction releases native LAN workers": "Release Activity-owned LAN sockets and workers on every destruction path." in KOTLIN.read_text(encoding="utf-8"),
-    "Wi-Fi and notification permission request identifiers are distinct": "private val notificationPermissionRequest = 7413" in KOTLIN.read_text(encoding="utf-8") and "private val wifiScanPermissionRequest = 7414" in KOTLIN.read_text(encoding="utf-8") and KOTLIN.read_text(encoding="utf-8").count("private val wifiScanPermissionRequest") == 1,
-    "integrated repair version": "versionCode = 75" in gradle_source and 'versionName = "1.9.1"' in gradle_source,
+# Direct LAN chat, profile photo delivery, and lifecycle recovery checks.
+kotlin_source = KOTLIN.read_text(encoding="utf-8")
+html_source = HOME.read_text(encoding="utf-8")
+checks_lan = {
+    "LAN chat is the only active transport; MQTT service and broker dependency are removed": "startLanChat(name)" in kotlin_source and "publishMqtt" not in kotlin_source and "MqttChatService" not in kotlin_source and "MqttChatService" not in MANIFEST and "org.eclipse.paho" not in GRADLE,
+    "LAN chat receives profile photos, gifts, and voice-seat events": 'setOf("presence", "message", "profile_photo", "gift", "voice_seat")' in kotlin_source,
+    "LAN profile photos are compressed below a safe single-datagram size": "const side=64" in html_source and "data.length>3500" in html_source and "dataUrl.length <= 3500" in kotlin_source,
+    "new LAN peers trigger profile-photo synchronization": "isNewPeer&&localProfilePhoto" in html_source,
+    "private messages use direct LAN unicast": "sendPrivateLanPacket(type, targetId, requestId, message.trim())" in kotlin_source,
+    "voice seats retain sender identity": "receiveVoiceSeatEvent({...JSON.parse(p.text),id:p.id,name:p.name})" in html_source,
+    "chat UI handles reconnecting state": "state==='reconnecting'" in html_source,
+    "Activity lifecycle distinguishes onStop from onPause": "override fun onStop()" in kotlin_source and "backgroundedAtMs = System.currentTimeMillis()" in kotlin_source,
+    "Activity destruction releases native LAN workers": "Release Activity-owned LAN sockets and workers on every destruction path." in kotlin_source,
+    "Wi-Fi and notification permission request identifiers are distinct": "private val notificationPermissionRequest = 7413" in kotlin_source and "private val wifiScanPermissionRequest = 7414" in kotlin_source and kotlin_source.count("private val wifiScanPermissionRequest") == 1,
+    "integrated repair version": "versionCode = 76" in GRADLE and 'versionName = "1.9.2"' in GRADLE,
 }
-for label, passed in checks_mqtt.items():
+for label, passed in checks_lan.items():
     print(("PASS" if passed else "FAIL") + " - " + label)
-if not all(checks_mqtt.values()):
+if not all(checks_lan.values()):
     raise SystemExit(1)
 
 # Syntax-check inline JavaScript blocks with Node when available.

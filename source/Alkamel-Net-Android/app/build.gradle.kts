@@ -9,8 +9,8 @@ android {
         applicationId = "com.mohammedkamel.alkamelnet.portal2026"
         minSdk = 24
         targetSdk = 35
-        versionCode = 75
-        versionName = "1.9.1"
+        versionCode = 76
+        versionName = "1.9.2"
     }
     buildTypes {
         debug {
@@ -41,6 +41,4 @@ android {
 
 dependencies {
     implementation("androidx.webkit:webkit:1.12.1")
-    // MQTT transport for group chat, private messages, and member presence.
-    implementation("org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5")
 }

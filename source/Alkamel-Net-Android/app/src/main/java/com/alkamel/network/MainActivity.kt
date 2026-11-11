@@ -9,9 +9,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.ActivityNotFoundException
 import android.content.Intent
-import android.content.BroadcastReceiver
 import android.content.Context
-import android.content.IntentFilter
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -92,29 +90,6 @@ class MainActivity : Activity() {
     private var networkFailureCount = 0
     private var networkSuccessCount = 0
     private val mainHandler = Handler(Looper.getMainLooper())
-    private var mqttReceiverRegistered = false
-    @Volatile private var pendingNotificationChatRoute = false
-    @Volatile private var pendingNotificationChatKind = "message"
-    @Volatile private var pendingNotificationPeerId = ""
-    @Volatile private var pendingNotificationPeerName = ""
-    @Volatile private var pendingNotificationRequestId = ""
-    private val mqttEventReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            val state = intent?.getStringExtra(MqttChatService.EXTRA_STATE)
-            if (state != null) {
-                chatRunning.set(state == "joined")
-                val detail = intent.getStringExtra(MqttChatService.EXTRA_DETAIL).orEmpty()
-                notifyChatState(state, detail)
-            }
-            val raw = intent?.getStringExtra(MqttChatService.EXTRA_RAW)
-            if (!raw.isNullOrBlank()) {
-                runCatching { notifyIncomingChat(JSONObject(raw)) }
-                if (::web.isInitialized && !isFinishing && !isDestroyed) {
-                    web.evaluateJavascript("if(window.onLanChatPacket)window.onLanChatPacket(${JSONObject.quote(raw)});", null)
-                }
-            }
-        }
-    }
     @Volatile private var resumeRecoveryToken = 0
     @Volatile private var appInForeground = false
     private val notificationChannelId = "alkamel_events"
@@ -151,11 +126,6 @@ class MainActivity : Activity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        captureChatNotificationIntent(intent)
-        val mqttFilter = IntentFilter(MqttChatService.ACTION_EVENT)
-        if (Build.VERSION.SDK_INT >= 33) registerReceiver(mqttEventReceiver, mqttFilter, Context.RECEIVER_NOT_EXPORTED)
-        else registerReceiver(mqttEventReceiver, mqttFilter)
-        mqttReceiverRegistered = true
         window.statusBarColor = Color.rgb(7, 20, 38)
         window.navigationBarColor = Color.rgb(7, 20, 38)
         CookieManager.getInstance().setAcceptCookie(true)
@@ -664,46 +634,6 @@ class MainActivity : Activity() {
             }
         }
     }
-    private fun startMqttChat(name: String, ensureService: Boolean = true) {
-        val clean = name.trim().take(24)
-        if (clean.isEmpty()) return
-        chatNickname = clean
-        chatRequested.set(true)
-        if (ensureService && getSharedPreferences("alkamel_app_setup", MODE_PRIVATE).getBoolean("background_enabled", false)) {
-            val keepAlive = Intent(this, ChatKeepAliveService::class.java).apply { action = ChatKeepAliveService.ACTION_START }
-            try { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(keepAlive) else startService(keepAlive) }
-            catch (e: Exception) { Log.e("AlkamelNet", "Unable to start chat keep-alive service", e) }
-        }
-        val intent = Intent(this, MqttChatService::class.java).apply {
-            action = MqttChatService.ACTION_CONNECT
-            putExtra(MqttChatService.EXTRA_NAME, clean)
-        }
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent) else startService(intent)
-        } catch (e: Exception) {
-            Log.e("AlkamelNet", "Unable to start MQTT chat service", e)
-            notifyChatState("error", "تعذر تشغيل خدمة الدردشة في الخلفية.")
-        }
-    }
-
-    private fun publishMqtt(type: String, message: String, targetId: String? = null, requestId: String? = null) {
-        val intent = Intent(this, MqttChatService::class.java).apply {
-            action = MqttChatService.ACTION_PUBLISH
-            putExtra(MqttChatService.EXTRA_TYPE, type)
-            putExtra(MqttChatService.EXTRA_TEXT, message.take(if (type == "voice_message") 1_200_000 else 1000))
-            targetId?.let { putExtra(MqttChatService.EXTRA_TARGET, it) }
-            requestId?.let { putExtra(MqttChatService.EXTRA_REQUEST_ID, it) }
-        }
-        runCatching { startService(intent) }.onFailure { Log.w("AlkamelNet", "Unable to queue MQTT message", it) }
-    }
-
-    private fun stopMqttChat() {
-        chatRequested.set(false)
-        chatRunning.set(false)
-        runCatching { stopService(Intent(this, MqttChatService::class.java)) }
-        notifyChatState("stopped", "")
-    }
-
     private fun notifyChatState(state: String, detail: String) {
         val stateJson = JSONObject.quote(state)
         val detailJson = JSONObject.quote(detail)
@@ -1889,147 +1819,6 @@ class MainActivity : Activity() {
         openPendingChatNotificationRoute()
     }
 
-    private fun captureChatNotificationIntent(source: Intent?) {
-        if (source?.getBooleanExtra(MqttChatService.EXTRA_OPEN_CHAT, false) != true) return
-        pendingNotificationChatRoute = true
-        pendingNotificationChatKind = source.getStringExtra(MqttChatService.EXTRA_CHAT_KIND).orEmpty().ifBlank { "message" }
-        pendingNotificationPeerId = source.getStringExtra(MqttChatService.EXTRA_TARGET).orEmpty()
-        pendingNotificationPeerName = source.getStringExtra(MqttChatService.EXTRA_NAME).orEmpty()
-        pendingNotificationRequestId = source.getStringExtra(MqttChatService.EXTRA_REQUEST_ID).orEmpty()
-    }
-
-    private fun openPendingChatNotificationRoute() {
-        if (!pendingNotificationChatRoute || !::web.isInitialized || isFinishing || isDestroyed) return
-        val kind = JSONObject.quote(pendingNotificationChatKind)
-        val peer = JSONObject.quote(pendingNotificationPeerId)
-        val name = JSONObject.quote(pendingNotificationPeerName)
-        val request = JSONObject.quote(pendingNotificationRequestId)
-        web.post {
-            if (!pendingNotificationChatRoute || isFinishing || isDestroyed) return@post
-            web.evaluateJavascript("window.openChatFromNotification && window.openChatFromNotification(" + kind + "," + peer + "," + name + "," + request + ");", null)
-            pendingNotificationChatRoute = false
-        }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        appInForeground = true
-        if (::web.isInitialized) {
-            web.onResume()
-            web.resumeTimers()
-            val pausedFor = if (backgroundedAtMs > 0L) System.currentTimeMillis() - backgroundedAtMs else 0L
-            val current = web.url.orEmpty()
-            if (pausedFor >= 2500L) {
-                // LAN players often retain dead HTTP sockets after Android suspends WebView.
-                if (isExternalServiceUrl(current)) {
-                    Log.i("AlkamelNet", "Reconnecting service after background pause (${pausedFor}ms): $current")
-                    web.post { if (!isFinishing && !isDestroyed) web.loadUrl(current) }
-                } else {
-                    // A LAN service page may retain a dead HTTP/WebView session after
-                    // Android backgrounds the app. Return to the bundled home page and
-                    // restore the relevant section, so every service can be opened again.
-                    val returnPage = when {
-                        current.startsWith("http://30.30.30.30:8080/tv/") ||
-                            current.startsWith("http://30.10.10.10:88/") ||
-                            current.startsWith("https://appassets.androidplatform.net/assets/hd/") -> "live"
-                        current.startsWith("http://30.30.30.30:8096/") ||
-                            current.startsWith("http://30.10.10.10/") -> "rest"
-                        else -> null
-                    }
-                    if (returnPage != null) pendingPageAfterHome = returnPage
-                    verifyPrivateNetworkAccess {
-                        if (returnPage != null || (!current.startsWith(homeUrl) && !current.startsWith("data:"))) {
-                            loadHome()
-                        } else recoverHomeAfterResume()
-                    }
-                }
-                // The hidden portal WebView can also keep stale sockets/cookies after resume.
-                commandWeb?.let { hidden ->
-                    commandPageReady = false
-                    commandAttemptInProgress = false
-                    hidden.post {
-                        if (!isFinishing && !isDestroyed) {
-                            hidden.stopLoading()
-                            hidden.loadUrl("http://k.com/")
-                        }
-                    }
-                }
-            }
-            backgroundedAtMs = 0L
-        }
-        commandWeb?.onResume()
-        if (requestNotificationsOnResume) {
-            requestNotificationsOnResume = false
-            requestNotificationPermission()
-        }
-    }
-
-    /**
-     * Verify that the home page JavaScript and click-navigation functions are alive
-     * after returning from background. Recover a broken WebView instead of leaving
-     * the user with an interface that looks active but ignores every section tap.
-     */
-    private fun recoverHomeAfterResume() {
-        val token = ++resumeRecoveryToken
-        var callbackReceived = false
-        web.evaluateJavascript(
-            "(function(){try{return document.body && typeof showPage==='function' && document.querySelector('.page') ? 'ok' : 'broken';}catch(e){return 'broken';}})()"
-        ) { result ->
-            if (token != resumeRecoveryToken || isFinishing || isDestroyed) return@evaluateJavascript
-            callbackReceived = true
-            if (result?.contains("ok") == true) {
-                showLoading(false)
-                hideError()
-                web.evaluateJavascript(
-                    "window.dispatchEvent(new Event('focus'));if(typeof window.appOnResume==='function')window.appOnResume();",
-                    null
-                )
-                Log.i("AlkamelNet", "Home WebView passed resume health check")
-            } else {
-                Log.w("AlkamelNet", "Home WebView failed resume health check; reloading home")
-                loadHome()
-            }
-        }
-        mainHandler.postDelayed({
-            if (token == resumeRecoveryToken && !callbackReceived) {
-                if (!isFinishing && !isDestroyed) {
-                    Log.e("AlkamelNet", "Home WebView did not answer resume health check; recreating Activity")
-                    recreate()
-                }
-            }
-        }, 3500L)
-    }
-
-    private fun isExternalServiceUrl(url: String): Boolean =
-        url.startsWith("http://30.30.30.30:8096/") ||
-        url.startsWith("http://30.10.10.10/") ||
-        url.startsWith("http://30.30.30.30:8080/tv/") ||
-        url.startsWith("http://30.10.10.10:88/") ||
-        url.startsWith("https://appassets.androidplatform.net/assets/hd/")
-
-    override fun onStop() {
-        // onPause also runs for permission prompts and transient system dialogs.
-        // Record the background transition only once the Activity is no longer visible.
-        backgroundedAtMs = System.currentTimeMillis()
-        super.onStop()
-    }
-
-    override fun onPause() {
-        appInForeground = false
-        if (::web.isInitialized) {
-            web.onPause()
-            web.pauseTimers()
-        }
-        commandWeb?.onPause()
-        commandWeb?.pauseTimers()
-        super.onPause()
-    }
-
-    override fun onSaveInstanceState(outState: Bundle) {
-        if (::web.isInitialized) web.saveState(outState)
-        super.onSaveInstanceState(outState)
-    }
-
     override fun onDestroy() {
         // Release Activity-owned LAN sockets and workers on every destruction path.
         stopVoiceRoom()
@@ -2039,7 +1828,6 @@ class MainActivity : Activity() {
         voiceReceiveExecutor.shutdownNow()
         chatExecutor.shutdownNow()
         chatSendExecutor.shutdownNow()
-        if (mqttReceiverRegistered) { runCatching { unregisterReceiver(mqttEventReceiver) }; mqttReceiverRegistered = false }
         networkGuard.shutdownNow()
         if (::web.isInitialized) {
             web.removeJavascriptInterface("AndroidBridge")

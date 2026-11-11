@@ -43,12 +43,6 @@
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="Local per-app firewall filtering selected applications network traffic" />
         </service>
         <service
-            android:name=".MqttChatService"
-            android:enabled="true"
-            android:exported="false"
-            android:stopWithTask="false"
-            android:foregroundServiceType="connectedDevice" />
-        <service
             android:name=".ChatKeepAliveService"
             android:enabled="true"
             android:exported="false"
