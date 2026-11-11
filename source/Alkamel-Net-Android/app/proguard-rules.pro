@@ -23,3 +23,14 @@
 # Retain useful crash line metadata for diagnosing field issues.
 -renamesourcefileattribute SourceFile
 -keepattributes SourceFile,LineNumberTable
+
+# Paho discovers its logging implementation reflectively; keep it from R8 removal/obfuscation.
+-keep class org.eclipse.paho.client.mqttv3.internal.logging.** { *; }
+-keep class org.eclipse.paho.client.mqttv3.internal.websocket.** { *; }
+-keep class org.eclipse.paho.client.mqttv3.MqttAsyncClient { *; }
+-keep class org.eclipse.paho.client.mqttv3.MqttConnectOptions { *; }
+-keep class com.alkamel.network.MqttChatService { *; }
+
+# Paho MQTT selects its logger by class name at runtime.
+-keep class org.eclipse.paho.client.mqttv3.logging.** { *; }
+-keep class org.eclipse.paho.client.mqttv3.internal.logging.** { *; }

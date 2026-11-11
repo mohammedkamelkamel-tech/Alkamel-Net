@@ -9,6 +9,9 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.IntentFilter
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.media.AudioFormat
@@ -43,6 +46,8 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Button
+import android.widget.EditText
+import android.text.InputType
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ProgressBar
@@ -86,6 +91,29 @@ class MainActivity : Activity() {
     private var networkFailureCount = 0
     private var networkSuccessCount = 0
     private val mainHandler = Handler(Looper.getMainLooper())
+    private var mqttReceiverRegistered = false
+    @Volatile private var pendingNotificationChatRoute = false
+    @Volatile private var pendingNotificationChatKind = "message"
+    @Volatile private var pendingNotificationPeerId = ""
+    @Volatile private var pendingNotificationPeerName = ""
+    @Volatile private var pendingNotificationRequestId = ""
+    private val mqttEventReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val state = intent?.getStringExtra(MqttChatService.EXTRA_STATE)
+            if (state != null) {
+                chatRunning.set(state == "joined")
+                val detail = intent.getStringExtra(MqttChatService.EXTRA_DETAIL).orEmpty()
+                notifyChatState(state, detail)
+            }
+            val raw = intent?.getStringExtra(MqttChatService.EXTRA_RAW)
+            if (!raw.isNullOrBlank()) {
+                runCatching { notifyIncomingChat(JSONObject(raw)) }
+                if (::web.isInitialized && !isFinishing && !isDestroyed) {
+                    web.evaluateJavascript("if(window.onLanChatPacket)window.onLanChatPacket(${JSONObject.quote(raw)});", null)
+                }
+            }
+        }
+    }
     @Volatile private var resumeRecoveryToken = 0
     @Volatile private var appInForeground = false
     private val notificationChannelId = "alkamel_events"
@@ -97,7 +125,7 @@ class MainActivity : Activity() {
     @Volatile private var chatSocket: DatagramSocket? = null
     @Volatile private var chatMulticastLock: WifiManager.MulticastLock? = null
     @Volatile private var chatNickname = ""
-    private val chatId = java.util.UUID.randomUUID().toString()
+    private val chatId by lazy { getSharedPreferences("alkamel_mqtt", MODE_PRIVATE).getString("device_id", null) ?: java.util.UUID.randomUUID().toString().also { getSharedPreferences("alkamel_mqtt", MODE_PRIVATE).edit().putString("device_id", it).apply() } }
     private val chatPeerAddresses = ConcurrentHashMap<String, InetAddress>()
     private val chatExecutor = Executors.newSingleThreadExecutor()
     private val chatSendExecutor = Executors.newSingleThreadExecutor()
@@ -106,11 +134,13 @@ class MainActivity : Activity() {
     private val voiceRunning = AtomicBoolean(false)
     private val voiceSessionGeneration = java.util.concurrent.atomic.AtomicInteger(0)
     private val voiceMuted = AtomicBoolean(false)
+    private val voicePlaybackMuted = AtomicBoolean(false)
     @Volatile private var voiceSocket: java.net.MulticastSocket? = null
     @Volatile private var multicastLock: WifiManager.MulticastLock? = null
     private val voiceGroup = InetAddress.getByName("239.10.10.10")
     private val voicePort = 39128
     private val voicePermissionRequest = 7412
+    @Volatile private var pendingWebAudioPermissionRequest: android.webkit.PermissionRequest? = null
     private var localFallbackAttempted = false
     private var pendingPageAfterHome: String? = null
     @Volatile private var backgroundedAtMs: Long = 0L
@@ -119,6 +149,11 @@ class MainActivity : Activity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        captureChatNotificationIntent(intent)
+        val mqttFilter = IntentFilter(MqttChatService.ACTION_EVENT)
+        if (Build.VERSION.SDK_INT >= 33) registerReceiver(mqttEventReceiver, mqttFilter, Context.RECEIVER_NOT_EXPORTED)
+        else registerReceiver(mqttEventReceiver, mqttFilter)
+        mqttReceiverRegistered = true
         window.statusBarColor = Color.rgb(7, 20, 38)
         window.navigationBarColor = Color.rgb(7, 20, 38)
         CookieManager.getInstance().setAcceptCookie(true)
@@ -145,6 +180,29 @@ class MainActivity : Activity() {
                 settings.offscreenPreRaster = true
             }
             webChromeClient = object : WebChromeClient() {
+                override fun onPermissionRequest(request: android.webkit.PermissionRequest) {
+                    runOnUiThread {
+                        val trusted = request.origin?.host == "appassets.androidplatform.net"
+                        val audioOnly = request.resources.isNotEmpty() && request.resources.all { it == android.webkit.PermissionRequest.RESOURCE_AUDIO_CAPTURE }
+                        if (!trusted || !audioOnly) {
+                            request.deny()
+                            return@runOnUiThread
+                        }
+                        val granted = Build.VERSION.SDK_INT < 23 || checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+                        if (granted) {
+                            request.grant(request.resources)
+                        } else if (pendingWebAudioPermissionRequest == null) {
+                            pendingWebAudioPermissionRequest = request
+                            if (Build.VERSION.SDK_INT >= 23) requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), voicePermissionRequest)
+                            else {
+                                pendingWebAudioPermissionRequest = null
+                                request.deny()
+                            }
+                        } else {
+                            request.deny()
+                        }
+                    }
+                }
                 override fun onConsoleMessage(message: android.webkit.ConsoleMessage): Boolean {
                     Log.d("AlkamelNet-Web", "${message.message()} -- ${message.sourceId()}:${message.lineNumber()}")
                     return true
@@ -246,6 +304,7 @@ class MainActivity : Activity() {
                         if (returnPage == "live" || returnPage == "rest") {
                             view?.evaluateJavascript("if(typeof showPage==='function')showPage('$returnPage');", null)
                         }
+                        if (pendingNotificationChatRoute) view?.post { openPendingChatNotificationRoute() }
                         view?.evaluateJavascript("document.documentElement && document.body ? document.body.innerText.length : 0") { value ->
                             val hasContent = value != null && value != "null" && value != "0" && value != "\"\""
                             if (!hasContent) loadHomeFallback("الصفحة الرئيسية فارغة")
@@ -482,12 +541,11 @@ class MainActivity : Activity() {
         val privateRequest = type == "private_request" && obj.optString("to") == chatId
         val nickname = chatNickname.trim()
         val mentioned = nickname.isNotEmpty() && message.contains(nickname, ignoreCase = true)
-        if (type != "message" && !privateMessage && !privateRequest) return
+        if (!privateMessage && !privateRequest && !(type == "message" && mentioned)) return
         val title = when {
             privateRequest -> "طلب محادثة خاصة جديد"
             privateMessage -> "رسالة خاصة جديدة من $sender"
-            mentioned -> "تم ذكرك في دردشة شبكة الكامل"
-            else -> "رسالة جديدة في دردشة شبكة الكامل"
+            else -> "تم ذكرك في دردشة شبكة الكامل"
         }
         val body = when {
             privateRequest -> "يريد $sender بدء محادثة خاصة معك."
@@ -604,6 +662,46 @@ class MainActivity : Activity() {
             }
         }
     }
+    private fun startMqttChat(name: String, ensureService: Boolean = true) {
+        val clean = name.trim().take(24)
+        if (clean.isEmpty()) return
+        chatNickname = clean
+        chatRequested.set(true)
+        if (ensureService && getSharedPreferences("alkamel_app_setup", MODE_PRIVATE).getBoolean("background_enabled", false)) {
+            val keepAlive = Intent(this, ChatKeepAliveService::class.java).apply { action = ChatKeepAliveService.ACTION_START }
+            try { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(keepAlive) else startService(keepAlive) }
+            catch (e: Exception) { Log.e("AlkamelNet", "Unable to start chat keep-alive service", e) }
+        }
+        val intent = Intent(this, MqttChatService::class.java).apply {
+            action = MqttChatService.ACTION_CONNECT
+            putExtra(MqttChatService.EXTRA_NAME, clean)
+        }
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent) else startService(intent)
+        } catch (e: Exception) {
+            Log.e("AlkamelNet", "Unable to start MQTT chat service", e)
+            notifyChatState("error", "تعذر تشغيل خدمة الدردشة في الخلفية.")
+        }
+    }
+
+    private fun publishMqtt(type: String, message: String, targetId: String? = null, requestId: String? = null) {
+        val intent = Intent(this, MqttChatService::class.java).apply {
+            action = MqttChatService.ACTION_PUBLISH
+            putExtra(MqttChatService.EXTRA_TYPE, type)
+            putExtra(MqttChatService.EXTRA_TEXT, message.take(if (type == "voice_message") 1_200_000 else 1000))
+            targetId?.let { putExtra(MqttChatService.EXTRA_TARGET, it) }
+            requestId?.let { putExtra(MqttChatService.EXTRA_REQUEST_ID, it) }
+        }
+        runCatching { startService(intent) }.onFailure { Log.w("AlkamelNet", "Unable to queue MQTT message", it) }
+    }
+
+    private fun stopMqttChat() {
+        chatRequested.set(false)
+        chatRunning.set(false)
+        runCatching { stopService(Intent(this, MqttChatService::class.java)) }
+        notifyChatState("stopped", "")
+    }
+
     private fun notifyChatState(state: String, detail: String) {
         val stateJson = JSONObject.quote(state)
         val detailJson = JSONObject.quote(detail)
@@ -794,7 +892,17 @@ class MainActivity : Activity() {
             return
         }
         if (requestCode == voicePermissionRequest) {
-            if (grantResults.isNotEmpty() && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            val permissionGranted = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
+            val webRequest = pendingWebAudioPermissionRequest
+            pendingWebAudioPermissionRequest = null
+            if (webRequest != null) {
+                runOnUiThread {
+                    if (permissionGranted) webRequest.grant(webRequest.resources) else webRequest.deny()
+                    if (!permissionGranted && ::web.isInitialized) {
+                        web.evaluateJavascript("if(window.onVoiceNotePermissionError)window.onVoiceNotePermissionError();", null)
+                    }
+                }
+            } else if (permissionGranted) {
                 startVoiceRoom()
             } else {
                 runOnUiThread { web.evaluateJavascript("window.onVoiceState&&window.onVoiceState('error','لم تسمح باستخدام الميكروفون');", null) }
@@ -810,6 +918,7 @@ class MainActivity : Activity() {
         if (!voiceRunning.compareAndSet(false, true)) return
         val sessionId = voiceSessionGeneration.incrementAndGet()
         voiceMuted.set(false)
+        voicePlaybackMuted.set(false)
         voiceExecutor.execute {
             var recorder: AudioRecord? = null
             var player: AudioTrack? = null
@@ -855,7 +964,7 @@ class MainActivity : Activity() {
                 if (minIn <= 0 || minOut <= 0) throw IllegalStateException("Audio device unavailable")
                 val frame = 640
                 recorder = AudioRecord.Builder()
-                    .setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
+                    .setAudioSource(MediaRecorder.AudioSource.MIC)
                     .setAudioFormat(AudioFormat.Builder().setSampleRate(rate).setEncoding(encoding).setChannelMask(inputMask).build())
                     .setBufferSizeInBytes(maxOf(minIn, frame * 8)).build()
                 if (recorder?.state != AudioRecord.STATE_INITIALIZED) {
@@ -891,10 +1000,6 @@ class MainActivity : Activity() {
                     noiseSuppressor = runCatching { NoiseSuppressor.create(activeRecorder.audioSessionId)?.apply { enabled = true } }
                         .onFailure { Log.w("AlkamelNet", "Noise suppression unavailable", it) }.getOrNull()
                 }
-                if (AutomaticGainControl.isAvailable()) {
-                    automaticGain = runCatching { AutomaticGainControl.create(activeRecorder.audioSessionId)?.apply { enabled = true } }
-                        .onFailure { Log.w("AlkamelNet", "Automatic gain control unavailable", it) }.getOrNull()
-                }
                 activeRecorder.startRecording()
                 if (activeRecorder.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
                     throw IllegalStateException("الميكروفون لم يبدأ التسجيل. تحقق من إذن الميكروفون")
@@ -915,6 +1020,7 @@ class MainActivity : Activity() {
                             val start = end + 1
                             val count = packet.offset + packet.length - start
                             if (count > 0) {
+                                activePlayer.setVolume(if (voicePlaybackMuted.get()) 0.0f else 1.0f)
                                 activePlayer.write(incoming, start, count)
                                 runOnUiThread { if (!isFinishing) web.evaluateJavascript("window.onVoiceActivity&&window.onVoiceActivity(${JSONObject.quote(sender)});", null) }
                             }
@@ -1007,6 +1113,13 @@ class MainActivity : Activity() {
                 @Suppress("DEPRECATION")
                 run { audioManager.isSpeakerphoneOn = false }
             }
+        }
+    }
+
+    private fun setVoicePlaybackMute(muted: Boolean) {
+        voicePlaybackMuted.set(muted)
+        runOnUiThread {
+            if (::web.isInitialized && !isFinishing) web.evaluateJavascript("window.onVoicePlaybackState&&window.onVoicePlaybackState(" + muted + ");", null)
         }
     }
 
@@ -1464,17 +1577,25 @@ class MainActivity : Activity() {
         }
     }
     inner class Bridge {
-        @JavascriptInterface fun startChat(name: String) { startLanChat(name) }
-        @JavascriptInterface fun sendChatMessage(message: String) { if (message.length <= 1000) sendLanPacket("message", message.trim()) }
+        @JavascriptInterface fun startChat(name: String) { startMqttChat(name) }
+        @JavascriptInterface fun sendChatMessage(message: String) { if (message.length <= 1000) publishMqtt("message", message.trim()) }
+        @JavascriptInterface fun sendChatGift(giftId: String) { if (giftId in setOf("rose", "heart", "crown", "diamond", "trophy", "fireworks")) publishMqtt("gift", giftId) }
+        @JavascriptInterface fun sendProfilePhoto(dataUrl: String) { if (dataUrl.isEmpty() || (dataUrl.length <= 78000 && dataUrl.startsWith("data:image/jpeg;base64,"))) publishMqtt("profile_photo", dataUrl) }
+        @JavascriptInterface fun sendVoiceSeatEvent(action: String, seat: Int) { if (action in setOf("join", "leave") && seat in 0..4) publishMqtt("voice_seat", JSONObject().put("action", action).put("seat", seat).toString()) }
+        @JavascriptInterface fun sendVoiceMessage(dataUrl: String) {
+            if (dataUrl.length in 1..1_200_000 && dataUrl.startsWith("data:audio/")) publishMqtt("voice_message", dataUrl)
+            else runOnUiThread { Toast.makeText(this@MainActivity, "المقطع الصوتي كبير أو غير صالح", Toast.LENGTH_SHORT).show() }
+        }
         @JavascriptInterface
         fun sendPrivateChatPacket(type: String, targetId: String, requestId: String, message: String) {
             if (type in setOf("private_request", "private_response", "private_message") && targetId.length <= 64 && requestId.length <= 64 && message.length <= 1000) {
-                sendPrivateLanPacket(type, targetId, requestId, message.trim())
+                publishMqtt(type, message.trim(), targetId, requestId)
             }
         }
-        @JavascriptInterface fun stopChat() { stopVoiceRoom(); stopLanChat() }
+        @JavascriptInterface fun stopChat() { stopVoiceRoom(); stopMqttChat(); stopLanChat() }
         @JavascriptInterface fun joinVoiceRoom() { requestVoiceRoom() }
         @JavascriptInterface fun setVoiceMuted(muted: Boolean) { setVoiceMute(muted) }
+        @JavascriptInterface fun setVoicePlaybackMuted(muted: Boolean) { setVoicePlaybackMute(muted) }
         @JavascriptInterface fun leaveVoiceRoom() { stopVoiceRoom() }
 
         @JavascriptInterface fun scanNearbyWifi() { runOnUiThread { requestNearbyWifiScan() } }
@@ -1708,6 +1829,35 @@ class MainActivity : Activity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        captureChatNotificationIntent(intent)
+        openPendingChatNotificationRoute()
+    }
+
+    private fun captureChatNotificationIntent(source: Intent?) {
+        if (source?.getBooleanExtra(MqttChatService.EXTRA_OPEN_CHAT, false) != true) return
+        pendingNotificationChatRoute = true
+        pendingNotificationChatKind = source.getStringExtra(MqttChatService.EXTRA_CHAT_KIND).orEmpty().ifBlank { "message" }
+        pendingNotificationPeerId = source.getStringExtra(MqttChatService.EXTRA_TARGET).orEmpty()
+        pendingNotificationPeerName = source.getStringExtra(MqttChatService.EXTRA_NAME).orEmpty()
+        pendingNotificationRequestId = source.getStringExtra(MqttChatService.EXTRA_REQUEST_ID).orEmpty()
+    }
+
+    private fun openPendingChatNotificationRoute() {
+        if (!pendingNotificationChatRoute || !::web.isInitialized || isFinishing || isDestroyed) return
+        val kind = JSONObject.quote(pendingNotificationChatKind)
+        val peer = JSONObject.quote(pendingNotificationPeerId)
+        val name = JSONObject.quote(pendingNotificationPeerName)
+        val request = JSONObject.quote(pendingNotificationRequestId)
+        web.post {
+            if (!pendingNotificationChatRoute || isFinishing || isDestroyed) return@post
+            web.evaluateJavascript("window.openChatFromNotification && window.openChatFromNotification(" + kind + "," + peer + "," + name + "," + request + ");", null)
+            pendingNotificationChatRoute = false
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         appInForeground = true
@@ -1828,6 +1978,7 @@ class MainActivity : Activity() {
             chatExecutor.shutdownNow()
             chatSendExecutor.shutdownNow()
         }
+        if (mqttReceiverRegistered) { runCatching { unregisterReceiver(mqttEventReceiver) }; mqttReceiverRegistered = false }
         networkGuard.shutdownNow()
         if (::web.isInitialized) {
             web.removeJavascriptInterface("AndroidBridge")

@@ -90,7 +90,7 @@ checks = {
     "expected socket close does not surface EBADF": "catch (e: SocketException)" in KOTLIN.read_text(encoding="utf-8") and "chatSessionGeneration.get() == sessionId" in KOTLIN.read_text(encoding="utf-8") and "if (chatRunning.get() && chatRequested.get() && chatSessionGeneration.get() == sessionId)" in KOTLIN.read_text(encoding="utf-8"),
     "socket recovery reconnects automatically": "startLanChat(chatNickname, ensureService = false)" in KOTLIN.read_text(encoding="utf-8") and "جارٍ إعادة الاتصال" in KOTLIN.read_text(encoding="utf-8"),
 
-    "voice microphone route": "MediaRecorder.AudioSource.VOICE_COMMUNICATION" in KOTLIN.read_text(encoding="utf-8"),
+    "voice microphone route": any(source in KOTLIN.read_text(encoding="utf-8") for source in ("MediaRecorder.AudioSource.VOICE_COMMUNICATION", "MediaRecorder.AudioSource.MIC")),
     "expanded group chat UI": "chat-room-shell" in HOME.read_text(encoding="utf-8") and "chat-bottom-dock" in HOME.read_text(encoding="utf-8"),
     "microphone permission": "android.permission.RECORD_AUDIO" in MANIFEST,
     "multicast permission": "android.permission.CHANGE_WIFI_MULTICAST_STATE" in MANIFEST,

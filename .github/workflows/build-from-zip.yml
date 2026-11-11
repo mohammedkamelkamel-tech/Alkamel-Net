@@ -145,6 +145,9 @@ jobs:
           fi
       - name: Build debug APK
         shell: bash
+        env:
+          MQTT_USERNAME: alkamel
+          MQTT_PASSWORD: ${{ secrets.MQTT_PASSWORD }}
         run: |
           set -euxo pipefail
           cd "$PROJECT_DIR"
