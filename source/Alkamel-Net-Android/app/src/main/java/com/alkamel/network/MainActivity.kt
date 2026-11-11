@@ -134,6 +134,7 @@ class MainActivity : Activity() {
     private val voiceRunning = AtomicBoolean(false)
     private val voiceSessionGeneration = java.util.concurrent.atomic.AtomicInteger(0)
     private val voiceMuted = AtomicBoolean(false)
+    private val voicePlaybackMuted = AtomicBoolean(false)
     @Volatile private var voiceSocket: java.net.MulticastSocket? = null
     @Volatile private var multicastLock: WifiManager.MulticastLock? = null
     private val voiceGroup = InetAddress.getByName("239.10.10.10")
@@ -891,6 +892,7 @@ class MainActivity : Activity() {
         if (!voiceRunning.compareAndSet(false, true)) return
         val sessionId = voiceSessionGeneration.incrementAndGet()
         voiceMuted.set(false)
+        voicePlaybackMuted.set(false)
         voiceExecutor.execute {
             var recorder: AudioRecord? = null
             var player: AudioTrack? = null
@@ -992,6 +994,7 @@ class MainActivity : Activity() {
                             val start = end + 1
                             val count = packet.offset + packet.length - start
                             if (count > 0) {
+                                activePlayer.setVolume(if (voicePlaybackMuted.get()) 0.0f else 1.0f)
                                 activePlayer.write(incoming, start, count)
                                 runOnUiThread { if (!isFinishing) web.evaluateJavascript("window.onVoiceActivity&&window.onVoiceActivity(${JSONObject.quote(sender)});", null) }
                             }
@@ -1084,6 +1087,13 @@ class MainActivity : Activity() {
                 @Suppress("DEPRECATION")
                 run { audioManager.isSpeakerphoneOn = false }
             }
+        }
+    }
+
+    private fun setVoicePlaybackMute(muted: Boolean) {
+        voicePlaybackMuted.set(muted)
+        runOnUiThread {
+            if (::web.isInitialized && !isFinishing) web.evaluateJavascript("window.onVoicePlaybackState&&window.onVoicePlaybackState(" + muted + ");", null)
         }
     }
 
@@ -1556,6 +1566,7 @@ class MainActivity : Activity() {
         @JavascriptInterface fun stopChat() { stopVoiceRoom(); stopMqttChat(); stopLanChat() }
         @JavascriptInterface fun joinVoiceRoom() { requestVoiceRoom() }
         @JavascriptInterface fun setVoiceMuted(muted: Boolean) { setVoiceMute(muted) }
+        @JavascriptInterface fun setVoicePlaybackMuted(muted: Boolean) { setVoicePlaybackMute(muted) }
         @JavascriptInterface fun leaveVoiceRoom() { stopVoiceRoom() }
 
         @JavascriptInterface fun scanNearbyWifi() { runOnUiThread { requestNearbyWifiScan() } }
