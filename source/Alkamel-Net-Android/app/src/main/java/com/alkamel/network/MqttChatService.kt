@@ -107,7 +107,9 @@ class MqttChatService : Service() {
                 getSharedPreferences("alkamel_mqtt", MODE_PRIVATE).edit().putString("nickname", nickname).apply()
                 requested = true
                 foreground()
-                connect()
+                // Restore joined state when this service already has a live broker connection.
+                if (client?.isConnected == true) subscribeAndAnnounce(client!!)
+                else connect()
             }
             else -> {
                 val prefs = getSharedPreferences("alkamel_mqtt", MODE_PRIVATE)
@@ -124,8 +126,26 @@ class MqttChatService : Service() {
         return START_STICKY
     }
 
+    private fun subscribeAndAnnounce(mqtt: MqttAsyncClient) {
+        if (!requested || !mqtt.isConnected) return
+        try {
+            mqtt.subscribe(arrayOf(GROUP_TOPIC, "alkamel/chat/private/$deviceId"), intArrayOf(1, 1), null, null)
+            publish("presence", "")
+            handler.removeCallbacks(presence)
+            handler.postDelayed(presence, 5000L)
+            emitState("joined", "")
+        } catch (e: Exception) {
+            Log.e("AlkamelNet-MQTT", "Subscribe failed", e)
+            emitState("error", "اتصل الخادم لكن تعذر الاشتراك في غرفة الدردشة.")
+        }
+    }
+
     private fun connect() {
-        if (!requested || connecting || client?.isConnected == true) return
+        if (!requested || connecting) return
+        if (client?.isConnected == true) {
+            subscribeAndAnnounce(client!!)
+            return
+        }
         val prefs = getSharedPreferences("alkamel_mqtt", MODE_PRIVATE)
         val host = prefs.getString("host", "10.10.10.10").orEmpty()
         val port = prefs.getInt("port", 1883)
@@ -146,16 +166,7 @@ class MqttChatService : Service() {
                     override fun connectComplete(reconnect: Boolean, serverURI: String?) {
                         connecting = false
                         if (!requested) return
-                        try {
-                            mqtt.subscribe(arrayOf(GROUP_TOPIC, "alkamel/chat/private/$deviceId"), intArrayOf(1, 1), null, null)
-                            publish("presence", "")
-                            handler.removeCallbacks(presence)
-                            handler.postDelayed(presence, 5000L)
-                            emitState("joined", "")
-                        } catch (e: Exception) {
-                            Log.e("AlkamelNet-MQTT", "Subscribe failed", e)
-                            emitState("error", "اتصل الخادم لكن تعذر الاشتراك في غرفة الدردشة.")
-                        }
+                        subscribeAndAnnounce(mqtt)
                     }
                     override fun connectionLost(cause: Throwable?) {
                         if (requested) emitState("reconnecting", "انقطع اتصال الخادم، جارٍ إعادة الاتصال…")
