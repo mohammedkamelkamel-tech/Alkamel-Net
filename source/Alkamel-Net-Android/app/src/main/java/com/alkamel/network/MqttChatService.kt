@@ -50,8 +50,6 @@ class MqttChatService : Service() {
     @Volatile private var connecting = false
     @Volatile private var requested = false
     private var nickname = ""
-    @Volatile private var reconnectAttempt = 0
-    private val retryConnect = Runnable { if (requested && client?.isConnected != true) connect() }
     private data class PendingPublish(val type: String, val text: String, val targetId: String?, val requestId: String?)
     private val pendingPublishes = ArrayDeque<PendingPublish>()
     private val pendingLock = Any()
@@ -172,8 +170,6 @@ class MqttChatService : Service() {
                 mqtt.setCallback(object : MqttCallbackExtended {
                     override fun connectComplete(reconnect: Boolean, serverURI: String?) {
                         connecting = false
-                        reconnectAttempt = 0
-                        handler.removeCallbacks(retryConnect)
                         if (!requested) return
                         subscribeAndAnnounce(mqtt)
                     }
@@ -234,16 +230,8 @@ class MqttChatService : Service() {
                     override fun onSuccess(asyncActionToken: IMqttToken?) { connecting = false }
                     override fun onFailure(asyncActionToken: IMqttToken?, exception: Throwable?) {
                         connecting = false
-                        Log.e("AlkamelNet-MQTT", "Connection failed to $host:$port", exception)
-                        runCatching { mqtt.close() }
-                        if (client === mqtt) client = null
-                        if (requested) {
-                            val delay = (3000L * (1L shl reconnectAttempt.coerceAtMost(3))).coerceAtMost(30000L)
-                            reconnectAttempt = (reconnectAttempt + 1).coerceAtMost(4)
-                            emitState("reconnecting", "تعذر الوصول إلى خادم الدردشة $host:$port؛ ستتم إعادة المحاولة تلقائياً.")
-                            handler.removeCallbacks(retryConnect)
-                            handler.postDelayed(retryConnect, delay)
-                        }
+                        Log.e("AlkamelNet-MQTT", "Connection failed", exception)
+                        emitState("error", "تعذر الاتصال بخادم الدردشة. تحقق من بيانات الدخول وتشغيل Mosquitto.")
                     }
                 })
             } catch (e: Exception) {
@@ -365,8 +353,6 @@ class MqttChatService : Service() {
     override fun onDestroy() {
         requested = false
         handler.removeCallbacks(presence)
-        handler.removeCallbacks(retryConnect)
-        reconnectAttempt = 0
         runCatching { client?.let { if (it.isConnected) it.disconnect(); it.close() } }
         client = null
         worker.shutdownNow()
