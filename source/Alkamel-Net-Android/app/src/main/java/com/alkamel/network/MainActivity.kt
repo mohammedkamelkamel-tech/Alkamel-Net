@@ -11,6 +11,7 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
 import android.media.AudioFormat
 import android.media.AudioRecord
@@ -1526,7 +1527,24 @@ class MainActivity : Activity() {
     private fun firewallAppsJson(): String {
         val pm=packageManager; val blocked=firewallBlockedPackages()
         val apps=pm.getInstalledApplications(PackageManager.GET_META_DATA).filter { it.packageName != packageName && pm.getLaunchIntentForPackage(it.packageName)!=null }
-            .map { a -> JSONObject().put("packageName",a.packageName).put("name",pm.getApplicationLabel(a).toString()).put("blocked",blocked.contains(a.packageName)) }
+            .map { a ->
+                val iconData = runCatching {
+                    val drawable = pm.getApplicationIcon(a)
+                    val bitmap = Bitmap.createBitmap(48, 48, Bitmap.Config.ARGB_8888)
+                    val canvas = Canvas(bitmap)
+                    drawable.setBounds(0, 0, 48, 48)
+                    drawable.draw(canvas)
+                    val bytes = java.io.ByteArrayOutputStream().use { out ->
+                        bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+                        out.toByteArray()
+                    }
+                    "data:image/png;base64," + android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+                }.getOrDefault("")
+                JSONObject().put("packageName",a.packageName)
+                    .put("name",pm.getApplicationLabel(a).toString())
+                    .put("icon",iconData)
+                    .put("blocked",blocked.contains(a.packageName))
+            }
             .sortedBy { it.optString("name").lowercase(java.util.Locale.getDefault()) }
         return org.json.JSONArray(apps).toString()
     }
