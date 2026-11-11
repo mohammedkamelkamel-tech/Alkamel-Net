@@ -52,6 +52,7 @@ class MqttChatService : Service() {
     private var nickname = ""
     private data class PendingPublish(val type: String, val text: String, val targetId: String?, val requestId: String?)
     private val pendingPublishes = ArrayDeque<PendingPublish>()
+    private val pendingLock = Any()
     private val deviceId by lazy {
         getSharedPreferences("alkamel_mqtt", MODE_PRIVATE).getString("device_id", null)
             ?: UUID.randomUUID().toString().also {
@@ -133,10 +134,10 @@ class MqttChatService : Service() {
     private fun subscribeAndAnnounce(mqtt: MqttAsyncClient) {
         if (!requested || !mqtt.isConnected) return
         try {
-            mqtt.subscribe(arrayOf(GROUP_TOPIC, "alkamel/chat/private/$deviceId"), intArrayOf(1, 1), null, null)
+            mqtt.subscribe(arrayOf(GROUP_TOPIC, "alkamel/chat/private/$deviceId", "alkamel/chat/seats/+"), intArrayOf(1, 1, 1), null, null)
             publish("presence", "")
-            while (pendingPublishes.isNotEmpty() && mqtt.isConnected) {
-                val pending = pendingPublishes.removeFirst()
+            while (mqtt.isConnected) {
+                val pending = synchronized(pendingLock) { if (pendingPublishes.isEmpty()) null else pendingPublishes.removeFirst() } ?: break
                 publishNow(mqtt, pending.type, pending.text, pending.targetId, pending.requestId)
             }
             handler.removeCallbacks(presence)
@@ -173,7 +174,15 @@ class MqttChatService : Service() {
                         if (requested) emitState("reconnecting", "انقطع اتصال الخادم، جارٍ إعادة الاتصال…")
                     }
                     override fun messageArrived(topic: String?, message: MqttMessage?) {
-                        val raw = message?.payload?.toString(Charsets.UTF_8) ?: return
+                        val payload = message?.payload ?: return
+                        if (topic?.startsWith("alkamel/chat/seats/") == true && payload.isEmpty()) {
+                            val seat = topic.substringAfterLast('/').toIntOrNull() ?: return
+                            val clear = JSONObject().put("type", "voice_seat").put("id", "server").put("name", "النظام")
+                                .put("text", JSONObject().put("action", "clear").put("seat", seat).toString())
+                            emitPacket(clear.toString())
+                            return
+                        }
+                        val raw = payload.toString(Charsets.UTF_8)
                         try {
                             val obj = JSONObject(raw)
                             if (obj.optString("id") == deviceId) return
@@ -188,8 +197,7 @@ class MqttChatService : Service() {
                     override fun deliveryComplete(token: IMqttDeliveryToken?) {}
                 })
                 val options = MqttConnectOptions().apply {
-                    userName = BuildConfig.MQTT_USERNAME
-                    password = BuildConfig.MQTT_PASSWORD.toCharArray()
+                    // Broker access is configured for anonymous LAN clients; no credentials are embedded in the APK.
                     isAutomaticReconnect = true
                     isCleanSession = true
                     connectionTimeout = 10
@@ -220,8 +228,10 @@ class MqttChatService : Service() {
         }
         val mqtt = client
         if (mqtt == null || !mqtt.isConnected) {
-            if (pendingPublishes.size >= 30) pendingPublishes.removeFirst()
-            pendingPublishes.addLast(PendingPublish(type, text, targetId, requestId))
+            synchronized(pendingLock) {
+                if (pendingPublishes.size >= 30) pendingPublishes.removeFirst()
+                pendingPublishes.addLast(PendingPublish(type, text, targetId, requestId))
+            }
             Log.i("AlkamelNet-MQTT", "Queued $type until broker connection is ready")
             if (!requested) {
                 nickname = getSharedPreferences("alkamel_mqtt", MODE_PRIVATE).getString("nickname", "").orEmpty()
@@ -238,17 +248,26 @@ class MqttChatService : Service() {
 
     private fun publishNow(mqtt: MqttAsyncClient, type: String, text: String, targetId: String?, requestId: String?) {
         if (!mqtt.isConnected) {
-            if (pendingPublishes.size >= 30) pendingPublishes.removeFirst()
-            pendingPublishes.addLast(PendingPublish(type, text, targetId, requestId))
+            synchronized(pendingLock) {
+                if (pendingPublishes.size >= 30) pendingPublishes.removeFirst()
+                pendingPublishes.addLast(PendingPublish(type, text, targetId, requestId))
+            }
             return
         }
         val packet = JSONObject().put("type", type).put("id", deviceId).put("name", nickname).put("text", text)
         if (!targetId.isNullOrBlank()) packet.put("to", targetId)
         if (!requestId.isNullOrBlank()) packet.put("requestId", requestId)
         if (type == "message") packet.put("messageId", UUID.randomUUID().toString())
-        val topic = if (type.startsWith("private_") && !targetId.isNullOrBlank()) "alkamel/chat/private/$targetId" else GROUP_TOPIC
+        val seat = if (type == "voice_seat") runCatching { JSONObject(text).optInt("seat", -1) }.getOrDefault(-1) else -1
+        val topic = when {
+            type.startsWith("private_") && !targetId.isNullOrBlank() -> "alkamel/chat/private/$targetId"
+            type == "voice_seat" && seat in 0..4 -> "alkamel/chat/seats/$seat"
+            else -> GROUP_TOPIC
+        }
         runCatching {
-            mqtt.publish(topic, MqttMessage(packet.toString().toByteArray(Charsets.UTF_8)).apply { qos = 1; isRetained = false })
+            val leaving = type == "voice_seat" && runCatching { JSONObject(text).optString("action") == "leave" }.getOrDefault(false)
+            val payload = if (leaving) ByteArray(0) else packet.toString().toByteArray(Charsets.UTF_8)
+            mqtt.publish(topic, MqttMessage(payload).apply { qos = 1; isRetained = type == "voice_seat" })
         }.onFailure { Log.w("AlkamelNet-MQTT", "$type publish failed", it) }
     }
 
