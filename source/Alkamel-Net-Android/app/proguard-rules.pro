@@ -30,3 +30,7 @@
 -keep class org.eclipse.paho.client.mqttv3.MqttAsyncClient { *; }
 -keep class org.eclipse.paho.client.mqttv3.MqttConnectOptions { *; }
 -keep class com.alkamel.network.MqttChatService { *; }
+
+# Paho MQTT selects its logger by class name at runtime.
+-keep class org.eclipse.paho.client.mqttv3.logging.** { *; }
+-keep class org.eclipse.paho.client.mqttv3.internal.logging.** { *; }
