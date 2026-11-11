@@ -1580,6 +1580,7 @@ class MainActivity : Activity() {
         @JavascriptInterface fun startChat(name: String) { startMqttChat(name) }
         @JavascriptInterface fun sendChatMessage(message: String) { if (message.length <= 1000) publishMqtt("message", message.trim()) }
         @JavascriptInterface fun sendChatGift(giftId: String) { if (giftId in setOf("rose", "heart", "crown", "diamond", "trophy", "fireworks")) publishMqtt("gift", giftId) }
+        @JavascriptInterface fun sendVoiceSeatEvent(action: String, seat: Int) { if (action in setOf("join", "leave") && seat in 0..4) publishMqtt("voice_seat", JSONObject().put("action", action).put("seat", seat).toString()) }
         @JavascriptInterface fun sendVoiceMessage(dataUrl: String) {
             if (dataUrl.length in 1..1_200_000 && dataUrl.startsWith("data:audio/")) publishMqtt("voice_message", dataUrl)
             else runOnUiThread { Toast.makeText(this@MainActivity, "المقطع الصوتي كبير أو غير صالح", Toast.LENGTH_SHORT).show() }
