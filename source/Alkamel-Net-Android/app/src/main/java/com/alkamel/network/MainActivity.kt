@@ -99,6 +99,7 @@ class MainActivity : Activity() {
     @Volatile private var chatNickname = ""
     private val chatId = java.util.UUID.randomUUID().toString()
     private val chatPeerAddresses = ConcurrentHashMap<String, InetAddress>()
+    private val notifiedChatMessageIds = ConcurrentHashMap.newKeySet<String>()
     private val chatExecutor = Executors.newSingleThreadExecutor()
     private val chatSendExecutor = Executors.newSingleThreadExecutor()
     private val voiceExecutor = Executors.newSingleThreadExecutor()
@@ -473,6 +474,15 @@ class MainActivity : Activity() {
         getSystemService(NotificationManager::class.java).notify(notificationId, notification)
     }
 
+    private fun shouldNotifyIncomingChat(obj: JSONObject): Boolean {
+        if (obj.optString("type") != "message") return true
+        val messageId = obj.optString("messageId").trim()
+        if (messageId.isEmpty()) return true
+        if (!notifiedChatMessageIds.add(messageId)) return false
+        if (notifiedChatMessageIds.size > 1000) notifiedChatMessageIds.clear()
+        return true
+    }
+
     private fun notifyIncomingChat(obj: JSONObject) {
         if (appInForeground) return
         val type = obj.optString("type")
@@ -568,7 +578,7 @@ class MainActivity : Activity() {
                             val isPrivatePacket = packetType in setOf("private_request", "private_response", "private_message") && obj.optString("to") == chatId
                             if (isPublicPacket || isPrivatePacket) {
                                 if (packetType == "message" || packetType == "private_message" || packetType == "private_request") {
-                                    try { notifyIncomingChat(obj) } catch (notificationError: Exception) { Log.w("AlkamelNet", "Unable to show chat notification", notificationError) }
+                                    try { if (shouldNotifyIncomingChat(obj)) notifyIncomingChat(obj) } catch (notificationError: Exception) { Log.w("AlkamelNet", "Unable to show chat notification", notificationError) }
                                 }
                                 runOnUiThread { if (::web.isInitialized && !isFinishing && !isDestroyed) web.evaluateJavascript("if(window.onLanChatPacket)window.onLanChatPacket(${JSONObject.quote(raw)});", null) }
                             }
@@ -1823,9 +1833,15 @@ class MainActivity : Activity() {
         url.startsWith("http://30.10.10.10:88/") ||
         url.startsWith("https://appassets.androidplatform.net/assets/hd/")
 
+    override fun onStop() {
+        // onPause also runs for transient system dialogs and permission prompts.
+        // Only mark a real background transition when the Activity is no longer visible.
+        backgroundedAtMs = System.currentTimeMillis()
+        super.onStop()
+    }
+
     override fun onPause() {
         appInForeground = false
-        backgroundedAtMs = System.currentTimeMillis()
         if (::web.isInitialized) {
             web.onPause()
             web.pauseTimers()
@@ -1841,16 +1857,16 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
-        // Keep LAN workers alive when Android backgrounds/recreates the Activity.
-        if (isFinishing) {
-            stopVoiceRoom()
-            stopLanChat()
-            io.shutdownNow()
-            voiceExecutor.shutdownNow()
-            voiceReceiveExecutor.shutdownNow()
-            chatExecutor.shutdownNow()
-            chatSendExecutor.shutdownNow()
-        }
+        // MainActivity owns these sockets and executors. Always release them when
+        // this Activity instance is destroyed, including OS-driven recreation.
+        // The next Activity instance can create a fresh chat session on demand.
+        stopVoiceRoom()
+        stopLanChat()
+        io.shutdownNow()
+        voiceExecutor.shutdownNow()
+        voiceReceiveExecutor.shutdownNow()
+        chatExecutor.shutdownNow()
+        chatSendExecutor.shutdownNow()
         networkGuard.shutdownNow()
         if (::web.isInitialized) {
             web.removeJavascriptInterface("AndroidBridge")
