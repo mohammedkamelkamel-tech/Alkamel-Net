@@ -92,6 +92,11 @@ class MainActivity : Activity() {
     private var networkSuccessCount = 0
     private val mainHandler = Handler(Looper.getMainLooper())
     private var mqttReceiverRegistered = false
+    @Volatile private var pendingNotificationChatRoute = false
+    @Volatile private var pendingNotificationChatKind = "message"
+    @Volatile private var pendingNotificationPeerId = ""
+    @Volatile private var pendingNotificationPeerName = ""
+    @Volatile private var pendingNotificationRequestId = ""
     private val mqttEventReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val state = intent?.getStringExtra(MqttChatService.EXTRA_STATE)
@@ -142,6 +147,7 @@ class MainActivity : Activity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        captureChatNotificationIntent(intent)
         val mqttFilter = IntentFilter(MqttChatService.ACTION_EVENT)
         if (Build.VERSION.SDK_INT >= 33) registerReceiver(mqttEventReceiver, mqttFilter, Context.RECEIVER_NOT_EXPORTED)
         else registerReceiver(mqttEventReceiver, mqttFilter)
@@ -273,6 +279,7 @@ class MainActivity : Activity() {
                         if (returnPage == "live" || returnPage == "rest") {
                             view?.evaluateJavascript("if(typeof showPage==='function')showPage('$returnPage');", null)
                         }
+                        if (pendingNotificationChatRoute) view?.post { openPendingChatNotificationRoute() }
                         view?.evaluateJavascript("document.documentElement && document.body ? document.body.innerText.length : 0") { value ->
                             val hasContent = value != null && value != "null" && value != "0" && value != "\"\""
                             if (!hasContent) loadHomeFallback("الصفحة الرئيسية فارغة")
@@ -1768,6 +1775,35 @@ class MainActivity : Activity() {
             if (result == null || result.contains("reload")) {
                 runOnUiThread { if (!isFinishing && !isDestroyed) loadHome() }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        captureChatNotificationIntent(intent)
+        openPendingChatNotificationRoute()
+    }
+
+    private fun captureChatNotificationIntent(source: Intent?) {
+        if (source?.getBooleanExtra(MqttChatService.EXTRA_OPEN_CHAT, false) != true) return
+        pendingNotificationChatRoute = true
+        pendingNotificationChatKind = source.getStringExtra(MqttChatService.EXTRA_CHAT_KIND).orEmpty().ifBlank { "message" }
+        pendingNotificationPeerId = source.getStringExtra(MqttChatService.EXTRA_TARGET).orEmpty()
+        pendingNotificationPeerName = source.getStringExtra(MqttChatService.EXTRA_NAME).orEmpty()
+        pendingNotificationRequestId = source.getStringExtra(MqttChatService.EXTRA_REQUEST_ID).orEmpty()
+    }
+
+    private fun openPendingChatNotificationRoute() {
+        if (!pendingNotificationChatRoute || !::web.isInitialized || isFinishing || isDestroyed) return
+        val kind = JSONObject.quote(pendingNotificationChatKind)
+        val peer = JSONObject.quote(pendingNotificationPeerId)
+        val name = JSONObject.quote(pendingNotificationPeerName)
+        val request = JSONObject.quote(pendingNotificationRequestId)
+        web.post {
+            if (!pendingNotificationChatRoute || isFinishing || isDestroyed) return@post
+            web.evaluateJavascript("window.openChatFromNotification && window.openChatFromNotification(" + kind + "," + peer + "," + name + "," + request + ");", null)
+            pendingNotificationChatRoute = false
         }
     }
 
