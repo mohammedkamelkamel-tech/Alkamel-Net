@@ -9,9 +9,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.ActivityNotFoundException
 import android.content.Intent
-import android.content.BroadcastReceiver
 import android.content.Context
-import android.content.IntentFilter
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.media.AudioFormat
@@ -91,29 +89,6 @@ class MainActivity : Activity() {
     private var networkFailureCount = 0
     private var networkSuccessCount = 0
     private val mainHandler = Handler(Looper.getMainLooper())
-    private var mqttReceiverRegistered = false
-    @Volatile private var pendingNotificationChatRoute = false
-    @Volatile private var pendingNotificationChatKind = "message"
-    @Volatile private var pendingNotificationPeerId = ""
-    @Volatile private var pendingNotificationPeerName = ""
-    @Volatile private var pendingNotificationRequestId = ""
-    private val mqttEventReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            val state = intent?.getStringExtra(MqttChatService.EXTRA_STATE)
-            if (state != null) {
-                chatRunning.set(state == "joined")
-                val detail = intent.getStringExtra(MqttChatService.EXTRA_DETAIL).orEmpty()
-                notifyChatState(state, detail)
-            }
-            val raw = intent?.getStringExtra(MqttChatService.EXTRA_RAW)
-            if (!raw.isNullOrBlank()) {
-                runCatching { notifyIncomingChat(JSONObject(raw)) }
-                if (::web.isInitialized && !isFinishing && !isDestroyed) {
-                    web.evaluateJavascript("if(window.onLanChatPacket)window.onLanChatPacket(${JSONObject.quote(raw)});", null)
-                }
-            }
-        }
-    }
     @Volatile private var resumeRecoveryToken = 0
     @Volatile private var appInForeground = false
     private val notificationChannelId = "alkamel_events"
@@ -150,11 +125,6 @@ class MainActivity : Activity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        captureChatNotificationIntent(intent)
-        val mqttFilter = IntentFilter(MqttChatService.ACTION_EVENT)
-        if (Build.VERSION.SDK_INT >= 33) registerReceiver(mqttEventReceiver, mqttFilter, Context.RECEIVER_NOT_EXPORTED)
-        else registerReceiver(mqttEventReceiver, mqttFilter)
-        mqttReceiverRegistered = true
         window.statusBarColor = Color.rgb(7, 20, 38)
         window.navigationBarColor = Color.rgb(7, 20, 38)
         CookieManager.getInstance().setAcceptCookie(true)
@@ -663,46 +633,6 @@ class MainActivity : Activity() {
             }
         }
     }
-    private fun startMqttChat(name: String, ensureService: Boolean = true) {
-        val clean = name.trim().take(24)
-        if (clean.isEmpty()) return
-        chatNickname = clean
-        chatRequested.set(true)
-        if (ensureService && getSharedPreferences("alkamel_app_setup", MODE_PRIVATE).getBoolean("background_enabled", false)) {
-            val keepAlive = Intent(this, ChatKeepAliveService::class.java).apply { action = ChatKeepAliveService.ACTION_START }
-            try { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(keepAlive) else startService(keepAlive) }
-            catch (e: Exception) { Log.e("AlkamelNet", "Unable to start chat keep-alive service", e) }
-        }
-        val intent = Intent(this, MqttChatService::class.java).apply {
-            action = MqttChatService.ACTION_CONNECT
-            putExtra(MqttChatService.EXTRA_NAME, clean)
-        }
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent) else startService(intent)
-        } catch (e: Exception) {
-            Log.e("AlkamelNet", "Unable to start MQTT chat service", e)
-            notifyChatState("error", "تعذر تشغيل خدمة الدردشة في الخلفية.")
-        }
-    }
-
-    private fun publishMqtt(type: String, message: String, targetId: String? = null, requestId: String? = null) {
-        val intent = Intent(this, MqttChatService::class.java).apply {
-            action = MqttChatService.ACTION_PUBLISH
-            putExtra(MqttChatService.EXTRA_TYPE, type)
-            putExtra(MqttChatService.EXTRA_TEXT, message.take(if (type == "voice_message") 1_200_000 else 1000))
-            targetId?.let { putExtra(MqttChatService.EXTRA_TARGET, it) }
-            requestId?.let { putExtra(MqttChatService.EXTRA_REQUEST_ID, it) }
-        }
-        runCatching { startService(intent) }.onFailure { Log.w("AlkamelNet", "Unable to queue MQTT message", it) }
-    }
-
-    private fun stopMqttChat() {
-        chatRequested.set(false)
-        chatRunning.set(false)
-        runCatching { stopService(Intent(this, MqttChatService::class.java)) }
-        notifyChatState("stopped", "")
-    }
-
     private fun notifyChatState(state: String, detail: String) {
         val stateJson = JSONObject.quote(state)
         val detailJson = JSONObject.quote(detail)
@@ -1872,12 +1802,12 @@ class MainActivity : Activity() {
     }
 
     private fun captureChatNotificationIntent(source: Intent?) {
-        if (source?.getBooleanExtra(MqttChatService.EXTRA_OPEN_CHAT, false) != true) return
+        if (source?.getBooleanExtra("com.alkamel.network.OPEN_CHAT_NOTIFICATION", false) != true) return
         pendingNotificationChatRoute = true
-        pendingNotificationChatKind = source.getStringExtra(MqttChatService.EXTRA_CHAT_KIND).orEmpty().ifBlank { "message" }
-        pendingNotificationPeerId = source.getStringExtra(MqttChatService.EXTRA_TARGET).orEmpty()
-        pendingNotificationPeerName = source.getStringExtra(MqttChatService.EXTRA_NAME).orEmpty()
-        pendingNotificationRequestId = source.getStringExtra(MqttChatService.EXTRA_REQUEST_ID).orEmpty()
+        pendingNotificationChatKind = source.getStringExtra("chat_kind").orEmpty().ifBlank { "message" }
+        pendingNotificationPeerId = source.getStringExtra("target").orEmpty()
+        pendingNotificationPeerName = source.getStringExtra("name").orEmpty()
+        pendingNotificationRequestId = source.getStringExtra("request_id").orEmpty()
     }
 
     private fun openPendingChatNotificationRoute() {
@@ -2021,7 +1951,6 @@ class MainActivity : Activity() {
         voiceReceiveExecutor.shutdownNow()
         chatExecutor.shutdownNow()
         chatSendExecutor.shutdownNow()
-        if (mqttReceiverRegistered) { runCatching { unregisterReceiver(mqttEventReceiver) }; mqttReceiverRegistered = false }
         networkGuard.shutdownNow()
         if (::web.isInitialized) {
             web.removeJavascriptInterface("AndroidBridge")
