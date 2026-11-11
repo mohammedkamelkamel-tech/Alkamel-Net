@@ -14,14 +14,20 @@ with:
 # All LAN chat clients can read and publish group chat/presence.
 topic readwrite alkamel/chat/room
 
+# Shared five-seat occupancy and profile pictures are retained by the broker.
+topic readwrite alkamel/chat/seats/+
+topic readwrite alkamel/chat/profiles/+
+
 # Clients can publish private packets to a recipient topic, but may
 # read only the private topic whose suffix equals their MQTT client ID.
 pattern write alkamel/chat/private/+
 pattern read alkamel/chat/private/%c
 ```
 
-The app uses its persistent random device ID as its MQTT client ID and subscribes to
-`alkamel/chat/private/<device-id>`.
+The app uses its persistent random device ID as its MQTT client ID. It subscribes to
+`alkamel/chat/private/<device-id>`, all five `alkamel/chat/seats/+` topics, and
+`alkamel/chat/profiles/+`. Seat occupancy and profile pictures use retained messages so
+newly connected members receive the current state immediately.
 
 ## 2. Update mosquitto.conf
 
