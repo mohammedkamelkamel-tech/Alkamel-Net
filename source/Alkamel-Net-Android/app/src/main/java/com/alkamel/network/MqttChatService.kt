@@ -53,6 +53,8 @@ class MqttChatService : Service() {
     private data class PendingPublish(val type: String, val text: String, val targetId: String?, val requestId: String?)
     private val pendingPublishes = ArrayDeque<PendingPublish>()
     private val pendingLock = Any()
+    @Volatile private var activeSeatIndex = -1
+    @Volatile private var activeSeatText = ""
     private val deviceId by lazy {
         getSharedPreferences("alkamel_mqtt", MODE_PRIVATE).getString("device_id", null)
             ?: UUID.randomUUID().toString().also {
@@ -63,6 +65,7 @@ class MqttChatService : Service() {
         override fun run() {
             if (requested && client?.isConnected == true) {
                 publish("presence", "")
+                if (activeSeatIndex in 0..4 && activeSeatText.isNotEmpty()) publish("voice_seat", activeSeatText)
                 handler.postDelayed(this, 5000L)
             }
         }
@@ -194,6 +197,12 @@ class MqttChatService : Service() {
                             if (obj.optString("id") == deviceId) return
                             if (topic == "alkamel/chat/private/$deviceId" && obj.optString("to") != deviceId) return
                             val type = obj.optString("type")
+                            if (type == "voice_seat" && System.currentTimeMillis() - obj.optLong("sentAt", 0L) > 20000L) {
+                                if (topic?.startsWith("alkamel/chat/seats/") == true) {
+                                    runCatching { mqtt.publish(topic, MqttMessage(ByteArray(0)).apply { qos = 1; isRetained = true }) }
+                                }
+                                return
+                            }
                             if (type in setOf("presence", "message", "voice_message", "gift", "profile_photo", "voice_seat", "private_request", "private_response", "private_message")) {
                                 if (type == "message" || type == "private_message" || type == "private_request" || type == "gift") notifyIncoming(obj)
                                 emitPacket(raw)
@@ -260,10 +269,19 @@ class MqttChatService : Service() {
             }
             return
         }
-        val packet = JSONObject().put("type", type).put("id", deviceId).put("name", nickname).put("text", text)
+        val packet = JSONObject().put("type", type).put("id", deviceId).put("name", nickname).put("text", text).put("sentAt", System.currentTimeMillis())
         if (!targetId.isNullOrBlank()) packet.put("to", targetId)
         if (!requestId.isNullOrBlank()) packet.put("requestId", requestId)
         if (type == "message") packet.put("messageId", UUID.randomUUID().toString())
+        if (type == "voice_seat") {
+            val seatPacket = runCatching { JSONObject(text) }.getOrNull()
+            val action = seatPacket?.optString("action").orEmpty()
+            val index = seatPacket?.optInt("seat", -1) ?: -1
+            if (index in 0..4) {
+                if (action == "join") { activeSeatIndex = index; activeSeatText = text }
+                else if (action == "leave" && activeSeatIndex == index) { activeSeatIndex = -1; activeSeatText = "" }
+            }
+        }
         val seat = if (type == "voice_seat") runCatching { JSONObject(text).optInt("seat", -1) }.getOrDefault(-1) else -1
         val topic = when {
             type.startsWith("private_") && !targetId.isNullOrBlank() -> "alkamel/chat/private/$targetId"
