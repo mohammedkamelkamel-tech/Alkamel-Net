@@ -76,6 +76,8 @@ class MainActivity : Activity() {
     private lateinit var root: FrameLayout
     private lateinit var loading: LinearLayout
     private lateinit var errorPanel: LinearLayout
+    private var pendingImageFileCallback: android.webkit.ValueCallback<Array<Uri>>? = null
+    private val imagePickerRequestCode = 7415
     private val io = Executors.newSingleThreadExecutor()
     private val homeUrl = "https://appassets.androidplatform.net/assets/home.html"
     private val assetLoader by lazy {
@@ -158,6 +160,34 @@ class MainActivity : Activity() {
                 settings.offscreenPreRaster = true
             }
             webChromeClient = object : WebChromeClient() {
+                override fun onShowFileChooser(
+                    webView: WebView?,
+                    filePathCallback: android.webkit.ValueCallback<Array<Uri>>?,
+                    fileChooserParams: WebChromeClient.FileChooserParams?
+                ): Boolean {
+                    pendingImageFileCallback?.onReceiveValue(null)
+                    pendingImageFileCallback = filePathCallback
+                    return try {
+                        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                            addCategory(Intent.CATEGORY_OPENABLE)
+                            type = "image/*"
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        startActivityForResult(intent, imagePickerRequestCode)
+                        true
+                    } catch (e: ActivityNotFoundException) {
+                        pendingImageFileCallback?.onReceiveValue(null)
+                        pendingImageFileCallback = null
+                        runOnUiThread { Toast.makeText(this@MainActivity, "تعذر فتح معرض الصور على هذا الجهاز", Toast.LENGTH_LONG).show() }
+                        false
+                    } catch (e: Exception) {
+                        Log.e("AlkamelNet", "Unable to open image picker", e)
+                        pendingImageFileCallback?.onReceiveValue(null)
+                        pendingImageFileCallback = null
+                        false
+                    }
+                }
+
                 override fun onPermissionRequest(request: android.webkit.PermissionRequest) {
                     runOnUiThread {
                         val trusted = request.origin?.host == "appassets.androidplatform.net"
@@ -1564,6 +1594,18 @@ class MainActivity : Activity() {
     @Suppress("DEPRECATION")
     override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?) {
         super.onActivityResult(requestCode,resultCode,data)
+        if (requestCode == imagePickerRequestCode) {
+            val callback = pendingImageFileCallback
+            pendingImageFileCallback = null
+            val selected = if (resultCode == Activity.RESULT_OK) data?.data else null
+            if (selected != null) {
+                runCatching {
+                    contentResolver.takePersistableUriPermission(selected, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }.onFailure { Log.d("AlkamelNet", "Image picker did not grant persistable permission", it) }
+            }
+            callback?.onReceiveValue(if (selected != null) arrayOf(selected) else null)
+            return
+        }
         if(requestCode==firewallConsentRequest) { val pending=pendingFirewallPackages; pendingFirewallPackages=null
             if(resultCode==Activity.RESULT_OK && pending!=null) startFirewallService() else { firewallPrefs().edit().putStringSet("blocked_packages",emptySet()).apply(); Toast.makeText(this,"يلزم السماح باتصال VPN لتفعيل منع التطبيقات",Toast.LENGTH_LONG).show() }
             notifyFirewallStatus(); if(::web.isInitialized) web.evaluateJavascript("window.onFirewallApps && window.onFirewallApps(JSON.parse(${JSONObject.quote(firewallAppsJson())}))",null)
