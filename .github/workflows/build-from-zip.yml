@@ -2,7 +2,7 @@ name: Build Alkamel-Net APK from the single project version
 on:
   workflow_dispatch:
   push:
-    branches: [fix/integrated-mqtt-seats-profile-lifecycle]
+    branches: [fix/integrated-mqtt-seats-profile-lifecycle, 1.9.5]
     paths:
       - 'source/Alkamel-Net-Android/**'
       - '.github/workflows/build-from-zip.yml'
