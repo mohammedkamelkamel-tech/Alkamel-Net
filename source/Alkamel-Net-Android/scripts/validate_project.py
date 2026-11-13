@@ -35,7 +35,7 @@ checks = {
     "logout button is below subscriber refresh": HOME.read_text(encoding="utf-8").find("onclick=\"refreshStatus()\"") < HOME.read_text(encoding="utf-8").find("onclick=\"logout()\"") and "إنهاء جلسة الحساب" not in HOME.read_text(encoding="utf-8"),
     "minSdk 24": "minSdk = 24" in GRADLE,
     "targetSdk 35": "targetSdk = 35" in GRADLE,
-    "app version 1.9.2": "versionCode = 77" in GRADLE and 'versionName = "1.9.3"' in GRADLE,
+    "app version 1.9.5": "versionCode = 79" in GRADLE and 'versionName = "1.9.5"' in GRADLE,
     "continuous private-network enforcement and automatic recovery": "startNetworkAccessGuard()" in KOTLIN.read_text(encoding="utf-8") and "scheduleWithFixedDelay" in KOTLIN.read_text(encoding="utf-8") and "networkAccessBlocked" in KOTLIN.read_text(encoding="utf-8") and "تم استعادة الاتصال بشبكة الكامل" in KOTLIN.read_text(encoding="utf-8"),
     "app label": 'android:label="شبكة الكامل"' in MANIFEST,
     "launcher icon uses approved artwork": 'android:icon="@drawable/ic_launcher"' in MANIFEST and 'android:roundIcon="@drawable/ic_launcher"' in MANIFEST and (APP / "res/drawable-nodpi/ic_launcher.webp").is_file() and (APP / "res/drawable-nodpi/ic_launcher.webp").stat().st_size > 4000 and (APP / "res/drawable-nodpi/ic_launcher.webp").read_bytes()[:4] == b"RIFF" and (APP / "res/drawable-nodpi/ic_launcher.webp").read_bytes()[8:12] == b"WEBP",
@@ -151,7 +151,7 @@ checks_lan = {
     "Activity lifecycle distinguishes onStop from onPause": "override fun onStop()" in kotlin_source and "backgroundedAtMs = System.currentTimeMillis()" in kotlin_source,
     "Activity destruction releases native LAN workers": "Release Activity-owned LAN sockets and workers on every destruction path." in kotlin_source,
     "Wi-Fi and notification permission request identifiers are distinct": "private val notificationPermissionRequest = 7413" in kotlin_source and "private val wifiScanPermissionRequest = 7414" in kotlin_source and kotlin_source.count("private val wifiScanPermissionRequest") == 1,
-    "integrated repair version": "versionCode = 77" in GRADLE and 'versionName = "1.9.3"' in GRADLE,
+    "integrated repair version": "versionCode = 79" in GRADLE and 'versionName = "1.9.5"' in GRADLE,
 }
 for label, passed in checks_lan.items():
     print(("PASS" if passed else "FAIL") + " - " + label)
