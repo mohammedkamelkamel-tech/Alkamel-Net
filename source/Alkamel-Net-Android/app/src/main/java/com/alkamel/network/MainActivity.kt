@@ -1350,7 +1350,7 @@ class MainActivity : Activity() {
     private fun collectAppNetworkUsage(): JSONObject {
         if (!hasUsageStatsAccess()) {
             return JSONObject().put("status", "permission")
-                .put("message", "يرجى السماح للتطبيق بالوصول إلى بيانات الاستخدام من إعدادات أندرويد.")
+                .put("message", "يرجى السماح لشبكة الكامل بالوصول إلى بيانات الاستخدام من إعدادات أندرويد.")
         }
         try {
             val calendar = java.util.Calendar.getInstance()
@@ -1363,8 +1363,6 @@ class MainActivity : Activity() {
             val traffic = HashMap<Int, Pair<Long, Long>>()
             val manager = getSystemService(NETWORK_STATS_SERVICE) as android.app.usage.NetworkStatsManager
 
-            // Keep the original الكامل-تحديد السرعة accounting method:
-            // collect Wi-Fi and mobile traffic per application UID, excluding system UIDs.
             fun collect(networkType: Int) {
                 var stats: android.app.usage.NetworkStats? = null
                 try {
@@ -1385,68 +1383,48 @@ class MainActivity : Activity() {
             }
 
             collect(ConnectivityManager.TYPE_WIFI)
-            try {
-                collect(ConnectivityManager.TYPE_MOBILE)
-            } catch (e: Exception) {
-                Log.w("AlkamelNet", "Mobile network usage query failed", e)
-            }
+            runCatching { collect(ConnectivityManager.TYPE_MOBILE) }
+                .onFailure { Log.w("AlkamelNet", "Mobile usage query unavailable", it) }
 
-            val apps = packageManager.getInstalledApplications(0)
-                .filter { it.uid >= 10000 }
-                .mapNotNull { app ->
-                    val usage = traffic[app.uid] ?: return@mapNotNull null
-                    val total = usage.first + usage.second
-                    if (total <= 0L) return@mapNotNull null
-                    Triple(app, usage, total)
+            // Android reports traffic by UID. Packages sharing a UID are grouped into one
+            // row because Android does not expose a reliable per-package split for that UID.
+            val installedByUid = packageManager.getInstalledApplications(0)
+                .filter { it.uid >= 10000 && it.packageName != packageName }
+                .groupBy { it.uid }
+            val rows = installedByUid.mapNotNull { (uid, packages) ->
+                val usage = traffic[uid] ?: return@mapNotNull null
+                val bytes = (usage.first + usage.second).coerceAtLeast(0L)
+                if (bytes == 0L) return@mapNotNull null
+                val sortedPackages = packages.sortedBy {
+                    runCatching { packageManager.getApplicationLabel(it).toString().lowercase(java.util.Locale.ROOT) }
+                        .getOrDefault(it.packageName)
                 }
-                .sortedByDescending { it.third }
-
-            // Apply the same 11% once to the overall total, then distribute it
-            // proportionally among the seven highest-consuming applications.
-            val rawOverallTotal = apps.sumOf { it.third }
-            val adjustedOverallTotal = kotlin.math.round(rawOverallTotal.toDouble() * 1.11).toLong()
-            val extraBytes = (adjustedOverallTotal - rawOverallTotal).coerceAtLeast(0L)
-            val displayedTotals = LongArray(apps.size) { apps[it].third }
-
-            if (apps.isNotEmpty() && extraBytes > 0L) {
-                val recipientsCount = minOf(7, apps.size)
-                val recipientBytes = apps.take(recipientsCount).sumOf { it.third }
-                if (recipientBytes > 0L) {
-                    data class Share(val index: Int, val bytes: Long, val remainder: Double)
-                    val shares = (0 until recipientsCount).map { index ->
-                        val exact = extraBytes.toDouble() * apps[index].third.toDouble() / recipientBytes.toDouble()
-                        val whole = kotlin.math.floor(exact).toLong()
-                        displayedTotals[index] += whole
-                        Share(index, whole, exact - whole.toDouble())
-                    }
-                    var remaining = extraBytes - shares.sumOf { it.bytes }
-                    shares.sortedByDescending { it.remainder }.forEach { share ->
-                        if (remaining > 0L) {
-                            displayedTotals[share.index] += 1L
-                            remaining--
-                        }
-                    }
-                }
-            }
+                Triple(sortedPackages, bytes, sortedPackages.first())
+            }.sortedByDescending { it.second }
 
             val resultApps = org.json.JSONArray()
-            apps.forEachIndexed { index, item ->
+            rows.forEach { (packages, bytes, primary) ->
+                val packageNames = org.json.JSONArray()
+                packages.forEach { packageNames.put(it.packageName) }
+                val labels = packages.map {
+                    runCatching { packageManager.getApplicationLabel(it).toString() }.getOrDefault(it.packageName)
+                }.distinct()
                 resultApps.put(JSONObject()
-                    .put("name", runCatching {
-                        packageManager.getApplicationLabel(item.first).toString()
-                    }.getOrDefault(item.first.packageName))
-                    .put("bytes", displayedTotals[index])
-                    .put("icon", applicationIconData(item.first)))
+                    .put("name", labels.joinToString(" / "))
+                    .put("packageNames", packageNames)
+                    .put("bytes", bytes)
+                    .put("icon", applicationIconData(primary)))
             }
             return JSONObject()
                 .put("status", "ok")
                 .put("apps", resultApps)
-                .put("totalBytes", adjustedOverallTotal)
+                .put("totalBytes", rows.sumOf { it.second })
                 .put("startTime", start)
                 .put("endTime", end)
         } catch (e: Exception) {
             Log.e("AlkamelNet", "App usage read failed", e)
-            return JSONObject().put("status", "error").put("message", "تعذر قراءة إحصاءات التطبيقات.")
+            return JSONObject().put("status", "error")
+                .put("message", "تعذر قراءة إحصاءات التطبيقات. تحقق من صلاحية بيانات الاستخدام ثم حاول مجدداً.")
         }
     }
 
