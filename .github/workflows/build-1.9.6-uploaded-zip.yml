@@ -1,0 +1,102 @@
+name: Build Alkamel-Net 1.9.6 from uploaded source ZIP
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["mohammedkamelkamel-tech-patch-1"]
+    paths:
+      - "Alkamel-Net-Android-Project-v1.9.6-code80.zip"
+      - ".github/workflows/build-1.9.6-uploaded-zip.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: alkamel-net-1-9-6-uploaded-zip
+  cancel-in-progress: false
+
+jobs:
+  build-1-9-6:
+    name: Build exact uploaded 1.9.6 code80 source ZIP
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout uploaded branch
+        uses: actions/checkout@v4
+        with:
+          ref: "mohammedkamelkamel-tech-patch-1"
+
+      - name: Verify and extract the exact uploaded ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP_FILE="$GITHUB_WORKSPACE/Alkamel-Net-Android-Project-v1.9.6-code80.zip"
+          test -s "$ZIP_FILE"
+          unzip -t "$ZIP_FILE"
+          mkdir -p "$GITHUB_WORKSPACE/unpacked"
+          unzip -q "$ZIP_FILE" -d "$GITHUB_WORKSPACE/unpacked"
+          PROJECT_DIR="$(find "$GITHUB_WORKSPACE/unpacked" -type f -name settings.gradle.kts -printf '%h\n' | head -n 1)"
+          test -n "$PROJECT_DIR"
+          test -s "$PROJECT_DIR/app/build.gradle.kts"
+          test -s "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
+          test -s "$PROJECT_DIR/app/src/main/assets/home.html"
+          test -s "$PROJECT_DIR/scripts/validate_project.py"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "SOURCE_ZIP=$ZIP_FILE" >> "$GITHUB_ENV"
+          echo "Building only: $ZIP_FILE"
+          echo "Project root: $PROJECT_DIR"
+
+      - name: Validate version identity and source checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_DIR"
+          python3 scripts/validate_project.py
+          echo "Source version identity was verified by scripts/validate_project.py"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK 35
+        uses: android-actions/setup-android@v3
+        with:
+          api-level: 35
+          build-tools: 35.0.0
+          packages: platform-tools
+
+      - name: Set up Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Build debug APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_DIR"
+          gradle --no-daemon --stacktrace :app:assembleDebug
+
+      - name: Verify APK version and package
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$PROJECT_DIR/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort | tail -n 1)"
+          test -x "$AAPT"
+          "$AAPT" dump badging "$APK" | grep -E "versionCode='80' versionName='1.9.6'"
+          mkdir -p "$GITHUB_WORKSPACE/output"
+          cp "$APK" "$GITHUB_WORKSPACE/output/Alkamel-Net-v1.9.6-code80-debug.apk"
+          cp "$SOURCE_ZIP" "$GITHUB_WORKSPACE/output/Alkamel-Net-Android-Project-v1.9.6-code80.zip"
+
+      - name: Upload APK and exact project ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Alkamel-Net-v1.9.6-code80
+          path: |
+            output/Alkamel-Net-v1.9.6-code80-debug.apk
+            output/Alkamel-Net-Android-Project-v1.9.6-code80.zip
+          if-no-files-found: error
+          retention-days: 30
