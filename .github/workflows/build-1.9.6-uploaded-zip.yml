@@ -1,9 +1,9 @@
-name: Build Alkamel-Net 1.9.6 from uploaded source ZIP
+name: Build Alkamel-Net 1.9.7 LAN chat repair from code80 source ZIP
 
 on:
   workflow_dispatch:
   push:
-    branches: ["mohammedkamelkamel-tech-patch-1"]
+    branches: ["fix/1.9.7-lan-chat-wifi"]
     paths:
       - "Alkamel-Net-Android-Project-v1.9.6-code80.zip"
       - "scripts/apply_lan_chat_fix.py"
@@ -13,18 +13,18 @@ permissions:
   contents: read
 
 concurrency:
-  group: alkamel-net-1-9-6-uploaded-zip
+  group: alkamel-net-1-9-7-lan-chat-repair
   cancel-in-progress: false
 
 jobs:
-  build-1-9-6:
-    name: Build exact uploaded 1.9.6 code80 source ZIP
+  build-1-9-7:
+    name: Apply LAN chat fix to exact uploaded 1.9.6 code80 source ZIP and build 1.9.7
     runs-on: ubuntu-latest
     steps:
       - name: Checkout uploaded branch
         uses: actions/checkout@v4
         with:
-          ref: "mohammedkamelkamel-tech-patch-1"
+          ref: "fix/1.9.7-lan-chat-wifi"
 
       - name: Verify and extract the exact uploaded ZIP
         shell: bash
