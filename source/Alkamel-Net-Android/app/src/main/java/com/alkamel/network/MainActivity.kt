@@ -411,7 +411,7 @@ class MainActivity : Activity() {
         val speed = JSONObject.quote(command.first)
         val flag = JSONObject.quote(command.second ?: "")
         target.evaluateJavascript(
-            "(function(){try{if(typeof loginst!=='function')return 'not-ready';if(!window.un||!window.un.username)return 'not-ready';loginst($speed,$flag);return 'submitted';}catch(e){return 'command-error';}})()"
+            "(function(){try{if(typeof loginst!=='function')return 'missing-loginst';if(!window.un||!window.un.username)return 'subscriber-not-ready';loginst($speed,$flag);return 'submitted';}catch(e){return 'command-error';}})()"
         ) { result ->
             runOnUiThread {
                 commandAttemptInProgress = false
@@ -421,7 +421,9 @@ class MainActivity : Activity() {
                     return@runOnUiThread
                 }
                 val success = result?.contains("submitted") == true
-                val retryable = result == null || result.contains("not-ready") ||
+                val waitingForSubscriber = result?.contains("subscriber-not-ready") == true
+                val missingPortalFunction = result?.contains("missing-loginst") == true
+                val retryable = result == null || waitingForSubscriber || missingPortalFunction ||
                     result.contains("null") || result.contains("undefined")
                 if (!success && retryable && pendingCommandAttempts < 40) {
                     pendingCommandAttempts++
