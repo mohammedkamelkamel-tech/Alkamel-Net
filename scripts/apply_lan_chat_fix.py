@@ -172,7 +172,7 @@ replace_once(
 
 # Extend the repair with reliable profile-photo discovery and seat activity UI.
 replace_once(
-'''                            if (packetType in setOf("presence", "profile_photo", "private_request", "private_response", "private_message")) {''',
+'''                            if (packetType in setOf("presence", "profile_photo", "profile_photo_request", "private_request", "private_response", "private_message")) {''',
 '''                            if (packetType in setOf("presence", "profile_photo", "profile_photo_request", "private_request", "private_response", "private_message")) {''',
 "photo request peer learning")
 replace_once(
