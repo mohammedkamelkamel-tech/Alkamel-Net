@@ -13,6 +13,7 @@ internal sealed class ServerConfig
     public string TurnRelayIp { get; set; } = "10.10.10.10";
     public int TurnPort { get; set; } = 3478;
     public int TurnCredentialsPort { get; set; } = 3479;
+    public int VoiceRelayPort { get; set; } = 39128;
     public int RelayMinPort { get; set; } = 49160;
     public int RelayMaxPort { get; set; } = 49200;
     public string TurnUsername { get; set; } = "alkamel-chat";
@@ -133,6 +134,7 @@ internal sealed class MainForm : Form
         start.Environment["ALKAMEL_TURN_RELAY_IP"] = config.TurnRelayIp;
         start.Environment["ALKAMEL_TURN_PORT"] = config.TurnPort.ToString();
         start.Environment["ALKAMEL_TURN_CREDENTIALS_PORT"] = config.TurnCredentialsPort.ToString();
+        start.Environment["ALKAMEL_VOICE_RELAY_PORT"] = config.VoiceRelayPort.ToString();
         start.Environment["ALKAMEL_TURN_MIN_PORT"] = config.RelayMinPort.ToString();
         start.Environment["ALKAMEL_TURN_MAX_PORT"] = config.RelayMaxPort.ToString();
         start.Environment["ALKAMEL_TURN_USERNAME"] = config.TurnUsername;
