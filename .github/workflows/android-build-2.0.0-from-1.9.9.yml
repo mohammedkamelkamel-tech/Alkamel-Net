@@ -38,6 +38,11 @@ jobs:
       - name: Validate project
         run: python3 scripts/validate_project.py
 
+      - name: Restore launcher WebP resource
+        run: |
+          base64 -d app/src/main/res/drawable-nodpi/ic_launcher.webp.b64 > app/src/main/res/drawable-nodpi/ic_launcher.webp
+          rm app/src/main/res/drawable-nodpi/ic_launcher.webp.b64
+
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug
 
