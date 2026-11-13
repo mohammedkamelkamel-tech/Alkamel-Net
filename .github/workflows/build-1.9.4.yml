@@ -1,0 +1,99 @@
+name: Build Alkamel-Net 1.9.4 from patched project ZIP
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["1.9.4"]
+    paths:
+      - "Alkamel-Net-1.9.4-Android-Project.zip"
+      - ".github/workflows/build-1.9.4.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: alkamel-net-1-9-4-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build exact Alkamel-Net 1.9.4 Code 78 source
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch 1.9.4
+        uses: actions/checkout@v4
+
+      - name: Verify and extract uploaded 1.9.4 source ZIP
+        shell: bash
+        run: |
+          set -euxo pipefail
+          ZIP_FILE="$GITHUB_WORKSPACE/Alkamel-Net-1.9.4-Android-Project.zip"
+          test -s "$ZIP_FILE"
+          unzip -t "$ZIP_FILE"
+          mkdir -p "$GITHUB_WORKSPACE/source"
+          unzip -q "$ZIP_FILE" -d "$GITHUB_WORKSPACE/source"
+          PROJECT_DIR="$GITHUB_WORKSPACE/source/Alkamel-Net-Android"
+          test -s "$PROJECT_DIR/app/build.gradle.kts"
+          test -s "$PROJECT_DIR/app/src/main/java/com/alkamel/network/MainActivity.kt"
+          test -s "$PROJECT_DIR/app/src/main/assets/home.html"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "SOURCE_ZIP=$ZIP_FILE" >> "$GITHUB_ENV"
+
+      - name: Validate exact source identity and requested fixes
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cd "$PROJECT_DIR"
+          grep -q 'versionName = "1.9.4"' app/build.gradle.kts
+          grep -q 'versionCode = 78' app/build.gradle.kts
+          python3 scripts/validate_project.py
+          python3 scripts/validate_1_9_4.py
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK 35
+        uses: android-actions/setup-android@v3
+        with:
+          api-level: 35
+          build-tools: 35.0.0
+          packages: platform-tools
+
+      - name: Set up Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Build APK from patched 1.9.4 source
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cd "$PROJECT_DIR"
+          gradle --no-daemon --stacktrace :app:assembleDebug
+
+      - name: Verify APK package and version
+        shell: bash
+        run: |
+          set -euxo pipefail
+          APK="$PROJECT_DIR/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort | tail -n 1)"
+          test -x "$AAPT"
+          BADGING="$("$AAPT" dump badging "$APK")"
+          printf '%s\n' "$BADGING" | grep -F "package: name='com.mohammedkamel.alkamelnet.portal2026' versionCode='78' versionName='1.9.4'"
+          mkdir -p "$GITHUB_WORKSPACE/output"
+          cp "$APK" "$GITHUB_WORKSPACE/output/Alkamel-Net-1.9.4-code78-debug.apk"
+          cp "$SOURCE_ZIP" "$GITHUB_WORKSPACE/output/Alkamel-Net-1.9.4-Android-Project.zip"
+
+      - name: Upload APK and full project ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Alkamel-Net-1.9.4-code78
+          path: |
+            output/Alkamel-Net-1.9.4-code78-debug.apk
+            output/Alkamel-Net-1.9.4-Android-Project.zip
+          if-no-files-found: error
+          retention-days: 30
