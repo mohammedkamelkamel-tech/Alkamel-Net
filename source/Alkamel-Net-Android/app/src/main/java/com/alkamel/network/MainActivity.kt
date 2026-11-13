@@ -1512,6 +1512,7 @@ class MainActivity : Activity() {
         }
     }
     inner class Bridge {
+        @JavascriptInterface fun getChatDeviceId(): String = chatId
         @JavascriptInterface fun startChat(name: String) { startLanChat(name) }
         @JavascriptInterface fun sendChatMessage(message: String) { if (message.length <= 1000) sendLanPacket("message", message.trim()) }
         @JavascriptInterface
