@@ -41,7 +41,13 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force output | Out-Null
-          & "$env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe" server/windows-manager/AlkamelChatServer.iss
+          $candidates = @(
+            (Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"),
+            (Join-Path $env:ProgramFiles "Inno Setup 6\ISCC.exe"),
+            (Join-Path $env:ChocolateyInstall "bin\ISCC.exe")
+          ) | Where-Object { $_ -and (Test-Path $_) }
+          if (-not $candidates) { throw "ISCC.exe not found after installing Inno Setup." }
+          & $candidates[0] server/windows-manager/AlkamelChatServer.iss
           if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed with exit code $LASTEXITCODE" }
       - uses: actions/upload-artifact@v4
         with:
