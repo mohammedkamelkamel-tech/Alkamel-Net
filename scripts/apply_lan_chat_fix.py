@@ -414,10 +414,10 @@ gradle_file = root / "app/build.gradle.kts"
 g = gradle_file.read_text(encoding="utf-8")
 g = g.replace('    defaultConfig {\n', '''    buildFeatures { buildConfig = true }
     defaultConfig {
-        val mqttUsername = providers.gradleProperty("MQTT_USERNAME").orElse(providers.environmentVariable("MQTT_USERNAME")).orElse("alkamel").get()
-        val mqttPassword = providers.gradleProperty("MQTT_PASSWORD").orElse(providers.environmentVariable("MQTT_PASSWORD")).getOrElse("")
+        val mqttUsername: String = providers.gradleProperty("MQTT_USERNAME").orElse(providers.environmentVariable("MQTT_USERNAME")).orElse("alkamel").get()
+        val mqttPassword: String = providers.gradleProperty("MQTT_PASSWORD").orElse(providers.environmentVariable("MQTT_PASSWORD")).getOrElse("")
         if (mqttPassword.isBlank()) throw GradleException("MQTT_PASSWORD is missing. Add it as a GitHub Actions secret before building.")
-        fun escapeBuildConfig(value: String) = value.replace("\\\\", "\\\\\\\\").replace("\\\"", "\\\\\"")
+        fun escapeBuildConfig(value: String): String = value.replace("\\\\", "\\\\\\\\").replace("\\\"", "\\\\\\\"")
         buildConfigField("String", "MQTT_USERNAME", "\\\"" + escapeBuildConfig(mqttUsername) + "\\"")
         buildConfigField("String", "MQTT_PASSWORD", "\\\"" + escapeBuildConfig(mqttPassword) + "\\"")
 ''', 1)
