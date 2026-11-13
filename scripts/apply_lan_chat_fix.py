@@ -427,8 +427,8 @@ if 'org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5' not in g:
     if marker not in g:
         raise SystemExit("Could not locate dependencies block in app/build.gradle.kts")
     g = g.replace(marker, marker + '\n    implementation("org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5")', 1)
-if not g.startswith("import java.util.Base64\\n"):
-    g = "import java.util.Base64\\n" + g
+if not g.startswith("import java.util.Base64\n"):
+    g = "import java.util.Base64\n" + g
 
 manifest_file = root / "app/src/main/AndroidManifest.xml"
 mf = manifest_file.read_text(encoding="utf-8")
