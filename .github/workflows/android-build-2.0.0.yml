@@ -45,6 +45,8 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
 
       - name: Validate source
         run: python3 scripts/validate_project.py
