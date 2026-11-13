@@ -35,13 +35,13 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Validate MQTT credentials
+      - name: Validate MQTT password
         env:
-          MQTT_USERNAME: ${{ secrets.MQTT_USERNAME }}
+          MQTT_USERNAME: ${{ secrets.MQTT_USERNAME || 'alkamel' }}
           MQTT_PASSWORD: ${{ secrets.MQTT_PASSWORD }}
         run: |
-          if [ -z "$MQTT_USERNAME" ] || [ -z "$MQTT_PASSWORD" ]; then
-            echo "::error::Configure repository Actions secrets MQTT_USERNAME and MQTT_PASSWORD with the credentials used by Mosquitto."
+          if [ -z "$MQTT_PASSWORD" ]; then
+            echo "::error::Missing MQTT_PASSWORD secret. Use the same Mosquitto password configured for the working 1.9.9 app."
             exit 1
           fi
 
@@ -55,7 +55,7 @@ jobs:
 
       - name: Build debug APK
         env:
-          MQTT_USERNAME: ${{ secrets.MQTT_USERNAME }}
+          MQTT_USERNAME: ${{ secrets.MQTT_USERNAME || 'alkamel' }}
           MQTT_PASSWORD: ${{ secrets.MQTT_PASSWORD }}
         run: gradle --no-daemon :app:assembleDebug
 
