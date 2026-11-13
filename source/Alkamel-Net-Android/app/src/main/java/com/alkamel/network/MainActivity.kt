@@ -27,6 +27,7 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.Network
 import android.net.Uri
+import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -92,6 +93,8 @@ class MainActivity : Activity() {
     @Volatile private var appInForeground = false
     private val notificationChannelId = "alkamel_events"
     private val notificationPermissionRequest = 7413
+    private val appVpnPermissionRequest = 7414
+    private var pendingBlockedPackages: ArrayList<String> = arrayListOf()
     private var requestNotificationsOnResume = false
     private val chatRunning = AtomicBoolean(false)
     private val chatRequested = AtomicBoolean(false)
@@ -1459,6 +1462,67 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun requestAppBlocking(packagesJson: String) {
+        val packages = runCatching {
+            val array = org.json.JSONArray(packagesJson)
+            buildList {
+                for (i in 0 until array.length()) {
+                    val name = array.optString(i).trim()
+                    if (name.matches(Regex("[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)+")) && name != packageName && !contains(name)) add(name)
+                }
+            }
+        }.getOrElse {
+            web.evaluateJavascript("window.onAppBlockingResult&&window.onAppBlockingResult(false,'قائمة التطبيقات غير صالحة');", null)
+            return
+        }
+        if (packages.isEmpty()) {
+            stopService(Intent(this, AppBlockVpnService::class.java))
+            getSharedPreferences("alkamel_app_block", MODE_PRIVATE).edit().remove("packages").apply()
+            web.evaluateJavascript("window.onAppBlockingResult&&window.onAppBlockingResult(true,'تم إلغاء حظر جميع التطبيقات المحددة');", null)
+            return
+        }
+        val valid = packages.filter { name ->
+            runCatching { packageManager.getApplicationInfo(name, 0); true }.getOrDefault(false)
+        }
+        if (valid.isEmpty()) {
+            web.evaluateJavascript("window.onAppBlockingResult&&window.onAppBlockingResult(false,'لم يتم العثور على تطبيقات صالحة للحظر');", null)
+            return
+        }
+        pendingBlockedPackages = ArrayList(valid)
+        val permissionIntent = VpnService.prepare(this)
+        if (permissionIntent != null) {
+            try {
+                startActivityForResult(permissionIntent, appVpnPermissionRequest)
+            } catch (e: Exception) {
+                web.evaluateJavascript("window.onAppBlockingResult&&window.onAppBlockingResult(false,'تعذر طلب إذن VPN من أندرويد');", null)
+            }
+        } else {
+            startAppBlockVpn(valid)
+        }
+    }
+
+    private fun startAppBlockVpn(packages: List<String>) {
+        val prefs = getSharedPreferences("alkamel_app_block", MODE_PRIVATE)
+        prefs.edit().putStringSet("packages", packages.toSet()).apply()
+        val intent = Intent(this, AppBlockVpnService::class.java).putStringArrayListExtra("packages", ArrayList(packages))
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent) else startService(intent)
+            web.evaluateJavascript("window.onAppBlockingResult&&window.onAppBlockingResult(true,'تم تفعيل الحظر للتطبيقات المحددة');", null)
+        } catch (e: Exception) {
+            Log.e("AlkamelNet", "Unable to start app blocking VPN", e)
+            web.evaluateJavascript("window.onAppBlockingResult&&window.onAppBlockingResult(false,'تعذر تشغيل خدمة الحظر. تحقق من عدم تشغيل VPN آخر.');", null)
+        }
+    }
+
+    @Deprecated("Deprecated in Android API")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == appVpnPermissionRequest) {
+            if (resultCode == RESULT_OK) startAppBlockVpn(pendingBlockedPackages)
+            else web.evaluateJavascript("window.onAppBlockingResult&&window.onAppBlockingResult(false,'لم تتم الموافقة على إذن VPN؛ لم يتم حظر التطبيقات');", null)
+        }
+    }
+
     private fun requestInstalledApps() {
         io.execute {
             val result = try {
@@ -1606,6 +1670,14 @@ class MainActivity : Activity() {
         @JavascriptInterface fun scanNearbyWifi() { runOnUiThread { requestNearbyWifiScan() } }
         @JavascriptInterface fun getAppNetworkUsage() { requestAppNetworkUsage() }
         @JavascriptInterface fun getInstalledApps() { requestInstalledApps() }
+        @JavascriptInterface fun getBlockedApps(): String {
+            val values = getSharedPreferences("alkamel_app_block", MODE_PRIVATE).getStringSet("packages", emptySet()).orEmpty()
+            return org.json.JSONArray(values.sorted()).toString()
+        }
+        @JavascriptInterface fun setBlockedApps(packagesJson: String) {
+            runOnUiThread { requestAppBlocking(packagesJson) }
+        }
+
         @JavascriptInterface fun openUsageAccessSettings() { this@MainActivity.openUsageAccessSettings() }
         @JavascriptInterface
         fun openUrl(url: String) {
