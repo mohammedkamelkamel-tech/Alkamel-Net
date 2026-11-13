@@ -1,0 +1,51 @@
+name: Build Alkamel unified chat server installer
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["feature/chat-unified-server-webrtc"]
+    paths:
+      - "server/chat-turn/**"
+      - "server/windows-manager/**"
+      - ".github/workflows/build-chat-server-installer.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.x"
+          cache-dependency-path: server/chat-turn/go.mod
+      - name: Build TURN relay
+        working-directory: server/chat-turn
+        env:
+          CGO_ENABLED: "0"
+          GOOS: windows
+          GOARCH: amd64
+        run: |
+          go mod tidy
+          go test ./...
+          go vet ./...
+          New-Item -ItemType Directory -Force ../../output | Out-Null
+          go build -trimpath -ldflags="-s -w" -o ../../output/alkamel-chat-turn.exe .
+      - name: Publish Windows manager as self-contained EXE
+        run: dotnet publish server/windows-manager/AlkamelChatServer.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish
+      - name: Install Inno Setup
+        run: choco install innosetup --yes --no-progress
+      - name: Build installer
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force output | Out-Null
+          & "$env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe" server/windows-manager/AlkamelChatServer.iss
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed with exit code $LASTEXITCODE" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Alkamel-Chat-Server-Installer
+          path: output/Alkamel-Chat-Server-Setup.exe
+          if-no-files-found: error
+          retention-days: 30
