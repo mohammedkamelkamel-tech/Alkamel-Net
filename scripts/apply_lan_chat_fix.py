@@ -258,3 +258,176 @@ v = v.replace('"integrated repair version": "versionCode = 80" in GRADLE and \'v
               '"integrated repair version": "versionCode = 82" in GRADLE and \'versionName = "1.9.8"\' in GRADLE,')
 validator.write_text(v, encoding="utf-8")
 print("Applied LAN Wi-Fi, profile-photo synchronization, and voice-seat activity repairs; version 1.9.8 (code 82).")
+
+
+# Integrate MQTT transport into the exact 1.9.6 source before producing 1.9.8.
+import shutil
+mqtt_source = Path(__file__).with_name("MqttChatService.kt")
+if not mqtt_source.is_file():
+    raise SystemExit("Missing scripts/MqttChatService.kt")
+mqtt_target = root / "app/src/main/java/com/alkamel/network/MqttChatService.kt"
+mqtt_target.parent.mkdir(parents=True, exist_ok=True)
+shutil.copyfile(mqtt_source, mqtt_target)
+
+main_file = root / "app/src/main/java/com/alkamel/network/MainActivity.kt"
+main = main_file.read_text(encoding="utf-8")
+def main_once(old, new, label):
+    global main
+    if old not in main:
+        raise SystemExit(f"Expected MainActivity block not found: {label}")
+    main = main.replace(old, new, 1)
+
+main_once(
+"import android.content.Intent\n",
+"import android.content.Intent\nimport android.content.BroadcastReceiver\nimport android.content.IntentFilter\n",
+"MQTT receiver imports")
+main_once(
+"    private val mainHandler = Handler(Looper.getMainLooper())\n",
+"""    private val mainHandler = Handler(Looper.getMainLooper())
+    private var mqttReceiverRegistered = false
+    private val mqttEventReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val state = intent?.getStringExtra(MqttChatService.EXTRA_STATE)
+            if (state != null) {
+                chatRunning.set(state == "joined")
+                notifyChatState(state, intent.getStringExtra(MqttChatService.EXTRA_DETAIL).orEmpty())
+            }
+            val raw = intent?.getStringExtra(MqttChatService.EXTRA_RAW)
+            if (!raw.isNullOrBlank() && ::web.isInitialized && !isFinishing && !isDestroyed) {
+                web.evaluateJavascript("if(window.onLanChatPacket)window.onLanChatPacket(" + JSONObject.quote(raw) + ");", null)
+            }
+        }
+    }
+""",
+"MQTT event receiver")
+main_once(
+"        super.onCreate(savedInstanceState)\n        restoreFirewallIfNeeded()\n",
+"""        super.onCreate(savedInstanceState)
+        val mqttFilter = IntentFilter(MqttChatService.ACTION_EVENT)
+        if (Build.VERSION.SDK_INT >= 33) registerReceiver(mqttEventReceiver, mqttFilter, Context.RECEIVER_NOT_EXPORTED)
+        else registerReceiver(mqttEventReceiver, mqttFilter)
+        mqttReceiverRegistered = true
+        restoreFirewallIfNeeded()
+""",
+"MQTT receiver registration")
+# Insert MQTT lifecycle methods before the LAN service methods.
+anchor = "    private fun startLanChat(name: String, ensureService: Boolean = true) {"
+if anchor not in main:
+    raise SystemExit("Expected LAN chat start method not found")
+mqtt_methods = """    private fun startMqttChat(name: String) {
+        val clean = name.trim().take(24)
+        if (clean.isEmpty()) return
+        chatNickname = clean
+        chatRequested.set(true)
+        val intent = Intent(this, MqttChatService::class.java).apply {
+            action = MqttChatService.ACTION_CONNECT
+            putExtra(MqttChatService.EXTRA_NAME, clean)
+        }
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent) else startService(intent)
+        } catch (e: Exception) {
+            Log.e("AlkamelNet", "Unable to start MQTT chat service", e)
+            notifyChatState("error", "تعذر تشغيل خدمة الدردشة في الخلفية.")
+        }
+    }
+
+    private fun publishMqtt(type: String, message: String, targetId: String? = null, requestId: String? = null) {
+        val intent = Intent(this, MqttChatService::class.java).apply {
+            action = MqttChatService.ACTION_PUBLISH
+            putExtra(MqttChatService.EXTRA_TYPE, type)
+            putExtra(MqttChatService.EXTRA_TEXT, message.take(if (type == "voice_message") 1_200_000 else if (type == "profile_photo") 78_000 else 1000))
+            targetId?.let { putExtra(MqttChatService.EXTRA_TARGET, it) }
+            requestId?.let { putExtra(MqttChatService.EXTRA_REQUEST_ID, it) }
+        }
+        runCatching { startService(intent) }.onFailure { Log.w("AlkamelNet", "Unable to queue MQTT packet", it) }
+    }
+
+    private fun stopMqttChat() {
+        chatRequested.set(false)
+        chatRunning.set(false)
+        runCatching { stopService(Intent(this, MqttChatService::class.java)) }
+        notifyChatState("stopped", "")
+    }
+
+"""
+main = main.replace(anchor, mqtt_methods + anchor, 1)
+
+main_once(
+"        @JavascriptInterface fun startChat(name: String) { startLanChat(name) }",
+"        @JavascriptInterface fun startChat(name: String) { startMqttChat(name) }",
+"Bridge start MQTT")
+main_once(
+"        @JavascriptInterface fun sendChatMessage(message: String) { if (message.isNotBlank() && message.length <= 1000) sendLanPacket(\"message\", message.trim()) }",
+"        @JavascriptInterface fun sendChatMessage(message: String) { if (message.isNotBlank() && message.length <= 1000) publishMqtt(\"message\", message.trim()) }",
+"Bridge group message MQTT")
+main_once(
+"        @JavascriptInterface fun sendChatGift(giftId: String) { if (giftId in setOf(\"rose\", \"heart\", \"crown\", \"diamond\", \"trophy\", \"fireworks\")) sendLanPacket(\"gift\", giftId) }",
+"        @JavascriptInterface fun sendChatGift(giftId: String) { if (giftId in setOf(\"rose\", \"heart\", \"crown\", \"diamond\", \"trophy\", \"fireworks\")) publishMqtt(\"gift\", giftId) }",
+"Bridge gift MQTT")
+main_once(
+"        @JavascriptInterface fun sendProfilePhoto(dataUrl: String) { if (dataUrl.isEmpty() || (dataUrl.length <= 3500 && dataUrl.startsWith(\"data:image/jpeg;base64,\"))) sendLanPacket(\"profile_photo\", dataUrl) }",
+"        @JavascriptInterface fun sendProfilePhoto(dataUrl: String) { if (dataUrl.isEmpty() || (dataUrl.length <= 78000 && (dataUrl.isEmpty() || dataUrl.startsWith(\"data:image/jpeg;base64,\")))) publishMqtt(\"profile_photo\", dataUrl) }",
+"Bridge profile photo MQTT")
+main_once(
+"if (action in setOf(\"join\", \"leave\") && seat in 0..4) sendLanPacket(\"voice_seat\", JSONObject().put(\"action\", action).put(\"seat\", seat).put(\"muted\", false).toString())",
+"if (action in setOf(\"join\", \"leave\") && seat in 0..4) publishMqtt(\"voice_seat\", JSONObject().put(\"action\", action).put(\"seat\", seat).put(\"muted\", false).toString())",
+"Bridge voice seat MQTT")
+main_once(
+"sendLanPacket(\"voice_seat\", JSONObject().put(\"action\", \"sync\").put(\"seat\", -1).toString())",
+"publishMqtt(\"voice_seat\", JSONObject().put(\"action\", \"sync\").put(\"seat\", -1).toString())",
+"Bridge voice seat sync MQTT")
+main_once(
+"runOnUiThread { Toast.makeText(this@MainActivity, \"الرسائل الصوتية المسجلة غير متاحة عبر LAN حالياً؛ استخدم مجلس الصوت المباشر\", Toast.LENGTH_LONG).show() }",
+"if (dataUrl.length in 1..1_200_000 && dataUrl.startsWith(\"data:audio/\")) publishMqtt(\"voice_message\", dataUrl)",
+"Bridge voice message MQTT")
+main_once(
+"sendPrivateLanPacket(type, targetId, requestId, message.trim())",
+"publishMqtt(type, message.trim(), targetId, requestId)",
+"Bridge private chat MQTT")
+main_once(
+"@JavascriptInterface fun stopChat() { stopVoiceRoom(); stopLanChat() }",
+"@JavascriptInterface fun stopChat() { stopVoiceRoom(); stopMqttChat(); stopLanChat() }",
+"Bridge stop MQTT")
+main_once(
+"        pendingImageFileCallback?.onReceiveValue(null)\n        pendingImageFileCallback = null\n",
+"""        pendingImageFileCallback?.onReceiveValue(null)
+        pendingImageFileCallback = null
+        if (mqttReceiverRegistered) { runCatching { unregisterReceiver(mqttEventReceiver) }; mqttReceiverRegistered = false }
+""",
+"MQTT receiver unregister")
+main_file.write_text(main, encoding="utf-8")
+
+# Add Paho and secret-backed BuildConfig fields without putting credentials in source.
+gradle_file = root / "app/build.gradle.kts"
+g = gradle_file.read_text(encoding="utf-8")
+g = g.replace('    defaultConfig {\n', '''    buildFeatures { buildConfig = true }
+    defaultConfig {
+        val mqttUsername = providers.gradleProperty("MQTT_USERNAME").orElse(providers.environmentVariable("MQTT_USERNAME")).orElse("alkamel").get()
+        val mqttPassword = providers.gradleProperty("MQTT_PASSWORD").orElse(providers.environmentVariable("MQTT_PASSWORD")).getOrElse("")
+        if (mqttPassword.isBlank()) throw GradleException("MQTT_PASSWORD is missing. Add it as a GitHub Actions secret before building.")
+        fun escapeBuildConfig(value: String) = value.replace("\\\\", "\\\\\\\\").replace("\\\"", "\\\\\"")
+        buildConfigField("String", "MQTT_USERNAME", "\\\"" + escapeBuildConfig(mqttUsername) + "\\"")
+        buildConfigField("String", "MQTT_PASSWORD", "\\\"" + escapeBuildConfig(mqttPassword) + "\\"")
+''', 1)
+if 'org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5' not in g:
+    g = g.replace('dependencies {\n', 'dependencies {\n    implementation("org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5")\n', 1)
+gradle_file.write_text(g, encoding="utf-8")
+
+manifest_file = root / "app/src/main/AndroidManifest.xml"
+mf = manifest_file.read_text(encoding="utf-8")
+if 'android:name=".MqttChatService"' not in mf:
+    mf = mf.replace('    <uses-permission android:name="android.permission.INTERNET" />\n',
+        '    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />\n', 1)
+    mf = mf.replace('</application>', '''        <service
+            android:name=".MqttChatService"
+            android:enabled="true"
+            android:exported="false"
+            android:stopWithTask="false"
+            android:foregroundServiceType="connectedDevice" />
+    </application>''', 1)
+manifest_file.write_text(mf, encoding="utf-8")
+
+# 1.9.8 version identity
+gradle_file = root / "app/build.gradle.kts"
+g = gradle_file.read_text(encoding="utf-8").replace("versionCode = 80", "versionCode = 82").replace('versionName = "1.9.6"', 'versionName = "1.9.8"')
+gradle_file.write_text(g, encoding="utf-8")
