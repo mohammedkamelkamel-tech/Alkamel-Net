@@ -419,8 +419,8 @@ g = g.replace('    defaultConfig {\n', '''    buildFeatures { buildConfig = true
         if (mqttPassword.isBlank()) throw GradleException("MQTT_PASSWORD is missing. Add it as a GitHub Actions secret before building.")
         val mqttUsernameB64 = java.util.Base64.getEncoder().encodeToString(mqttUsername.toByteArray())
         val mqttPasswordB64 = java.util.Base64.getEncoder().encodeToString(mqttPassword.toByteArray())
-        buildConfigField("String", "MQTT_USERNAME_B64", "\\"\u0024mqttUsernameB64\\"")
-        buildConfigField("String", "MQTT_PASSWORD_B64", "\\"\u0024mqttPasswordB64\\"")
+        buildConfigField("String", "MQTT_USERNAME_B64", "\\\"${mqttUsernameB64}\\\"")
+        buildConfigField("String", "MQTT_PASSWORD_B64", "\\\"${mqttPasswordB64}\\\"")
 ''', 1)
 if 'org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5' not in g:
     g = g.replace('dependencies {\n', 'dependencies {\n    implementation("org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5")\n', 1)
