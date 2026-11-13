@@ -126,9 +126,7 @@ class MainActivity : Activity() {
     private val voiceRunning = AtomicBoolean(false)
     private val voiceSessionGeneration = java.util.concurrent.atomic.AtomicInteger(0)
     private val voiceMuted = AtomicBoolean(false)
-    @Volatile private var voiceSocket: java.net.MulticastSocket? = null
-    @Volatile private var multicastLock: WifiManager.MulticastLock? = null
-    private val voiceGroup = InetAddress.getByName("239.10.10.10")
+    @Volatile private var voiceSocket: java.net.DatagramSocket? = null
     private val voicePort = 39128
     private val voicePermissionRequest = 7412
     private var localFallbackAttempted = false
@@ -864,33 +862,18 @@ class MainActivity : Activity() {
             var echoCanceler: AcousticEchoCanceler? = null
             var noiseSuppressor: NoiseSuppressor? = null
             var automaticGain: AutomaticGainControl? = null
-            var sessionSocket: java.net.MulticastSocket? = null
-            var sessionMulticastLock: WifiManager.MulticastLock? = null
+            var sessionSocket: java.net.DatagramSocket? = null
             try {
                 if (voiceSessionGeneration.get() != sessionId || !voiceRunning.get()) return@execute
-                val wifi = applicationContext.getSystemService(WIFI_SERVICE) as WifiManager
-                sessionMulticastLock = wifi.createMulticastLock("AlkamelNetVoice").apply { setReferenceCounted(false); acquire() }
-                multicastLock = sessionMulticastLock
-                // Select the active Wi-Fi interface explicitly; Android may otherwise
-                // attach multicast traffic to a mobile/virtual interface.
-                val connectivity = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
-                val activeNetwork = connectivity.activeNetwork
-                val activeCapabilities = activeNetwork?.let { connectivity.getNetworkCapabilities(it) }
-                val activeInterfaceName = if (activeCapabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true) {
-                    activeNetwork?.let { connectivity.getLinkProperties(it)?.interfaceName }
-                } else null
-                val wifiInterface = activeInterfaceName?.let { runCatching { NetworkInterface.getByName(it) }.getOrNull() }
-                    ?.takeIf { it.isUp && !it.isLoopback }
-                    ?: NetworkInterface.getNetworkInterfaces().toList()
-                        .firstOrNull { it.isUp && !it.isLoopback && (it.name.startsWith("wlan") || it.name.startsWith("wifi")) }
-                    ?: throw IllegalStateException("لم يتم العثور على واجهة Wi-Fi نشطة")
-                val socket = java.net.MulticastSocket(null).apply {
+                // Send voice to the Windows relay using unicast so packets can cross routed VLANs.
+                val mqttPrefs = getSharedPreferences("alkamel_mqtt", MODE_PRIVATE)
+                val relayHost = mqttPrefs.getString("host", "10.10.10.10").orEmpty().trim()
+                if (relayHost.isBlank()) throw IllegalStateException("عنوان خادم الصوت غير مضبوط")
+                val relayAddress = InetAddress.getByName(relayHost)
+                val socket = java.net.DatagramSocket(null).apply {
                     reuseAddress = true
-                    timeToLive = 1
                     soTimeout = 200
-                    bind(java.net.InetSocketAddress(voicePort))
-                    networkInterface = wifiInterface
-                    joinGroup(java.net.InetSocketAddress(voiceGroup, voicePort), wifiInterface)
+                    bind(java.net.InetSocketAddress(0))
                 }
                 sessionSocket = socket
                 voiceSocket = socket
@@ -1020,7 +1003,7 @@ class MainActivity : Activity() {
                             sampleIndex += 2
                         }
                         System.arraycopy(pcm, 0, outgoing, prefix.size, count)
-                        socket.send(DatagramPacket(outgoing, prefix.size + count, voiceGroup, voicePort))
+                        socket.send(DatagramPacket(outgoing, prefix.size + count, relayAddress, voicePort))
                     }
                     val now = System.currentTimeMillis()
                     if (now - lastUi > 300) {
@@ -1043,10 +1026,8 @@ class MainActivity : Activity() {
                 try { recorder?.release() } catch (_: Exception) { }
                 try { player?.stop() } catch (_: Exception) { }
                 try { player?.release() } catch (_: Exception) { }
-                sessionSocket?.let { try { it.leaveGroup(voiceGroup); it.close() } catch (_: Exception) { } }
+                sessionSocket?.let { try { it.close() } catch (_: Exception) { } }
                 if (voiceSocket === sessionSocket) voiceSocket = null
-                sessionMulticastLock?.let { try { if (it.isHeld) it.release() } catch (_: Exception) { } }
-                if (multicastLock === sessionMulticastLock) multicastLock = null
                 val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     try { audioManager.clearCommunicationDevice() } catch (_: Exception) { }
