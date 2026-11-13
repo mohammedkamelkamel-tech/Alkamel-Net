@@ -3,7 +3,7 @@ name: Build Alkamel-Net 1.9.8 LAN chat repair from code80 source ZIP
 on:
   workflow_dispatch:
   push:
-    branches: ["fix/1.9.8-lan-chat-wifi"]
+    branches: ["fix/1.9.8-voice-seat-profile-sync"]
     paths:
       - "Alkamel-Net-Android-Project-v1.9.6-code80.zip"
       - "scripts/apply_lan_chat_fix.py"
@@ -24,7 +24,7 @@ jobs:
       - name: Checkout uploaded branch
         uses: actions/checkout@v4
         with:
-          ref: "fix/1.9.8-lan-chat-wifi"
+          ref: "fix/1.9.8-voice-seat-profile-sync"
 
       - name: Verify and extract the exact uploaded ZIP
         shell: bash
