@@ -1513,6 +1513,17 @@ class MainActivity : Activity() {
     }
     inner class Bridge {
         @JavascriptInterface fun getChatDeviceId(): String = chatId
+        @JavascriptInterface fun getVoiceIceConfig(): String {
+            val prefs = getSharedPreferences("alkamel_voice", MODE_PRIVATE)
+            val url = prefs.getString("turn_url", "").orEmpty().trim()
+            val username = prefs.getString("turn_username", "").orEmpty().trim()
+            val credential = prefs.getString("turn_credential", "").orEmpty()
+            val servers = org.json.JSONArray()
+            if (url.isNotBlank() && username.isNotBlank() && credential.isNotBlank()) {
+                servers.put(JSONObject().put("urls", url).put("username", username).put("credential", credential))
+            }
+            return servers.toString()
+        }
         @JavascriptInterface fun startChat(name: String) { startLanChat(name) }
         @JavascriptInterface fun sendChatMessage(message: String) { if (message.length <= 1000) sendLanPacket("message", message.trim()) }
         @JavascriptInterface
