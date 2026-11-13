@@ -9,6 +9,8 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.media.AudioFormat
@@ -97,7 +99,23 @@ class MainActivity : Activity() {
     @Volatile private var chatSocket: DatagramSocket? = null
     @Volatile private var chatMulticastLock: WifiManager.MulticastLock? = null
     @Volatile private var chatNickname = ""
-    private val chatId = java.util.UUID.randomUUID().toString()
+    private val chatId: String = getSharedPreferences("alkamel_mqtt", MODE_PRIVATE).let { prefs ->
+        prefs.getString("device_id", null) ?: java.util.UUID.randomUUID().toString().also {
+            prefs.edit().putString("device_id", it).apply()
+        }
+    }
+    private val mqttEventsReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context?, intent: Intent?) {
+            if (intent?.action != MqttChatService.ACTION_EVENT) return
+            val raw = intent.getStringExtra(MqttChatService.EXTRA_RAW)
+            if (raw != null && ::web.isInitialized && !isDestroyed) {
+                web.evaluateJavascript("window.onLanChatPacket&&window.onLanChatPacket(" + JSONObject.quote(raw) + ");", null)
+            }
+            val state = intent.getStringExtra(MqttChatService.EXTRA_STATE)
+            if (!state.isNullOrBlank()) notifyChatState(state, intent.getStringExtra(MqttChatService.EXTRA_DETAIL).orEmpty())
+        }
+    }
+    private var mqttReceiverRegistered = false
     private val chatPeerAddresses = ConcurrentHashMap<String, InetAddress>()
     private val chatExecutor = Executors.newSingleThreadExecutor()
     private val chatSendExecutor = Executors.newSingleThreadExecutor()
@@ -119,6 +137,10 @@ class MainActivity : Activity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val mqttFilter = IntentFilter(MqttChatService.ACTION_EVENT)
+        if (Build.VERSION.SDK_INT >= 33) registerReceiver(mqttEventsReceiver, mqttFilter, RECEIVER_NOT_EXPORTED)
+        else registerReceiver(mqttEventsReceiver, mqttFilter)
+        mqttReceiverRegistered = true
         window.statusBarColor = Color.rgb(7, 20, 38)
         window.navigationBarColor = Color.rgb(7, 20, 38)
         CookieManager.getInstance().setAcceptCookie(true)
@@ -501,6 +523,17 @@ class MainActivity : Activity() {
         if (clean.isEmpty()) return
         chatNickname = clean
         chatRequested.set(true)
+        getSharedPreferences("alkamel_mqtt", MODE_PRIVATE).edit().putString("nickname", clean).apply()
+        val mqttIntent = Intent(this, MqttChatService::class.java).apply {
+            action = MqttChatService.ACTION_CONNECT
+            putExtra(MqttChatService.EXTRA_NAME, clean)
+        }
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(mqttIntent) else startService(mqttIntent)
+        } catch (e: Exception) {
+            Log.e("AlkamelNet", "Unable to start MQTT chat service", e)
+            notifyChatState("error", "تعذر تشغيل اتصال خادم الدردشة.")
+        }
         if (ensureService && getSharedPreferences("alkamel_app_setup", MODE_PRIVATE).getBoolean("background_enabled", false)) {
         val keepAlive = Intent(this, ChatKeepAliveService::class.java).apply { action = ChatKeepAliveService.ACTION_START }
         try {
@@ -665,6 +698,17 @@ class MainActivity : Activity() {
     }
 
     private fun sendLanPacket(type: String, message: String) {
+        if (!chatRequested.get()) return
+        if (type in setOf("presence", "message", "voice_message", "gift", "profile_photo", "voice_seat")) {
+            val mqttIntent = Intent(this, MqttChatService::class.java).apply {
+                action = MqttChatService.ACTION_PUBLISH
+                putExtra(MqttChatService.EXTRA_TYPE, type)
+                putExtra(MqttChatService.EXTRA_TEXT, message)
+            }
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(mqttIntent) else startService(mqttIntent)
+            } catch (e: Exception) { Log.e("AlkamelNet", "MQTT publish request failed", e) }
+        }
         if (!chatRunning.get()) return
         val sessionId = chatSessionGeneration.get()
         val messageId = if (type == "message") java.util.UUID.randomUUID().toString() else ""
@@ -728,10 +772,17 @@ class MainActivity : Activity() {
     private fun sendPrivateLanPacket(type: String, targetId: String, requestId: String, message: String) {
         if (!chatRunning.get() || targetId.isBlank() || requestId.isBlank()) return
         val sessionId = chatSessionGeneration.get()
-        val address = chatPeerAddresses[targetId] ?: run {
-            Log.w("AlkamelNet", "Private chat target is not present in the LAN peer table")
-            return
+        val mqttIntent = Intent(this, MqttChatService::class.java).apply {
+            action = MqttChatService.ACTION_PUBLISH
+            putExtra(MqttChatService.EXTRA_TYPE, type)
+            putExtra(MqttChatService.EXTRA_TARGET, targetId)
+            putExtra(MqttChatService.EXTRA_REQUEST_ID, requestId)
+            putExtra(MqttChatService.EXTRA_TEXT, message.take(1000))
         }
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(mqttIntent) else startService(mqttIntent)
+        } catch (e: Exception) { Log.e("AlkamelNet", "MQTT private publish request failed", e) }
+        val address = chatPeerAddresses[targetId] ?: return
         val payload = JSONObject()
             .put("type", type)
             .put("id", chatId)
@@ -771,6 +822,7 @@ class MainActivity : Activity() {
         runCatching { chatMulticastLock?.let { if (it.isHeld) it.release() } }
             .onFailure { Log.w("AlkamelNet", "Unable to release chat Wi-Fi lock", it) }
         chatMulticastLock = null
+        stopService(Intent(this, MqttChatService::class.java))
         notifyChatState("stopped", "")
     }
 
@@ -1829,6 +1881,10 @@ class MainActivity : Activity() {
             chatSendExecutor.shutdownNow()
         }
         networkGuard.shutdownNow()
+        if (mqttReceiverRegistered) {
+            runCatching { unregisterReceiver(mqttEventsReceiver) }
+            mqttReceiverRegistered = false
+        }
         if (::web.isInitialized) {
             web.removeJavascriptInterface("AndroidBridge")
             web.stopLoading()
