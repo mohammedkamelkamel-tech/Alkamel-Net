@@ -250,5 +250,11 @@ v = v.replace('"private chat unicast sender binds to Wi-Fi": "Unable to bind pri
               '"private chat unicast sender binds to Wi-Fi": "Private LAN packet not sent: no connected Wi-Fi network" in KOTLIN.read_text(encoding="utf-8") and "wifiNetwork.bindSocket(sender)" in KOTLIN.read_text(encoding="utf-8"),')
 v = v.replace('"private chat replies learn sender address": \'packetType in setOf("presence", "profile_photo", "private_request", "private_response", "private_message")\' in KOTLIN.read_text(encoding="utf-8") and "chatPeerAddresses[senderId] = packet.address" in KOTLIN.read_text(encoding="utf-8"),',
               '"private chat replies learn sender address": \'packetType in setOf("presence", "profile_photo", "profile_photo_request", "private_request", "private_response", "private_message")\' in KOTLIN.read_text(encoding="utf-8") and "chatPeerAddresses[senderId] = packet.address" in KOTLIN.read_text(encoding="utf-8"),')
+v = v.replace("'setOf(\"presence\", \"message\", \"profile_photo\", \"gift\", \"voice_seat\")' in kotlin_source",
+              "'setOf(\"presence\", \"message\", \"profile_photo\", \"profile_photo_request\", \"gift\", \"voice_seat\")' in kotlin_source")
+v = v.replace('"item.id===senderId" in html_source and "voiceActivity.set(seat.id,now)" in html_source',
+              '"voiceSeats.find(item=>item&&item.id===senderId)" in html_source and "voiceActivity.set(senderId,now)" in html_source')
+v = v.replace('"integrated repair version": "versionCode = 80" in GRADLE and \'versionName = "1.9.6"\' in GRADLE,',
+              '"integrated repair version": "versionCode = 82" in GRADLE and \'versionName = "1.9.8"\' in GRADLE,')
 validator.write_text(v, encoding="utf-8")
 print("Applied LAN Wi-Fi, profile-photo synchronization, and voice-seat activity repairs; version 1.9.8 (code 82).")
