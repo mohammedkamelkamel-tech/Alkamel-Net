@@ -448,3 +448,11 @@ manifest_file.write_text(mf, encoding="utf-8")
 gradle_file = root / "app/build.gradle.kts"
 g = gradle_file.read_text(encoding="utf-8").replace("versionCode = 80", "versionCode = 82").replace('versionName = "1.9.6"', 'versionName = "1.9.8"')
 gradle_file.write_text(g, encoding="utf-8")
+
+print("MQTT_DIAG startMqttChat=", "startMqttChat(name)" in main)
+print("MQTT_DIAG publishMqtt=", "publishMqtt" in main)
+print("MQTT_DIAG service_in_main=", "MqttChatService" in main)
+print("MQTT_DIAG service_in_manifest=", "MqttChatService" in mf)
+print("MQTT_DIAG paho_in_gradle=", "org.eclipse.paho" in g)
+print("MQTT_DIAG buildconfig_fields=", "MQTT_PASSWORD_B64" in g and "MQTT_USERNAME_B64" in g)
+print("MQTT_DIAG validator_test=", [line.strip() for line in v.splitlines() if "MQTT broker is the active" in line])
