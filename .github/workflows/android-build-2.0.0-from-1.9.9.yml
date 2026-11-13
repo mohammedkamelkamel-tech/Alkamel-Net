@@ -35,6 +35,16 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      - name: Validate MQTT credentials
+        env:
+          MQTT_USERNAME: ${{ secrets.MQTT_USERNAME }}
+          MQTT_PASSWORD: ${{ secrets.MQTT_PASSWORD }}
+        run: |
+          if [ -z "$MQTT_USERNAME" ] || [ -z "$MQTT_PASSWORD" ]; then
+            echo "::error::Configure repository Actions secrets MQTT_USERNAME and MQTT_PASSWORD with the credentials used by Mosquitto."
+            exit 1
+          fi
+
       - name: Validate project
         run: python3 scripts/validate_project.py
 
@@ -44,6 +54,9 @@ jobs:
           rm app/src/main/res/drawable-nodpi/ic_launcher.webp.b64
 
       - name: Build debug APK
+        env:
+          MQTT_USERNAME: ${{ secrets.MQTT_USERNAME }}
+          MQTT_PASSWORD: ${{ secrets.MQTT_PASSWORD }}
         run: gradle --no-daemon :app:assembleDebug
 
       - name: Upload APK
