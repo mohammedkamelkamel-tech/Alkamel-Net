@@ -27,6 +27,8 @@ jobs:
           mkdir -p /tmp/alkamel-src
           unzip -q "$ARCHIVE" -d /tmp/alkamel-src
           test -d /tmp/alkamel-src/Alkamel-Net-Android
+          # Keep the release branch workflow; do not import nested workflows from the uploaded project.
+          rm -rf /tmp/alkamel-src/Alkamel-Net-Android/.github
           cp -a /tmp/alkamel-src/Alkamel-Net-Android/. .
           rm -rf /tmp/alkamel-src "$ARCHIVE"
           git config user.name "github-actions[bot]"
