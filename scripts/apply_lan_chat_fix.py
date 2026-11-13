@@ -262,6 +262,9 @@ v = v.replace(
     '"LAN chat is the only active transport; MQTT service and broker dependency are removed": "startLanChat(name)" in kotlin_source and "publishMqtt" not in kotlin_source and "MqttChatService" not in kotlin_source and "MqttChatService" not in MANIFEST and "org.eclipse.paho" not in GRADLE,',
     '"MQTT broker is the active group/private chat transport": "startMqttChat(name)" in kotlin_source and "publishMqtt" in kotlin_source and "MqttChatService" in kotlin_source and "MqttChatService" in MANIFEST and "org.eclipse.paho" in GRADLE,')
 v = v.replace(
+    '"LAN profile photos are compressed below a safe single-datagram size": "const side=64" in html_source and "data.length>3500" in html_source and "dataUrl.length <= 3500" in kotlin_source,',
+    '"MQTT profile photo payloads stay within the broker payload limit": "const side=64" in html_source and "data.length>3500" in html_source and "dataUrl.length <= 78000" in kotlin_source,')
+v = v.replace(
     '"private messages use direct LAN unicast": "sendPrivateLanPacket(type, targetId, requestId, message.trim())" in kotlin_source,',
     '"private messages use MQTT private topics": "publishMqtt(type, message.trim(), targetId, requestId)" in kotlin_source,')
 
