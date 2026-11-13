@@ -169,6 +169,18 @@ class MainActivity : Activity() {
                 settings.offscreenPreRaster = true
             }
             webChromeClient = object : WebChromeClient() {
+                override fun onPermissionRequest(request: android.webkit.PermissionRequest) {
+                    runOnUiThread {
+                        val trusted = request.origin?.host == "appassets.androidplatform.net" &&
+                            request.resources.all { it == android.webkit.PermissionRequest.RESOURCE_AUDIO_CAPTURE }
+                        if (trusted && checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                            request.grant(arrayOf(android.webkit.PermissionRequest.RESOURCE_AUDIO_CAPTURE))
+                        } else {
+                            Log.w("AlkamelNet", "Rejected WebView media permission from ${request.origin}")
+                            request.deny()
+                        }
+                    }
+                }
                 override fun onConsoleMessage(message: android.webkit.ConsoleMessage): Boolean {
                     Log.d("AlkamelNet-Web", "${message.message()} -- ${message.sourceId()}:${message.lineNumber()}")
                     return true
@@ -806,9 +818,11 @@ class MainActivity : Activity() {
 
     private fun requestVoiceRoom() {
         runOnUiThread {
-            if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
                 requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), voicePermissionRequest)
-            } else startVoiceRoom()
+            } else if (::web.isInitialized && !isDestroyed) {
+                web.evaluateJavascript("window.onNativeVoicePermission&&window.onNativeVoicePermission(true);", null)
+            }
         }
     }
 
@@ -823,10 +837,15 @@ class MainActivity : Activity() {
             return
         }
         if (requestCode == voicePermissionRequest) {
-            if (grantResults.isNotEmpty() && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                startVoiceRoom()
+            val granted = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
+            if (granted) {
+                runOnUiThread {
+                    if (::web.isInitialized && !isDestroyed) web.evaluateJavascript("window.onNativeVoicePermission&&window.onNativeVoicePermission(true);", null)
+                }
             } else {
-                runOnUiThread { web.evaluateJavascript("window.onVoiceState&&window.onVoiceState('error','لم تسمح باستخدام الميكروفون');", null) }
+                runOnUiThread {
+                    if (::web.isInitialized && !isDestroyed) web.evaluateJavascript("window.onNativeVoicePermission&&window.onNativeVoicePermission(false);window.onVoiceState&&window.onVoiceState('error','لم تسمح باستخدام الميكروفون');", null)
+                }
             }
         }
     }
@@ -1503,7 +1522,22 @@ class MainActivity : Activity() {
         }
         @JavascriptInterface fun stopChat() { stopVoiceRoom(); stopLanChat() }
         @JavascriptInterface fun joinVoiceRoom() { requestVoiceRoom() }
-        @JavascriptInterface fun setVoiceMuted(muted: Boolean) { setVoiceMute(muted) }
+        @JavascriptInterface
+        fun sendVoiceSignal(targetId: String, payload: String) {
+            if (!chatRequested.get() || targetId.isBlank() || targetId.length > 64 || payload.length > 24000) return
+            val intent = Intent(this@MainActivity, MqttChatService::class.java).apply {
+                action = MqttChatService.ACTION_PUBLISH
+                putExtra(MqttChatService.EXTRA_TYPE, "voice_signal")
+                putExtra(MqttChatService.EXTRA_TARGET, targetId)
+                putExtra(MqttChatService.EXTRA_TEXT, payload)
+            }
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent) else startService(intent)
+            } catch (e: Exception) { Log.e("AlkamelNet", "Unable to send WebRTC signal", e) }
+        }
+        @JavascriptInterface fun setVoiceMuted(muted: Boolean) {
+            web.post { web.evaluateJavascript("window.setWebRtcVoiceMuted&&window.setWebRtcVoiceMuted(" + muted + ");", null) }
+        }
         @JavascriptInterface fun leaveVoiceRoom() { stopVoiceRoom() }
 
         @JavascriptInterface fun scanNearbyWifi() { runOnUiThread { requestNearbyWifiScan() } }
