@@ -282,6 +282,8 @@ main = main_file.read_text(encoding="utf-8")
 def main_once(old, new, label):
     global main
     if old not in main:
+        if new in main:
+            return
         raise SystemExit(f"Expected MainActivity block not found: {label}")
     main = main.replace(old, new, 1)
 
