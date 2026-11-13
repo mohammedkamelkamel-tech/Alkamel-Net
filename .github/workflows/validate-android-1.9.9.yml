@@ -1,0 +1,53 @@
+name: Validate Android 1.9.9 source (development)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/chat-unified-server-webrtc
+    paths:
+      - 'source/Alkamel-Net-Android/**'
+      - '.github/workflows/validate-android-1.9.9.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-source:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: source/Alkamel-Net-Android
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate project and version
+        run: |
+          python3 scripts/validate_project.py
+          grep -q 'versionCode = 83' app/build.gradle.kts
+          grep -q 'versionName = "1.9.9"' app/build.gradle.kts
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Compile development APK
+        env:
+          MQTT_USERNAME: ${{ secrets.MQTT_USERNAME || 'alkamel' }}
+          MQTT_PASSWORD: ${{ secrets.MQTT_PASSWORD }}
+        run: |
+          if [ -z "${MQTT_PASSWORD:-}" ]; then
+            echo "Missing MQTT_PASSWORD secret; Android build cannot proceed safely."
+            exit 1
+          fi
+          gradle --no-daemon --stacktrace :app:assembleDebug
+      - name: Check package and version
+        run: |
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort | tail -n 1)"
+          "$AAPT" dump badging "$APK" | grep -E "versionCode='83' versionName='1.9.9'"
