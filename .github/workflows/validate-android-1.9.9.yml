@@ -29,6 +29,8 @@ jobs:
           python3 scripts/validate_project.py
           grep -q 'versionCode = 83' app/build.gradle.kts
           grep -q 'versionName = "1.9.9"' app/build.gradle.kts
+      - name: Remove artwork source sidecar before Android resource merge
+        run: rm app/src/main/res/drawable-nodpi/ic_launcher.webp.b64
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
