@@ -1514,13 +1514,47 @@ class MainActivity : Activity() {
     inner class Bridge {
         @JavascriptInterface fun getChatDeviceId(): String = chatId
         @JavascriptInterface fun getVoiceIceConfig(): String {
-            val prefs = getSharedPreferences("alkamel_voice", MODE_PRIVATE)
-            val url = prefs.getString("turn_url", "").orEmpty().trim()
-            val username = prefs.getString("turn_username", "").orEmpty().trim()
-            val credential = prefs.getString("turn_credential", "").orEmpty()
             val servers = org.json.JSONArray()
-            if (url.isNotBlank() && username.isNotBlank() && credential.isNotBlank()) {
-                servers.put(JSONObject().put("urls", url).put("username", username).put("credential", credential))
+            val mqttPrefs = getSharedPreferences("alkamel_mqtt", MODE_PRIVATE)
+            val host = mqttPrefs.getString("host", "10.10.10.10").orEmpty().trim()
+            if (host.matches(Regex("[A-Za-z0-9.:-]{1,253}"))) {
+                var connection: java.net.HttpURLConnection? = null
+                try {
+                    connection = (java.net.URL("http://$host:3479/credentials").openConnection() as java.net.HttpURLConnection).apply {
+                        requestMethod = "GET"
+                        connectTimeout = 2500
+                        readTimeout = 2500
+                        useCaches = false
+                    }
+                    if (connection.responseCode == 200) {
+                        val payload = connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                        val credentials = JSONObject(payload)
+                        val username = credentials.optString("username")
+                        val credential = credentials.optString("credential")
+                        if (username.isNotBlank() && credential.isNotBlank()) {
+                            servers.put(JSONObject()
+                                .put("urls", "turn:$host:3478?transport=udp")
+                                .put("username", username)
+                                .put("credential", credential))
+                        }
+                    } else {
+                        Log.w("AlkamelNet", "TURN credential endpoint returned HTTP " + connection.responseCode)
+                    }
+                } catch (e: Exception) {
+                    Log.w("AlkamelNet", "Unable to fetch temporary TURN credentials", e)
+                } finally {
+                    connection?.disconnect()
+                }
+            }
+            // Keep manually provisioned TURN credentials as a compatibility fallback.
+            if (servers.length() == 0) {
+                val prefs = getSharedPreferences("alkamel_voice", MODE_PRIVATE)
+                val url = prefs.getString("turn_url", "").orEmpty().trim()
+                val username = prefs.getString("turn_username", "").orEmpty().trim()
+                val credential = prefs.getString("turn_credential", "").orEmpty()
+                if (url.isNotBlank() && username.isNotBlank() && credential.isNotBlank()) {
+                    servers.put(JSONObject().put("urls", url).put("username", username).put("credential", credential))
+                }
             }
             return servers.toString()
         }
