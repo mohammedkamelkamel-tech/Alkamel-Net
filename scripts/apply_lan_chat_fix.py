@@ -258,12 +258,16 @@ v = v.replace('"integrated repair version": "versionCode = 80" in GRADLE and \'v
               '"integrated repair version": "versionCode = 82" in GRADLE and \'versionName = "1.9.8"\' in GRADLE,')
 
 # Update validation to assert the MQTT transport selected for this release.
-# Force the MQTT transport check to validate the patched MainActivity and manifest.
+# Update the MQTT transport check without weakening its requirements.
 import re
-mqtt_check = '"MQTT broker is the active group/private chat transport": "startMqttChat(name)" in kotlin_source and "publishMqtt" in kotlin_source and "MqttChatService" in kotlin_source and "MqttChatService" in MANIFEST and "org.eclipse.paho" in GRADLE,'
-v, mqtt_check_count = re.subn(r'(?m)^\\s*"MQTT broker is the active group/private chat transport":.*,v = v.replace(
-    '"LAN chat is the only active transport; MQTT service and broker dependency are removed": "startLanChat(name)" in kotlin_source and "publishMqtt" not in kotlin_source and "MqttChatService" not in kotlin_source and "MqttChatService" not in MANIFEST and "org.eclipse.paho" not in GRADLE,',
-    '"MQTT broker is the active group/private chat transport": "startMqttChat(name)" in kotlin_source and "publishMqtt" in kotlin_source and "MqttChatService" in kotlin_source and "MqttChatService" in MANIFEST and "org.eclipse.paho" in GRADLE,')
+mqtt_check_line = '"MQTT broker is the active group/private chat transport": "startMqttChat(name)" in kotlin_source and "publishMqtt" in kotlin_source and "MqttChatService" in kotlin_source and "MqttChatService" in MANIFEST and "org.eclipse.paho" in GRADLE,'
+v, mqtt_check_count = re.subn(
+    r'(?m)^\s*"MQTT broker is the active group/private chat transport":.*$',
+    mqtt_check_line,
+    v
+)
+if mqtt_check_count != 1:
+    raise SystemExit(f"Expected exactly one MQTT transport validator, found {mqtt_check_count}.")
 v = v.replace(
     '"LAN profile photos are compressed below a safe single-datagram size": "const side=64" in html_source and "data.length>3500" in html_source and "dataUrl.length <= 3500" in kotlin_source,',
     '"MQTT profile photo payloads stay within the broker payload limit": "const side=64" in html_source and "data.length>3500" in html_source and "dataUrl.length <= 78000" in kotlin_source,')
