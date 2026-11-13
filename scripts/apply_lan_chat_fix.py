@@ -409,17 +409,18 @@ main_once(
 "MQTT receiver unregister")
 main_file.write_text(main, encoding="utf-8")
 
-# Add Paho and secret-backed BuildConfig fields without putting credentials in source.
+# Add Paho and base64-encoded secret-backed BuildConfig fields.
 gradle_file = root / "app/build.gradle.kts"
 g = gradle_file.read_text(encoding="utf-8")
 g = g.replace('    defaultConfig {\n', '''    buildFeatures { buildConfig = true }
     defaultConfig {
-        val mqttUsername: String = providers.gradleProperty("MQTT_USERNAME").orElse(providers.environmentVariable("MQTT_USERNAME")).orElse("alkamel").get()
-        val mqttPassword: String = providers.gradleProperty("MQTT_PASSWORD").orElse(providers.environmentVariable("MQTT_PASSWORD")).getOrElse("")
+        val mqttUsername = providers.gradleProperty("MQTT_USERNAME").orElse(providers.environmentVariable("MQTT_USERNAME")).orElse("alkamel").get()
+        val mqttPassword = providers.gradleProperty("MQTT_PASSWORD").orElse(providers.environmentVariable("MQTT_PASSWORD")).getOrElse("")
         if (mqttPassword.isBlank()) throw GradleException("MQTT_PASSWORD is missing. Add it as a GitHub Actions secret before building.")
-        fun escapeBuildConfig(value: String): String = value.replace("\\\\", "\\\\\\\\").replace("\\\"", "\\\\\\\"")
-        buildConfigField("String", "MQTT_USERNAME", "\\\"" + escapeBuildConfig(mqttUsername) + "\\"")
-        buildConfigField("String", "MQTT_PASSWORD", "\\\"" + escapeBuildConfig(mqttPassword) + "\\"")
+        val mqttUsernameB64 = java.util.Base64.getEncoder().encodeToString(mqttUsername.toByteArray())
+        val mqttPasswordB64 = java.util.Base64.getEncoder().encodeToString(mqttPassword.toByteArray())
+        buildConfigField("String", "MQTT_USERNAME_B64", "\\"\u0024mqttUsernameB64\\"")
+        buildConfigField("String", "MQTT_PASSWORD_B64", "\\"\u0024mqttPasswordB64\\"")
 ''', 1)
 if 'org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5' not in g:
     g = g.replace('dependencies {\n', 'dependencies {\n    implementation("org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5")\n', 1)
