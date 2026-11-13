@@ -99,9 +99,11 @@ class MainActivity : Activity() {
     @Volatile private var chatSocket: DatagramSocket? = null
     @Volatile private var chatMulticastLock: WifiManager.MulticastLock? = null
     @Volatile private var chatNickname = ""
-    private val chatId: String = getSharedPreferences("alkamel_mqtt", MODE_PRIVATE).let { prefs ->
-        prefs.getString("device_id", null) ?: java.util.UUID.randomUUID().toString().also {
-            prefs.edit().putString("device_id", it).apply()
+    private val chatId: String by lazy {
+        getSharedPreferences("alkamel_mqtt", MODE_PRIVATE).let { prefs ->
+            prefs.getString("device_id", null) ?: java.util.UUID.randomUUID().toString().also {
+                prefs.edit().putString("device_id", it).apply()
+            }
         }
     }
     private val mqttEventsReceiver = object : BroadcastReceiver() {
@@ -708,6 +710,7 @@ class MainActivity : Activity() {
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(mqttIntent) else startService(mqttIntent)
             } catch (e: Exception) { Log.e("AlkamelNet", "MQTT publish request failed", e) }
+            return
         }
         if (!chatRunning.get()) return
         val sessionId = chatSessionGeneration.get()
