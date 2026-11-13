@@ -279,7 +279,7 @@ if mqtt_check_index is None:
     raise SystemExit("MQTT transport validation entry was not found; refusing to skip the check.")
 indent = validator_lines[mqtt_check_index][:len(validator_lines[mqtt_check_index]) - len(validator_lines[mqtt_check_index].lstrip())]
 validator_lines[mqtt_check_index] = indent + '"MQTT broker is the active group/private chat transport": "startMqttChat(name)" in kotlin_source and "publishMqtt(" in kotlin_source and "MqttChatService" in kotlin_source and \'android:name=".MqttChatService"\' in MANIFEST and "org.eclipse.paho.client.mqttv3:1.2.5" in GRADLE,'
-v = "\\n".join(validator_lines) + "\\n"
+v = "\n".join(validator_lines) + "\n"
 
 validator.write_text(v, encoding="utf-8")
 print("Applied LAN Wi-Fi, profile-photo synchronization, and voice-seat activity repairs; version 1.9.8 (code 82).")
