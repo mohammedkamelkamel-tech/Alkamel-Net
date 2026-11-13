@@ -417,14 +417,14 @@ g = g.replace('    defaultConfig {\n', '''    buildFeatures { buildConfig = true
         val mqttUsername = providers.gradleProperty("MQTT_USERNAME").orElse(providers.environmentVariable("MQTT_USERNAME")).orElse("alkamel").get()
         val mqttPassword = providers.gradleProperty("MQTT_PASSWORD").orElse(providers.environmentVariable("MQTT_PASSWORD")).getOrElse("")
         if (mqttPassword.isBlank()) throw GradleException("MQTT_PASSWORD is missing. Add it as a GitHub Actions secret before building.")
-        val mqttUsernameB64 = java.util.Base64.getEncoder().encodeToString(mqttUsername.toByteArray())
-        val mqttPasswordB64 = java.util.Base64.getEncoder().encodeToString(mqttPassword.toByteArray())
+        val mqttUsernameB64 = Base64.getEncoder().encodeToString(mqttUsername.toByteArray())
+        val mqttPasswordB64 = Base64.getEncoder().encodeToString(mqttPassword.toByteArray())
         buildConfigField("String", "MQTT_USERNAME_B64", "\\\"${mqttUsernameB64}\\\"")
         buildConfigField("String", "MQTT_PASSWORD_B64", "\\\"${mqttPasswordB64}\\\"")
 ''', 1)
 if 'org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5' not in g:
     g = g.replace('dependencies {\n', 'dependencies {\n    implementation("org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5")\n', 1)
-gradle_file.write_text(g, encoding="utf-8")
+if not g.startswith("import java.util.Base64\\n"):\n    g = "import java.util.Base64\\n" + g\ngradle_file.write_text(g, encoding="utf-8")
 
 manifest_file = root / "app/src/main/AndroidManifest.xml"
 mf = manifest_file.read_text(encoding="utf-8")
