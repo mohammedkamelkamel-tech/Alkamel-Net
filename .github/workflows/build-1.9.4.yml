@@ -36,6 +36,8 @@ jobs:
           test -s "$PROJECT_DIR/app/build.gradle.kts"
           test -s "$PROJECT_DIR/app/src/main/java/com/alkamel/network/MainActivity.kt"
           test -s "$PROJECT_DIR/app/src/main/assets/home.html"
+          # Remove non-Android base64 sidecar files accidentally included beside real resources.
+          find "$PROJECT_DIR/app/src/main/res" -type f -name "*.b64" -delete
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
           echo "SOURCE_ZIP=$ZIP_FILE" >> "$GITHUB_ENV"
 
