@@ -1,0 +1,43 @@
+name: Build Alkamel chat TURN relay
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["feature/chat-unified-server-webrtc"]
+    paths:
+      - "server/chat-turn/**"
+      - ".github/workflows/build-chat-turn.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: server/chat-turn
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.x"
+          cache-dependency-path: server/chat-turn/go.mod
+      - name: Resolve dependencies
+        run: go mod tidy
+      - name: Test and vet
+        run: |
+          go test ./...
+          go vet ./...
+      - name: Build Windows x64 relay
+        env:
+          CGO_ENABLED: "0"
+          GOOS: windows
+          GOARCH: amd64
+        run: go build -trimpath -ldflags="-s -w" -o ../../output/alkamel-chat-turn.exe .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Alkamel-Chat-TURN-Windows-x64
+          path: output/alkamel-chat-turn.exe
+          if-no-files-found: error
+          retention-days: 30
