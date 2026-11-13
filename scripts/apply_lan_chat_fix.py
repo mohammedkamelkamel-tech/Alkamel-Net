@@ -473,7 +473,6 @@ print("MQTT_DIAG service_in_manifest=", "MqttChatService" in mf)
 print("MQTT_DIAG paho_in_gradle=", "org.eclipse.paho" in g)
 print("MQTT_DIAG buildconfig_fields=", "MQTT_PASSWORD_B64" in g and "MQTT_USERNAME_B64" in g)
 print("MQTT_DIAG validator_test=", [line.strip() for line in v.splitlines() if "MQTT broker is the active" in line])
-, '    ' + mqtt_check, v)
 if mqtt_check_count != 1:
     raise SystemExit(f"Expected exactly one MQTT transport validator check, found {mqtt_check_count}")
 v = v.replace(
