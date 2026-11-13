@@ -1817,27 +1817,16 @@ class MainActivity : Activity() {
             val pausedFor = if (backgroundedAtMs > 0L) System.currentTimeMillis() - backgroundedAtMs else 0L
             val current = web.url.orEmpty()
             if (pausedFor >= 2500L) {
-                // LAN players often retain dead HTTP sockets after Android suspends WebView.
-                if (isExternalServiceUrl(current)) {
-                    Log.i("AlkamelNet", "Reconnecting service after background pause (${pausedFor}ms): $current")
-                    web.post { if (!isFinishing && !isDestroyed) web.loadUrl(current) }
-                } else {
-                    // A LAN service page may retain a dead HTTP/WebView session after
-                    // Android backgrounds the app. Return to the bundled home page and
-                    // restore the relevant section, so every service can be opened again.
-                    val returnPage = when {
-                        current.startsWith("http://30.30.30.30:8080/tv/") ||
-                            current.startsWith("http://30.10.10.10:88/") ||
-                            current.startsWith("https://appassets.androidplatform.net/assets/hd/") -> "live"
-                        current.startsWith("http://30.30.30.30:8096/") ||
-                            current.startsWith("http://30.10.10.10/") -> "rest"
-                        else -> null
-                    }
-                    if (returnPage != null) pendingPageAfterHome = returnPage
-                    verifyPrivateNetworkAccess {
-                        if (returnPage != null || (!current.startsWith(homeUrl) && !current.startsWith("data:"))) {
-                            loadHome()
-                        } else recoverHomeAfterResume()
+                // Always return to the main menu after the app has been backgrounded.
+                // Reusing a previously opened service page can leave WebView with stale
+                // sockets and broken click handlers, so do not reload or restore that page.
+                Log.i("AlkamelNet", "Returning to main menu after background pause (${pausedFor}ms)")
+                pendingPageAfterHome = null
+                verifyPrivateNetworkAccess {
+                    if (isExternalServiceUrl(current) || (!current.startsWith(homeUrl) && !current.startsWith("data:"))) {
+                        loadHome()
+                    } else {
+                        recoverHomeAfterResume()
                     }
                 }
                 // The hidden portal WebView can also keep stale sockets/cookies after resume.
@@ -1878,7 +1867,7 @@ class MainActivity : Activity() {
                 showLoading(false)
                 hideError()
                 web.evaluateJavascript(
-                    "window.dispatchEvent(new Event('focus'));if(typeof window.appOnResume==='function')window.appOnResume();",
+                    "if(typeof showPage==='function')showPage('home');window.dispatchEvent(new Event('focus'));if(typeof window.appOnResume==='function')window.appOnResume();",
                     null
                 )
                 Log.i("AlkamelNet", "Home WebView passed resume health check")
