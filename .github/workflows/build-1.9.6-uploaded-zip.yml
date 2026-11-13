@@ -1,4 +1,4 @@
-name: Build Alkamel-Net 1.9.8 LAN chat repair from code80 source ZIP
+name: Build Alkamel-Net 1.9.8 LAN chat repair from code80 source ZIP (retry after validator fix)
 
 on:
   workflow_dispatch:
