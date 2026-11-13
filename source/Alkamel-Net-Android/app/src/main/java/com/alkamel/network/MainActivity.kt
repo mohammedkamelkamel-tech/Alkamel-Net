@@ -411,7 +411,7 @@ class MainActivity : Activity() {
         val speed = JSONObject.quote(command.first)
         val flag = JSONObject.quote(command.second ?: "")
         target.evaluateJavascript(
-            "(function(){if(typeof loginst!=='function')return 'missing-loginst';if(!window.un||!window.un.username)return 'subscriber-not-ready';loginst($speed,$flag);return 'submitted';})()"
+            "(function(){try{if(typeof loginst!=='function')return 'not-ready';if(!window.un||!window.un.username)return 'not-ready';loginst($speed,$flag);return 'submitted';}catch(e){return 'command-error';}})()"
         ) { result ->
             runOnUiThread {
                 commandAttemptInProgress = false
@@ -421,21 +421,25 @@ class MainActivity : Activity() {
                     return@runOnUiThread
                 }
                 val success = result?.contains("submitted") == true
-                val waitingForSubscriber = result?.contains("subscriber-not-ready") == true
-                if (waitingForSubscriber && pendingCommandAttempts < 20) {
+                val retryable = result == null || result.contains("not-ready") ||
+                    result.contains("null") || result.contains("undefined")
+                if (!success && retryable && pendingCommandAttempts < 40) {
                     pendingCommandAttempts++
+                    // The portal's scripts and subscriber session can finish loading
+                    // after WebView.onPageFinished. Keep the command queued instead of
+                    // dropping it and forcing the user to tap the button again.
                     target.postDelayed({ runPendingCommand() }, 500)
                     return@runOnUiThread
                 }
                 pendingCommand = null
                 pendingCommandAttempts = 0
                 val message = when {
-                    success -> "تم تمرير الطلب إلى كود الموقع الأصلي."
-                    waitingForSubscriber -> "لم تكتمل قراءة بيانات المشترك من بوابة الشبكة؛ لم يتم إرسال الطلب."
-                    else -> "تعذر العثور على دالة الموقع الأصلية؛ لم يتم إرسال الطلب."
+                    success -> "تم إرسال طلب التغيير إلى الموقع. جارٍ تحديث الحالة…"
+                    retryable -> "بوابة الشبكة لم تجهز بعد؛ أعد المحاولة بعد لحظات."
+                    else -> "رفضت بوابة الشبكة تنفيذ الطلب؛ لم يتم تغيير الإعداد."
                 }
                 web.evaluateJavascript(
-                    "if(document.getElementById('speedNotice')){document.getElementById('speedNotice').textContent=${JSONObject.quote(message)};if(${success})setTimeout(function(){if(window.AndroidBridge)AndroidBridge.refresh();},1200);}if(document.getElementById('googleNotice'))document.getElementById('googleNotice').textContent=${JSONObject.quote(message)};",
+                    "if(document.getElementById('speedNotice')){document.getElementById('speedNotice').textContent=${JSONObject.quote(message)};if(${success})setTimeout(function(){if(window.AndroidBridge)AndroidBridge.refresh();},1500);}if(document.getElementById('googleNotice'))document.getElementById('googleNotice').textContent=${JSONObject.quote(message)};",
                     null
                 )
                 if (!success) Log.e("AlkamelNet", "Original portal command was not submitted: $result")
