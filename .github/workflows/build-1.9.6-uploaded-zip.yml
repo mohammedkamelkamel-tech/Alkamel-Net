@@ -1,9 +1,9 @@
-name: Build Alkamel-Net 1.9.7 LAN chat repair from code80 source ZIP
+name: Build Alkamel-Net 1.9.8 LAN chat repair from code80 source ZIP
 
 on:
   workflow_dispatch:
   push:
-    branches: ["fix/1.9.7-lan-chat-wifi"]
+    branches: ["fix/1.9.8-lan-chat-wifi"]
     paths:
       - "Alkamel-Net-Android-Project-v1.9.6-code80.zip"
       - "scripts/apply_lan_chat_fix.py"
@@ -13,18 +13,18 @@ permissions:
   contents: read
 
 concurrency:
-  group: alkamel-net-1-9-7-lan-chat-repair
+  group: alkamel-net-1-9-8-lan-chat-repair
   cancel-in-progress: false
 
 jobs:
-  build-1-9-7:
-    name: Apply LAN chat fix to exact uploaded 1.9.6 code80 source ZIP and build 1.9.7
+  build-1-9-8:
+    name: Apply LAN chat fix to exact uploaded 1.9.6 code80 source ZIP and build 1.9.8
     runs-on: ubuntu-latest
     steps:
       - name: Checkout uploaded branch
         uses: actions/checkout@v4
         with:
-          ref: "fix/1.9.7-lan-chat-wifi"
+          ref: "fix/1.9.8-lan-chat-wifi"
 
       - name: Verify and extract the exact uploaded ZIP
         shell: bash
@@ -88,18 +88,18 @@ jobs:
           test -s "$APK"
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort | tail -n 1)"
           test -x "$AAPT"
-          "$AAPT" dump badging "$APK" | grep -E "versionCode='81' versionName='1.9.7'"
+          "$AAPT" dump badging "$APK" | grep -E "versionCode='82' versionName='1.9.8'"
           mkdir -p "$GITHUB_WORKSPACE/output"
-          cp "$APK" "$GITHUB_WORKSPACE/output/Alkamel-Net-v1.9.7-code81-debug.apk"
+          cp "$APK" "$GITHUB_WORKSPACE/output/Alkamel-Net-v1.9.8-code82-debug.apk"
           cd "$PROJECT_DIR/.."
-          zip -qr "$GITHUB_WORKSPACE/output/Alkamel-Net-Android-Project-v1.9.7-code81.zip" "$(basename "$PROJECT_DIR")"
+          zip -qr "$GITHUB_WORKSPACE/output/Alkamel-Net-Android-Project-v1.9.8-code82.zip" "$(basename "$PROJECT_DIR")"
 
       - name: Upload APK and exact project ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: Alkamel-Net-v1.9.7-code81
+          name: Alkamel-Net-v1.9.8-code82
           path: |
-            output/Alkamel-Net-v1.9.7-code81-debug.apk
-            output/Alkamel-Net-Android-Project-v1.9.7-code81.zip
+            output/Alkamel-Net-v1.9.8-code82-debug.apk
+            output/Alkamel-Net-Android-Project-v1.9.8-code82.zip
           if-no-files-found: error
           retention-days: 30
