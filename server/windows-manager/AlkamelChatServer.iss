@@ -28,7 +28,9 @@ Name: "desktopicon"; Description: "إنشاء اختصار على سطح الم�
 
 [Run]
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""Alkamel Chat TURN"" dir=in action=allow protocol=UDP localport=3478,49160-49200"; Flags: runhidden
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""Alkamel Chat TURN Credentials"" dir=in action=allow protocol=TCP localport=3479"; Flags: runhidden
 Filename: "{app}\AlkamelChatServer.exe"; Description: "تشغيل خادم الدردشة"; Flags: postinstall nowait skipifsilent
 
 [UninstallRun]
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Alkamel Chat TURN"""; Flags: runhidden
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Alkamel Chat TURN Credentials"""; Flags: runhidden
