@@ -101,7 +101,7 @@ class MqttChatService : Service() {
         when (intent?.action) {
             ACTION_PUBLISH -> {
                 val type = intent.getStringExtra(EXTRA_TYPE).orEmpty()
-                if (type in setOf("message", "voice_message", "gift", "profile_photo", "private_request", "private_response", "private_message")) {
+                if (type in setOf("message", "voice_message", "gift", "profile_photo", "private_request", "private_response", "private_message", "voice_seat")) {
                     publish(type, intent.getStringExtra(EXTRA_TEXT).orEmpty(),
                         intent.getStringExtra(EXTRA_TARGET), intent.getStringExtra(EXTRA_REQUEST_ID))
                 }
