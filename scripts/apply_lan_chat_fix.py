@@ -309,7 +309,13 @@ main_once(
 """,
 "MQTT event receiver")
 main_once(
-"        super.onCreate(savedInstanceState)\n        restoreFirewallIfNeeded()\n",
+"        super.onCreate(savedInstanceState)\n",
+"""        super.onCreate(savedInstanceState)
+        val mqttFilter = IntentFilter(MqttChatService.ACTION_EVENT)
+        if (Build.VERSION.SDK_INT >= 33) registerReceiver(mqttEventReceiver, mqttFilter, Context.RECEIVER_NOT_EXPORTED)
+        else registerReceiver(mqttEventReceiver, mqttFilter)
+        mqttReceiverRegistered = true
+""",
 """        super.onCreate(savedInstanceState)
         val mqttFilter = IntentFilter(MqttChatService.ACTION_EVENT)
         if (Build.VERSION.SDK_INT >= 33) registerReceiver(mqttEventReceiver, mqttFilter, Context.RECEIVER_NOT_EXPORTED)
