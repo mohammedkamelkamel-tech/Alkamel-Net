@@ -20,6 +20,10 @@ jobs:
         working-directory: source/Alkamel-Net-Android
     steps:
       - uses: actions/checkout@v4
+      - name: Restore canonical launcher artwork
+        run: |
+          base64 -d app/src/main/res/drawable-nodpi/ic_launcher.webp.b64 > app/src/main/res/drawable-nodpi/ic_launcher.webp
+          file app/src/main/res/drawable-nodpi/ic_launcher.webp
       - name: Validate project and version
         run: |
           python3 scripts/validate_project.py
@@ -51,3 +55,16 @@ jobs:
           test -s "$APK"
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort | tail -n 1)"
           "$AAPT" dump badging "$APK" | grep -E "versionCode='83' versionName='1.9.9'"
+      - name: Package complete Android source
+        run: |
+          cd ../..
+          zip -r Alkamel-Net-Android-1.9.9-source.zip source/Alkamel-Net-Android -x '*/.gradle/*' '*/build/*'
+      - name: Upload APK and source
+        uses: actions/upload-artifact@v4
+        with:
+          name: Alkamel-Net-Android-1.9.9
+          path: |
+            source/Alkamel-Net-Android/app/build/outputs/apk/debug/app-debug.apk
+            Alkamel-Net-Android-1.9.9-source.zip
+          if-no-files-found: error
+          retention-days: 30
