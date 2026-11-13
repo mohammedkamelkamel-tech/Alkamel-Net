@@ -423,7 +423,10 @@ g = g.replace('    defaultConfig {\n', '''    buildFeatures { buildConfig = true
         buildConfigField("String", "MQTT_PASSWORD_B64", "\\\"${mqttPasswordB64}\\\"")
 ''', 1)
 if 'org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5' not in g:
-    g = g.replace('dependencies {\n', 'dependencies {\n    implementation("org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5")\n', 1)
+    marker = "dependencies {"
+    if marker not in g:
+        raise SystemExit("Could not locate dependencies block in app/build.gradle.kts")
+    g = g.replace(marker, marker + '\n    implementation("org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5")', 1)
 if not g.startswith("import java.util.Base64\\n"):
     g = "import java.util.Base64\\n" + g
 
