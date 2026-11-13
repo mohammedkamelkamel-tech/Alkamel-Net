@@ -12,8 +12,8 @@ android {
         applicationId = "com.mohammedkamel.alkamelnet.portal2026"
         minSdk = 24
         targetSdk = 35
-        versionCode = 83
-        versionName = "1.9.9"
+        versionCode = 84
+        versionName = "2.0.0"
         val mqttUser = System.getenv("MQTT_USERNAME").orEmpty()
         val mqttPass = System.getenv("MQTT_PASSWORD").orEmpty()
         buildConfigField("String", "MQTT_USERNAME_B64", "\"${Base64.getEncoder().encodeToString(mqttUser.toByteArray())}\"")
