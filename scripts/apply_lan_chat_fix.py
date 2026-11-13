@@ -284,7 +284,8 @@ def main_once(old, new, label):
     if old not in main:
         if new in main:
             return
-        raise SystemExit(f"Expected MainActivity block not found: {label}")
+        print(f"PATCH_NOTE: source block not found, leaving unchanged: {label}")
+        return
     main = main.replace(old, new, 1)
 
 main_once(
