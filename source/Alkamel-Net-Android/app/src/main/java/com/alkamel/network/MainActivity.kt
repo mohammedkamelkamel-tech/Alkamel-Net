@@ -1459,6 +1459,32 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun requestInstalledApps() {
+        io.execute {
+            val result = try {
+                val apps = packageManager.getInstalledApplications(PackageManager.GET_META_DATA)
+                    .filter { it.packageName != packageName && it.uid >= 10000 }
+                    .sortedBy { runCatching { packageManager.getApplicationLabel(it).toString().lowercase(java.util.Locale.ROOT) }.getOrDefault(it.packageName) }
+                val rows = org.json.JSONArray()
+                apps.forEach { app ->
+                    rows.put(JSONObject()
+                        .put("name", runCatching { packageManager.getApplicationLabel(app).toString() }.getOrDefault(app.packageName))
+                        .put("packageName", app.packageName)
+                        .put("icon", applicationIconData(app)))
+                }
+                JSONObject().put("status", "ok").put("apps", rows)
+            } catch (e: Exception) {
+                Log.e("AlkamelNet", "Installed apps read failed", e)
+                JSONObject().put("status", "error").put("message", "تعذر جلب قائمة التطبيقات من أندرويد.")
+            }
+            val payload = JSONObject.quote(result.toString())
+            runOnUiThread {
+                if (::web.isInitialized && !isFinishing && !isDestroyed)
+                    web.evaluateJavascript("if(window.onInstalledAppsResult)window.onInstalledAppsResult(JSON.parse($payload));", null)
+            }
+        }
+    }
+
     private fun openUsageAccessSettings() {
         runOnUiThread {
             val packageUri = Uri.parse("package:$packageName")
@@ -1579,6 +1605,7 @@ class MainActivity : Activity() {
 
         @JavascriptInterface fun scanNearbyWifi() { runOnUiThread { requestNearbyWifiScan() } }
         @JavascriptInterface fun getAppNetworkUsage() { requestAppNetworkUsage() }
+        @JavascriptInterface fun getInstalledApps() { requestInstalledApps() }
         @JavascriptInterface fun openUsageAccessSettings() { this@MainActivity.openUsageAccessSettings() }
         @JavascriptInterface
         fun openUrl(url: String) {
