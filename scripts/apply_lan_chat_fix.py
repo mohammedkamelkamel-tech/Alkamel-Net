@@ -316,13 +316,6 @@ main_once(
         else registerReceiver(mqttEventReceiver, mqttFilter)
         mqttReceiverRegistered = true
 """,
-"""        super.onCreate(savedInstanceState)
-        val mqttFilter = IntentFilter(MqttChatService.ACTION_EVENT)
-        if (Build.VERSION.SDK_INT >= 33) registerReceiver(mqttEventReceiver, mqttFilter, Context.RECEIVER_NOT_EXPORTED)
-        else registerReceiver(mqttEventReceiver, mqttFilter)
-        mqttReceiverRegistered = true
-        restoreFirewallIfNeeded()
-""",
 "MQTT receiver registration")
 # Insert MQTT lifecycle methods before the LAN service methods.
 anchor = "    private fun startLanChat(name: String, ensureService: Boolean = true) {"
