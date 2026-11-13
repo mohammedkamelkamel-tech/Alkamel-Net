@@ -24,14 +24,19 @@ jobs:
         run: |
           set -euo pipefail
           ARCHIVE="Alkamel-Net-Android-2.0.0-source.zip"
-          test -f "$ARCHIVE"
-          mkdir -p /tmp/alkamel-src
-          unzip -q "$ARCHIVE" -d /tmp/alkamel-src
-          test -d /tmp/alkamel-src/Alkamel-Net-Android
-          # Keep the release branch workflow; do not import nested workflows from the uploaded project.
-          rm -rf /tmp/alkamel-src/Alkamel-Net-Android/.github
-          cp -a /tmp/alkamel-src/Alkamel-Net-Android/. .
-          rm -rf /tmp/alkamel-src "$ARCHIVE"
+          if [ -f "$ARCHIVE" ]; then
+            mkdir -p /tmp/alkamel-src
+            unzip -q "$ARCHIVE" -d /tmp/alkamel-src
+            test -d /tmp/alkamel-src/Alkamel-Net-Android
+            # Keep the release branch workflow; do not import nested workflows from the uploaded project.
+            rm -rf /tmp/alkamel-src/Alkamel-Net-Android/.github
+            cp -a /tmp/alkamel-src/Alkamel-Net-Android/. .
+            rm -rf /tmp/alkamel-src "$ARCHIVE"
+          else
+            echo "Source already extracted; continuing with repository files."
+          fi
+          test -f app/build.gradle.kts
+          test -f settings.gradle.kts
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
