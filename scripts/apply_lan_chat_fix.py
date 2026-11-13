@@ -271,6 +271,16 @@ v = v.replace(
     '"private messages use direct LAN unicast": "sendPrivateLanPacket(type, targetId, requestId, message.trim())" in kotlin_source,',
     '"private messages use MQTT private topics": "publishMqtt(type, message.trim(), targetId, requestId)" in kotlin_source,')
 
+# Ensure the validator checks the actual MQTT bridge, service declaration, and dependency.
+import re
+validator_lines = v.splitlines()
+mqtt_check_index = next((i for i, line in enumerate(validator_lines) if "MQTT broker is the active group/private chat transport" in line), None)
+if mqtt_check_index is None:
+    raise SystemExit("MQTT transport validation entry was not found; refusing to skip the check.")
+indent = validator_lines[mqtt_check_index][:len(validator_lines[mqtt_check_index]) - len(validator_lines[mqtt_check_index].lstrip())]
+validator_lines[mqtt_check_index] = indent + '"MQTT broker is the active group/private chat transport": "startMqttChat(name)" in kotlin_source and "publishMqtt(" in kotlin_source and "MqttChatService" in kotlin_source and \'android:name=".MqttChatService"\' in MANIFEST and "org.eclipse.paho.client.mqttv3:1.2.5" in GRADLE,'
+v = "\\n".join(validator_lines) + "\\n"
+
 validator.write_text(v, encoding="utf-8")
 print("Applied LAN Wi-Fi, profile-photo synchronization, and voice-seat activity repairs; version 1.9.8 (code 82).")
 
