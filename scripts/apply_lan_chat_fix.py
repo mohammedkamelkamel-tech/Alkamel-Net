@@ -180,6 +180,12 @@ replace_once(
 '''                            val isPublicPacket = packetType in setOf("presence", "message", "profile_photo", "profile_photo_request", "gift", "voice_seat")''',
 "photo request public delivery")
 
+replace_once(
+'''        @JavascriptInterface fun sendProfilePhoto(dataUrl: String) { if (dataUrl.isEmpty() || (dataUrl.length <= 3500 && dataUrl.startsWith("data:image/jpeg;base64,"))) sendLanPacket("profile_photo", dataUrl) }''',
+'''        @JavascriptInterface fun sendProfilePhoto(dataUrl: String) { if (dataUrl.isEmpty() || (dataUrl.length <= 3500 && dataUrl.startsWith("data:image/jpeg;base64,"))) sendLanPacket("profile_photo", dataUrl) }
+        @JavascriptInterface fun requestProfilePhoto() { sendLanPacket("profile_photo_request", "") }''',
+"profile photo request bridge")
+
 home = root / "app/src/main/assets/home.html"
 html = home.read_text(encoding="utf-8")
 def html_replace_once(old: str, new: str, label: str) -> None:
