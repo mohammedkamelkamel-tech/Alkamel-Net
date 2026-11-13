@@ -45,7 +45,7 @@ class AppBlockVpnService : VpnService() {
                 .addAddress("10.111.0.1", 32)
                 .addRoute("0.0.0.0", 0)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                builder.addAddress("fd00:alkamel::1", 128)
+                builder.addAddress("fd00:1111::1", 128)
                 builder.addRoute("::", 0)
             }
 
