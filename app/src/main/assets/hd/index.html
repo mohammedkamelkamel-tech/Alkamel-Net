@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>الكامل-نت | بث HD</title>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Tahoma;background:
+radial-gradient(circle at 20% 10%,#8d3cff55,transparent 25%),
+radial-gradient(circle at 80% 0%,#00cfff44,transparent 25%),
+linear-gradient(180deg,#18032f,#090d2d,#050812);color:#fff}
+.container{max-width:1280px;margin:auto;padding:18px}
+.header{background:rgba(255,255,255,.08);backdrop-filter:blur(18px);border:1px solid #ffffff22;border-radius:24px;padding:18px 24px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 0 30px #8d3cff44}
+.logo{font-size:34px;font-weight:900;background:linear-gradient(90deg,#fff,#ffda6b,#79d8ff);-webkit-background-clip:text;color:transparent}
+.live{background:#d6002f;padding:10px 20px;border-radius:30px;font-weight:bold}
+.banner{margin:18px 0;padding:14px;border-radius:18px;background:linear-gradient(90deg,#b8860b,#ffd54f,#b8860b);color:#222;font-weight:800;text-align:center}
+.player{padding:8px;border-radius:28px;background:linear-gradient(135deg,#a64dff,#00d4ff,#a64dff)}
+.player video{display:block;width:100%;aspect-ratio:16/9;border-radius:22px;background:#000}
+.state{margin-top:10px;text-align:center;font-weight:bold}
+.controls{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:18px}
+button{padding:14px 24px;border:none;border-radius:14px;color:#fff;font-weight:bold;cursor:pointer}
+.vlc{background:#ff9800}.mx{background:#2196f3}.re{background:#8e24aa}
+
+.smallTicker{width:90%;margin:8px auto 10px;padding:8px 16px;border-radius:14px;
+overflow:hidden;position:relative;
+background:linear-gradient(90deg,#8b0000,#d81b60,#7b1fa2,#d81b60,#8b0000);
+background-size:300% 100%;
+border:2px solid #ff4da6;
+box-shadow:0 0 12px #ff2d55,0 0 24px #8d3cff;
+animation:ledbg 4s linear infinite}
+.smallTicker span{display:inline-block;white-space:nowrap;font-weight:700;font-size:16px;color:#fff;
+text-shadow:0 0 8px #fff,0 0 14px #ff66cc}
+@keyframes ledbg{from{background-position:0 0}to{background-position:100% 0}}
+
+
+@media (max-width:768px){
+.container{max-width:100%;padding:10px}
+.header{padding:12px 14px;border-radius:16px;flex-direction:column;gap:10px}
+.logo{font-size:28px;text-align:center}
+.live{padding:8px 16px;font-size:14px}
+.banner{margin:12px 0;padding:10px;font-size:15px}
+.smallTicker{width:86%;padding:8px 12px}
+.smallTicker span{font-size:14px}
+.player{padding:5px;border-radius:18px}
+.player video{width:100%;border-radius:14px}
+.controls{gap:8px}
+.controls button{
+ flex:1 1 calc(33.3% - 8px);
+ min-height:46px;
+ padding:10px 6px;
+ font-size:14px;
+}
+.state,.info{font-size:14px}
+}
+
+</style>
+</head>
+<body>
+<div class="container">
+<div class="header">
+<div class="logo">بث الكامل HD</div>
+<div class="live">🔴 مباشر</div>
+</div>
+<div class="smallTicker"><span id="tickerText">مرحبًا بكم على بث الكـــHDــــامل</span></div>
+<div class="banner">🏆 بث مباشر بجودة HD</div>
+
+<div class="player">
+<video id="v" controls autoplay playsinline muted></video>
+<div id="st" class="state">جاري الاتصال...</div>
+</div>
+
+<div class="controls">
+<button class="vlc" onclick="vlc()">فتح عبر VLC</button>
+<button class="mx" onclick="mx()">فتح عبر MX Player</button>
+<button class="re" onclick="loadStream()">إعادة الاتصال</button>
+</div>
+</div>
+
+<script>
+const url="http://10.10.10.10:8888/live/index.m3u8";
+const v=document.getElementById("v");
+const st=document.getElementById("st");
+let h;
+let retryTimer;
+let retryDelay=2000;
+
+function loadStream(){
+ if(retryTimer) clearTimeout(retryTimer);
+ if(h){h.destroy();h=null;}
+ st.textContent="جاري الاتصال بالبث...";
+ if(window.Hls && Hls.isSupported()){
+   h=new Hls({lowLatencyMode:true,enableWorker:true});
+   h.loadSource(url);
+   h.attachMedia(v);
+   h.on(Hls.Events.MANIFEST_PARSED,function(){
+     retryDelay=2000;
+     v.play().then(()=>{st.textContent="يعمل الآن";}).catch(()=>{st.textContent="تم الاتصال؛ اضغط تشغيل لبدء المشاهدة";});
+   });
+   h.on(Hls.Events.ERROR,function(event,data){
+     if(data.fatal){
+       st.textContent="انقطع البث؛ ستتم محاولة إعادة الاتصال...";
+       h.destroy();h=null;
+       retryTimer=setTimeout(loadStream,retryDelay);
+       retryDelay=Math.min(retryDelay*2,15000);
+     }
+   });
+ } else if(v.canPlayType('application/vnd.apple.mpegurl')) {
+   v.src=url;
+   v.addEventListener('loadedmetadata',()=>{v.play().catch(()=>{});st.textContent="تم الاتصال بالبث";},{once:true});
+   v.addEventListener('error',()=>{st.textContent="تعذر تشغيل البث؛ تحقق من الاتصال بالخادم";},{once:true});
+ } else {
+   st.textContent="المتصفح لا يدعم تشغيل HLS. جرّب VLC أو MX Player.";
+ }
+}
+
+function vlc(){
+ if(window.AndroidBridge){AndroidBridge.externalPlayer(url,'org.videolan.vlc')}else{location.href='intent:'+url+'#Intent;package=org.videolan.vlc;type=video/*;end';}
+}
+function mx(){
+ if(window.AndroidBridge){AndroidBridge.externalPlayer(url,'com.mxtech.videoplayer.ad')}else{location.href='intent:'+url+'#Intent;package=com.mxtech.videoplayer.ad;end';}
+}
+
+
+const ticker=document.getElementById('tickerText');
+function loopTicker(){
+ ticker.style.transition='none';
+ ticker.style.transform='translateX(110%)';
+ requestAnimationFrame(()=>requestAnimationFrame(()=>{
+  ticker.style.transition='transform 1.2s ease';
+  ticker.style.transform='translateX(0)';
+  setTimeout(()=>{
+   ticker.style.transition='transform 1.2s ease';
+   ticker.style.transform='translateX(-110%)';
+  },3000);
+ }));
+}
+loopTicker();
+setInterval(loopTicker,5400);
+
+loadStream();
+</script>
+</body>
+</html>
