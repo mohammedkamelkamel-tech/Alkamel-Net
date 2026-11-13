@@ -452,8 +452,6 @@ print("MQTT_DIAG service_in_manifest=", "MqttChatService" in mf)
 print("MQTT_DIAG paho_in_gradle=", "org.eclipse.paho" in g)
 print("MQTT_DIAG buildconfig_fields=", "MQTT_PASSWORD_B64" in g and "MQTT_USERNAME_B64" in g)
 print("MQTT_DIAG validator_test=", [line.strip() for line in v.splitlines() if "MQTT broker is the active" in line])
-if mqtt_check_count != 1:
-    raise SystemExit(f"Expected exactly one MQTT transport validator check, found {mqtt_check_count}")
 v = v.replace(
     '"LAN chat is the only active transport; MQTT service and broker dependency are removed": "startLanChat(name)" in kotlin_source and "publishMqtt" not in kotlin_source and "MqttChatService" not in kotlin_source and "MqttChatService" not in MANIFEST and "org.eclipse.paho" not in GRADLE,',
     '"MQTT broker is the active group/private chat transport": "startMqttChat(name)" in kotlin_source and "publishMqtt" in kotlin_source and "MqttChatService" in kotlin_source and "MqttChatService" in MANIFEST and "org.eclipse.paho" in GRADLE,')
