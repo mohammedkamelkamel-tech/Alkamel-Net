@@ -23,8 +23,5 @@
 # Retain useful crash line metadata for diagnosing field issues.
 -renamesourcefileattribute SourceFile
 -keepattributes SourceFile,LineNumberTable
-# Eclipse Paho MQTT v3 loads its logger implementation and message catalog by reflection.
-# R8 must not rename/remove these classes or strip the ResourceBundle used at runtime.
+# Keep Eclipse Paho MQTT runtime classes used through reflection by its logger factory.
 -keep class org.eclipse.paho.client.mqttv3.** { *; }
--keep class org.eclipse.paho.client.mqttv3.*$* { *; }
--keepresourcebundles org.eclipse.paho.client.mqttv3.internal.nls.logcat
