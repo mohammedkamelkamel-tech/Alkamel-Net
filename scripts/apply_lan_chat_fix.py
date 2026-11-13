@@ -256,6 +256,15 @@ v = v.replace('"item.id===senderId" in html_source and "voiceActivity.set(seat.i
               '"voiceSeats.find(item=>item&&item.id===senderId)" in html_source and "voiceActivity.set(senderId,now)" in html_source')
 v = v.replace('"integrated repair version": "versionCode = 80" in GRADLE and \'versionName = "1.9.6"\' in GRADLE,',
               '"integrated repair version": "versionCode = 82" in GRADLE and \'versionName = "1.9.8"\' in GRADLE,')
+
+# Update validation to assert the MQTT transport selected for this release.
+v = v.replace(
+    '"LAN chat is the only active transport; MQTT service and broker dependency are removed": "startLanChat(name)" in kotlin_source and "publishMqtt" not in kotlin_source and "MqttChatService" not in kotlin_source and "MqttChatService" not in MANIFEST and "org.eclipse.paho" not in GRADLE,',
+    '"MQTT broker is the active group/private chat transport": "startMqttChat(name)" in kotlin_source and "publishMqtt" in kotlin_source and "MqttChatService" in kotlin_source and "MqttChatService" in MANIFEST and "org.eclipse.paho" in GRADLE,')
+v = v.replace(
+    '"private messages use direct LAN unicast": "sendPrivateLanPacket(type, targetId, requestId, message.trim())" in kotlin_source,',
+    '"private messages use MQTT private topics": "publishMqtt(type, message.trim(), targetId, requestId)" in kotlin_source,')
+
 validator.write_text(v, encoding="utf-8")
 print("Applied LAN Wi-Fi, profile-photo synchronization, and voice-seat activity repairs; version 1.9.8 (code 82).")
 
