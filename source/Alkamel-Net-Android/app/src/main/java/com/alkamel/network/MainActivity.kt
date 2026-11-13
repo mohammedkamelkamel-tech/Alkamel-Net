@@ -773,8 +773,7 @@ class MainActivity : Activity() {
         }
     }
     private fun sendPrivateLanPacket(type: String, targetId: String, requestId: String, message: String) {
-        if (!chatRunning.get() || targetId.isBlank() || requestId.isBlank()) return
-        val sessionId = chatSessionGeneration.get()
+        if (!chatRequested.get() || targetId.isBlank() || requestId.isBlank()) return
         val mqttIntent = Intent(this, MqttChatService::class.java).apply {
             action = MqttChatService.ACTION_PUBLISH
             putExtra(MqttChatService.EXTRA_TYPE, type)
@@ -784,34 +783,9 @@ class MainActivity : Activity() {
         }
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(mqttIntent) else startService(mqttIntent)
-        } catch (e: Exception) { Log.e("AlkamelNet", "MQTT private publish request failed", e) }
-        val address = chatPeerAddresses[targetId] ?: return
-        val payload = JSONObject()
-            .put("type", type)
-            .put("id", chatId)
-            .put("name", chatNickname)
-            .put("to", targetId)
-            .put("requestId", requestId)
-            .put("text", message.take(1000))
-            .toString().toByteArray(Charsets.UTF_8)
-        chatSendExecutor.execute {
-            if (!chatRunning.get() || chatSessionGeneration.get() != sessionId) return@execute
-            try {
-                DatagramSocket(null).use { sender ->
-                    // Private unicast packets must follow the same Wi-Fi route as
-                    // group chat; otherwise Android may send them over cellular.
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                        chatWifiNetwork()?.let { network ->
-                            runCatching { network.bindSocket(sender) }
-                                .onFailure { Log.w("AlkamelNet", "Unable to bind private chat sender to Wi-Fi", it) }
-                        }
-                    }
-                    sender.bind(java.net.InetSocketAddress(0))
-                    sender.send(DatagramPacket(payload, payload.size, address, 39127))
-                }
-            } catch (e: Exception) {
-                Log.w("AlkamelNet", "Private LAN packet send failed", e)
-            }
+        } catch (e: Exception) {
+            Log.e("AlkamelNet", "MQTT private publish request failed", e)
+            notifyChatState("error", "تعذر إرسال الرسالة الخاصة عبر الخادم.")
         }
     }
 
