@@ -1547,7 +1547,17 @@ class MainActivity : Activity() {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent) else startService(intent)
             } catch (e: Exception) { Log.e("AlkamelNet", "Unable to send WebRTC signal", e) }
         }
+        @JavascriptInterface fun startNativeVoiceRoom() {
+            runOnUiThread {
+                if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                    startVoiceRoom()
+                } else {
+                    web.evaluateJavascript("window.onVoiceState&&window.onVoiceState('error','يلزم السماح باستخدام الميكروفون');", null)
+                }
+            }
+        }
         @JavascriptInterface fun setVoiceMuted(muted: Boolean) {
+            voiceMuted.set(muted)
             web.post { web.evaluateJavascript("window.setWebRtcVoiceMuted&&window.setWebRtcVoiceMuted(" + muted + ");", null) }
         }
         @JavascriptInterface fun leaveVoiceRoom() { stopVoiceRoom() }
