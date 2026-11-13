@@ -251,4 +251,4 @@ v = v.replace('"integrated repair version": "versionCode = 80" in GRADLE and \'v
 v = v.replace('"private chat unicast sender binds to Wi-Fi": "Unable to bind private chat sender to Wi-Fi" in KOTLIN.read_text(encoding="utf-8") and "chatWifiNetwork()?.let { network" in KOTLIN.read_text(encoding="utf-8"),',
               '"private chat unicast sender binds to Wi-Fi": "Private LAN packet not sent: no connected Wi-Fi network" in KOTLIN.read_text(encoding="utf-8") and "wifiNetwork.bindSocket(sender)" in KOTLIN.read_text(encoding="utf-8"),')
 validator.write_text(v, encoding="utf-8")
-print("Applied LAN Wi-Fi routing repair and bumped app version to 1.9.7 (code 81).")
+print("Applied LAN Wi-Fi, profile-photo synchronization, and voice-seat activity repairs; version 1.9.8 (code 82).")
