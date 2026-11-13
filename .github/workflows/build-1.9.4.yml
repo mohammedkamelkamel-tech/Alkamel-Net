@@ -31,7 +31,7 @@ jobs:
           test -s "$ZIP_FILE"
           unzip -t "$ZIP_FILE"
           mkdir -p "$GITHUB_WORKSPACE/source"
-          unzip -q "$ZIP_FILE" -d "$GITHUB_WORKSPACE/source"
+          unzip -oq "$ZIP_FILE" -d "$GITHUB_WORKSPACE/source"
           PROJECT_DIR="$GITHUB_WORKSPACE/source/Alkamel-Net-Android"
           test -s "$PROJECT_DIR/app/build.gradle.kts"
           test -s "$PROJECT_DIR/app/src/main/java/com/alkamel/network/MainActivity.kt"
