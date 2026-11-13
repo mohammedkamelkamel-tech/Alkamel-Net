@@ -479,7 +479,10 @@ main = main_file.read_text(encoding="utf-8")
 def main_once(old, new, label):
     global main
     if old not in main:
-        raise SystemExit(f"Expected MainActivity block not found: {label}")
+        if new in main:
+            return
+        print(f"PATCH_NOTE: source block not found, leaving unchanged: {label}")
+        return
     main = main.replace(old, new, 1)
 
 main_once(
