@@ -6,6 +6,7 @@ on:
     branches: ["mohammedkamelkamel-tech-patch-1"]
     paths:
       - "Alkamel-Net-Android-Project-v1.9.6-code80.zip"
+      - "scripts/apply_lan_chat_fix.py"
       - ".github/workflows/build-1.9.6-uploaded-zip.yml"
 
 permissions:
@@ -40,6 +41,7 @@ jobs:
           test -s "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
           test -s "$PROJECT_DIR/app/src/main/assets/home.html"
           test -s "$PROJECT_DIR/scripts/validate_project.py"
+          python3 "$GITHUB_WORKSPACE/scripts/apply_lan_chat_fix.py" "$PROJECT_DIR"
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
           echo "SOURCE_ZIP=$ZIP_FILE" >> "$GITHUB_ENV"
           echo "Building only: $ZIP_FILE"
@@ -86,17 +88,18 @@ jobs:
           test -s "$APK"
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort | tail -n 1)"
           test -x "$AAPT"
-          "$AAPT" dump badging "$APK" | grep -E "versionCode='80' versionName='1.9.6'"
+          "$AAPT" dump badging "$APK" | grep -E "versionCode='81' versionName='1.9.7'"
           mkdir -p "$GITHUB_WORKSPACE/output"
-          cp "$APK" "$GITHUB_WORKSPACE/output/Alkamel-Net-v1.9.6-code80-debug.apk"
-          cp "$SOURCE_ZIP" "$GITHUB_WORKSPACE/output/Alkamel-Net-Android-Project-v1.9.6-code80.zip"
+          cp "$APK" "$GITHUB_WORKSPACE/output/Alkamel-Net-v1.9.7-code81-debug.apk"
+          cd "$PROJECT_DIR/.."
+          zip -qr "$GITHUB_WORKSPACE/output/Alkamel-Net-Android-Project-v1.9.7-code81.zip" "$(basename "$PROJECT_DIR")"
 
       - name: Upload APK and exact project ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: Alkamel-Net-v1.9.6-code80
+          name: Alkamel-Net-v1.9.7-code81
           path: |
-            output/Alkamel-Net-v1.9.6-code80-debug.apk
-            output/Alkamel-Net-Android-Project-v1.9.6-code80.zip
+            output/Alkamel-Net-v1.9.7-code81-debug.apk
+            output/Alkamel-Net-Android-Project-v1.9.7-code81.zip
           if-no-files-found: error
           retention-days: 30
