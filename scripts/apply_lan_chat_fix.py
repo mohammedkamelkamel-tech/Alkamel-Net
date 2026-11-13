@@ -169,10 +169,69 @@ replace_once(
                     sender.bind(java.net.InetSocketAddress(0))
 ''', "private sender binding")
 
+
+# Extend the repair with reliable profile-photo discovery and seat activity UI.
+replace_once(
+'''                            if (packetType in setOf("presence", "profile_photo", "private_request", "private_response", "private_message")) {''',
+'''                            if (packetType in setOf("presence", "profile_photo", "profile_photo_request", "private_request", "private_response", "private_message")) {''',
+"photo request peer learning")
+replace_once(
+'''                            val isPublicPacket = packetType in setOf("presence", "message", "profile_photo", "gift", "voice_seat")''',
+'''                            val isPublicPacket = packetType in setOf("presence", "message", "profile_photo", "profile_photo_request", "gift", "voice_seat")''',
+"photo request public delivery")
+
+home = root / "app/src/main/assets/home.html"
+html = home.read_text(encoding="utf-8")
+def html_replace_once(old: str, new: str, label: str) -> None:
+    global html
+    if old not in html:
+        raise SystemExit(f"Expected HTML block not found: {label}")
+    html = html.replace(old, new, 1)
+
+html_replace_once(
+'''const profilePhotos=new Map();try{localProfilePhoto=localStorage.getItem(PROFILE_PHOTO_KEY)||'';}''',
+'''const profilePhotos=new Map();const profilePhotoRequestTimes=new Map();try{localProfilePhoto=localStorage.getItem(PROFILE_PHOTO_KEY)||'';}''',
+"photo request tracking")
+html_replace_once(
+'''if(seat&&seat.id&&profilePhotos.has(seat.id)){const img=document.createElement('img');img.src=profilePhotos.get(seat.id);''',
+'''const seatPhoto=seat?(seat.id===voiceSeatLocalId?localProfilePhoto:profilePhotos.get(seat.id)):'';if(seatPhoto){const img=document.createElement('img');img.src=seatPhoto;''',
+"local seat photo rendering")
+html_replace_once(
+'''function receiveVoiceSeatEvent(p){if(p.action==='sync'){''',
+'''function receiveVoiceSeatEvent(p){if(p.action==='join'&&p.id&&p.id!==voiceSeatLocalId&&!profilePhotos.has(p.id)&&window.AndroidBridge)requestPeerProfilePhoto(p.id);if(p.action==='sync'){''',
+"seat join photo request")
+html_replace_once(
+'''function receiveChatPacket(raw){try{const p=JSON.parse(raw);if(!p.id||!p.name)return;if(p.type==='profile_photo'){''',
+'''function requestPeerProfilePhoto(peerId){if(!peerId||!window.AndroidBridge)return;const now=Date.now(),last=profilePhotoRequestTimes.get(peerId)||0;if(now-last<20000)return;profilePhotoRequestTimes.set(peerId,now);AndroidBridge.requestProfilePhoto();}
+function receiveChatPacket(raw){try{const p=JSON.parse(raw);if(!p.id||!p.name)return;if(p.type==='profile_photo_request'){if(localProfilePhoto&&window.AndroidBridge)AndroidBridge.sendProfilePhoto(localProfilePhoto);return;}if(p.type==='profile_photo'){''',
+"photo request handler")
+html_replace_once(
+'''if(isNewPeer&&localProfilePhoto&&window.AndroidBridge)AndroidBridge.sendProfilePhoto(localProfilePhoto);const cutoff=Date.now()-16000;''',
+'''if(isNewPeer&&localProfilePhoto&&window.AndroidBridge)AndroidBridge.sendProfilePhoto(localProfilePhoto);if(!profilePhotos.has(p.id))requestPeerProfilePhoto(p.id);const cutoff=Date.now()-16000;''',
+"presence photo synchronization")
+html_replace_once(
+'''function onVoiceState(state,detail){
+ const status=$('voiceStatus'),mute=$('voiceMuteButton');if(!status||!mute)return;''',
+'''function onVoiceState(state,detail){
+ if(state==='speaking'&&selectedVoiceSeat>=0)markVoiceSeatSpeaking(voiceSeatLocalId);
+ const status=$('voiceStatus'),mute=$('voiceMuteButton');if(!status||!mute)return;''',
+"local speaker activity hook")
+html_replace_once(
+'''function onVoiceActivity(senderId){const now=Date.now();const seat=voiceSeats.find(item=>item&&item.id===senderId);if(seat){voiceActivity.set(seat.id,now);renderVoiceSeats();$('voiceSpeakers').textContent='يوجد متحدث في الغرفة الآن: '+(seat.name||'عضو');setTimeout(()=>{if(Date.now()-(voiceActivity.get(senderId)||0)>=2200){voiceActivity.delete(senderId);renderVoiceSeats();$('voiceSpeakers').textContent='لا يوجد متحدثون الآن';}},2300);}}''',
+'''function markVoiceSeatSpeaking(senderId){if(!senderId)return;const seat=voiceSeats.find(item=>item&&item.id===senderId);if(!seat)return;const now=Date.now();voiceActivity.set(senderId,now);renderVoiceSeats();$('voiceSpeakers').textContent='يوجد متحدث في الغرفة الآن: '+(seat.name||'عضو');setTimeout(()=>{if(Date.now()-(voiceActivity.get(senderId)||0)>=900){voiceActivity.delete(senderId);renderVoiceSeats();if(!voiceActivity.size)$('voiceSpeakers').textContent='لا يوجد متحدثون الآن';}},1000);}
+function onVoiceActivity(senderId){markVoiceSeatSpeaking(senderId);}''',
+"unified local and remote seat activity")
+html_replace_once(
+'''        @JavascriptInterface fun sendProfilePhoto(dataUrl: String) { if (dataUrl.isEmpty() || (dataUrl.length <= 3500 && dataUrl.startsWith("data:image/jpeg;base64,"))) sendLanPacket("profile_photo", dataUrl) }''',
+'''        @JavascriptInterface fun sendProfilePhoto(dataUrl: String) { if (dataUrl.isEmpty() || (dataUrl.length <= 3500 && dataUrl.startsWith("data:image/jpeg;base64,"))) sendLanPacket("profile_photo", dataUrl) }
+        @JavascriptInterface fun requestProfilePhoto() { sendLanPacket("profile_photo_request", "") }''',
+"photo request bridge") if False else None
+home.write_text(html, encoding="utf-8")
+
 kotlin.write_text(source, encoding="utf-8")
 
 gradle = root / "app/build.gradle.kts"
-g = gradle.read_text(encoding="utf-8").replace("versionCode = 80", "versionCode = 81").replace('versionName = "1.9.6"', 'versionName = "1.9.7"')
+g = gradle.read_text(encoding="utf-8").replace("versionCode = 80", "versionCode = 82").replace('versionName = "1.9.6"', 'versionName = "1.9.8"')
 if g == gradle.read_text(encoding="utf-8"):
     raise SystemExit("Could not bump app version")
 gradle.write_text(g, encoding="utf-8")
