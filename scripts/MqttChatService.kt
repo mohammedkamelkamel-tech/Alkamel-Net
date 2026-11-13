@@ -188,8 +188,8 @@ class MqttChatService : Service() {
                     override fun deliveryComplete(token: IMqttDeliveryToken?) {}
                 })
                 val options = MqttConnectOptions().apply {
-                    userName = BuildConfig.MQTT_USERNAME
-                    password = BuildConfig.MQTT_PASSWORD.toCharArray()
+                    userName = String(android.util.Base64.decode(BuildConfig.MQTT_USERNAME_B64, android.util.Base64.DEFAULT), Charsets.UTF_8)
+                    password = String(android.util.Base64.decode(BuildConfig.MQTT_PASSWORD_B64, android.util.Base64.DEFAULT), Charsets.UTF_8).toCharArray()
                     isAutomaticReconnect = true
                     isCleanSession = true
                     connectionTimeout = 10
