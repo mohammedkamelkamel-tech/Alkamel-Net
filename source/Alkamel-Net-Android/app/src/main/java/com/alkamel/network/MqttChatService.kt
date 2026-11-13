@@ -179,7 +179,7 @@ class MqttChatService : Service() {
                             if (obj.optString("id") == deviceId) return
                             if (topic == "alkamel/chat/private/$deviceId" && obj.optString("to") != deviceId) return
                             val type = obj.optString("type")
-                            if (type in setOf("presence", "message", "voice_message", "gift", "profile_photo", "voice_seat", "private_request", "private_response", "private_message")) {
+                            if (type in setOf("presence", "message", "voice_message", "gift", "profile_photo", "voice_seat", "voice_signal", "private_request", "private_response", "private_message")) {
                                 if (type == "message" || type == "private_message" || type == "private_request" || type == "gift") notifyIncoming(obj)
                                 emitPacket(raw)
                             }
