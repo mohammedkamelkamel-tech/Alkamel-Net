@@ -1096,29 +1096,45 @@ class MainActivity : Activity() {
      * deliberately uses the portal itself rather than the Wi-Fi name, because
      * SSIDs can be copied by unrelated networks.
      */
-    private fun isPrivateNetworkReachable(): Boolean =
-        listOf("k.com", "k.net").any { host ->
-            try {
-                val connection = (URL("http://$host/").openConnection() as HttpURLConnection).apply {
-                    requestMethod = "GET"
-                    connectTimeout = 2200
-                    readTimeout = 2200
-                    instanceFollowRedirects = false
-                    useCaches = false
-                    setRequestProperty("Cache-Control", "no-cache, no-store")
-                    setRequestProperty("Connection", "close")
-                }
+    /**
+     * The app is licensed for the private Wi-Fi network only.
+     * Always probe through a Wi-Fi Network object, never the device's default route:
+     * Android may switch the default route to mobile data or another Wi-Fi network.
+     */
+    private fun isPrivateNetworkReachable(): Boolean {
+        val connectivity = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+        val wifiNetworks = runCatching {
+            connectivity.allNetworks.filter { network ->
+                connectivity.getNetworkCapabilities(network)
+                    ?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+            }
+        }.getOrDefault(emptyList())
+        if (wifiNetworks.isEmpty()) return false
+
+        return wifiNetworks.any { network ->
+            listOf("k.com", "k.net").any { host ->
+                var connection: HttpURLConnection? = null
                 try {
+                    connection = (network.openConnection(URL("http://$host/")) as HttpURLConnection).apply {
+                        requestMethod = "GET"
+                        connectTimeout = 1800
+                        readTimeout = 1800
+                        instanceFollowRedirects = false
+                        useCaches = false
+                        setRequestProperty("Cache-Control", "no-cache, no-store")
+                        setRequestProperty("Connection", "close")
+                    }
                     val status = connection.responseCode
                     status in 200..399 && connection.url.host.equals(host, ignoreCase = true)
+                } catch (e: Exception) {
+                    Log.d("AlkamelNet", "Private Wi-Fi verification failed for $host: ${e.message}")
+                    false
                 } finally {
-                    connection.disconnect()
+                    connection?.disconnect()
                 }
-            } catch (e: Exception) {
-                Log.d("AlkamelNet", "Private network check failed for $host: ${e.message}")
-                false
             }
         }
+    }
 
     private fun startNetworkAccessGuard() {
         if (networkGuardStarted) return
