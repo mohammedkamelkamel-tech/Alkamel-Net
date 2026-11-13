@@ -308,20 +308,17 @@ main_once(
     }
 """,
 "MQTT event receiver")
-main_once(
-"        super.onCreate(savedInstanceState)\n",
-"""        super.onCreate(savedInstanceState)
-        val mqttFilter = IntentFilter(MqttChatService.ACTION_EVENT)
-        if (Build.VERSION.SDK_INT >= 33) registerReceiver(mqttEventReceiver, mqttFilter, Context.RECEIVER_NOT_EXPORTED)
-        else registerReceiver(mqttEventReceiver, mqttFilter)
-        mqttReceiverRegistered = true
-""",
-"MQTT receiver registration")
 # Insert MQTT lifecycle methods before the LAN service methods.
 anchor = "    private fun startLanChat(name: String, ensureService: Boolean = true) {"
 if anchor not in main:
     raise SystemExit("Expected LAN chat start method not found")
 mqtt_methods = """    private fun startMqttChat(name: String) {
+        if (!mqttReceiverRegistered) {
+            val mqttFilter = IntentFilter(MqttChatService.ACTION_EVENT)
+            if (Build.VERSION.SDK_INT >= 33) registerReceiver(mqttEventReceiver, mqttFilter, Context.RECEIVER_NOT_EXPORTED)
+            else registerReceiver(mqttEventReceiver, mqttFilter)
+            mqttReceiverRegistered = true
+        }
         val clean = name.trim().take(24)
         if (clean.isEmpty()) return
         chatNickname = clean
