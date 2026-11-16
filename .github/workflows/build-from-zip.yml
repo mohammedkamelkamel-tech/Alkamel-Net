@@ -18,16 +18,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Use latest Android project from repository
+      - name: Extract and select the 2.0.0 source archive
         shell: bash
         run: |
           set -euxo pipefail
-          PROJECT_DIR="$GITHUB_WORKSPACE/source/Alkamel-Net-Android"
-          test -f "$PROJECT_DIR/settings.gradle.kts" -o -f "$PROJECT_DIR/settings.gradle"
-          test -f "$PROJECT_DIR/app/build.gradle.kts" -o -f "$PROJECT_DIR/app/build.gradle"
+          SOURCE_ZIP="$GITHUB_WORKSPACE/Alkamel-Net-Android-2.0.0-source.zip"
+          test -s "$SOURCE_ZIP"
+          mkdir -p "$GITHUB_WORKSPACE/extracted-source"
+          unzip -q "$SOURCE_ZIP" -d "$GITHUB_WORKSPACE/extracted-source"
+          mapfile -t GRADLE_FILES < <(find "$GITHUB_WORKSPACE/extracted-source" -type f \\( -name settings.gradle.kts -o -name settings.gradle \\) | sort)
+          PROJECT_DIR=""
+          for SETTINGS in "${GRADLE_FILES[@]}"; do
+            CANDIDATE="$(dirname "$SETTINGS")"
+            if [ -f "$CANDIDATE/app/build.gradle.kts" ] || [ -f "$CANDIDATE/app/build.gradle" ]; then
+              PROJECT_DIR="$CANDIDATE"
+              break
+            fi
+          done
+          test -n "$PROJECT_DIR"
           test -s "$PROJECT_DIR/app/src/main/assets/home.html"
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-          echo "Building repository source: $PROJECT_DIR"
+          echo "Building extracted 2.0.0 source: $PROJECT_DIR"
           find "$PROJECT_DIR" -maxdepth 3 -type f -name '*gradle*' -print
       - name: Restore approved launcher artwork
         shell: bash
