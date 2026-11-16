@@ -46,19 +46,26 @@ jobs:
           set -euxo pipefail
           ICON_B64="$PROJECT_DIR/app/src/main/res/drawable-nodpi/ic_launcher.webp.b64"
           ICON="$PROJECT_DIR/app/src/main/res/drawable-nodpi/ic_launcher.webp"
-          test -s "$ICON_B64"
-          base64 --decode "$ICON_B64" > "$ICON"
+          if [ -s "$ICON_B64" ]; then
+            base64 --decode "$ICON_B64" > "$ICON"
+            rm "$ICON_B64"
+          elif [ -s "$ICON" ]; then
+            echo "Using launcher artwork already present in the 2.0.0 source archive"
+          else
+            echo "No WebP launcher artwork or approved base64 source found"
+            find "$PROJECT_DIR/app/src/main/res" -maxdepth 3 -type f | sort | head -120
+            exit 1
+          fi
           python3 - "$ICON" <<'PY'
           import pathlib,sys
           p=pathlib.Path(sys.argv[1]); b=p.read_bytes()
           if len(b)<4000 or b[:4]!=b'RIFF' or b[8:12]!=b'WEBP':
               raise SystemExit('Invalid launcher artwork: expected a valid WebP file')
-          print(f'PASS - launcher artwork restored and verified ({len(b)} bytes)')
+          print(f'PASS - launcher artwork verified ({len(b)} bytes)')
           PY
           mkdir -p "$PROJECT_DIR/app/src/main/assets"
           cp "$ICON" "$PROJECT_DIR/app/src/main/assets/brand-icon.webp"
           test -s "$PROJECT_DIR/app/src/main/assets/brand-icon.webp"
-          rm "$ICON_B64"
       - name: Inspect original portal UI source
         shell: bash
         run: |
