@@ -26,7 +26,7 @@ jobs:
           test -s "$SOURCE_ZIP"
           mkdir -p "$GITHUB_WORKSPACE/extracted-source"
           unzip -q "$SOURCE_ZIP" -d "$GITHUB_WORKSPACE/extracted-source"
-          mapfile -t GRADLE_FILES < <(find "$GITHUB_WORKSPACE/extracted-source" -type f \\( -name settings.gradle.kts -o -name settings.gradle \\) | sort)
+          mapfile -t GRADLE_FILES < <(find "$GITHUB_WORKSPACE/extracted-source" -type f \( -name settings.gradle.kts -o -name settings.gradle \) | sort)
           PROJECT_DIR=""
           for SETTINGS in "${GRADLE_FILES[@]}"; do
             CANDIDATE="$(dirname "$SETTINGS")"
