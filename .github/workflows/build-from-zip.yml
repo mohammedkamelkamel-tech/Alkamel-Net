@@ -255,6 +255,9 @@ jobs:
         continue-on-error: true
         with:
           name: Alkamel-Net-v${{ env.APP_VERSION }}-code${{ env.VERSION_CODE }}
-          path: output/Alkamel-Net-v${{ env.APP_VERSION }}-code${{ env.VERSION_CODE }}.apk
+          path: |
+            output/Alkamel-Net-v${{ env.APP_VERSION }}-code${{ env.VERSION_CODE }}.apk
+            output/Alkamel-Net-Android-Project-v${{ env.APP_VERSION }}-code${{ env.VERSION_CODE }}.zip
+            output/Alkamel-Net-Full-Package-v${{ env.APP_VERSION }}-code${{ env.VERSION_CODE }}.zip
           if-no-files-found: error
           retention-days: 7
