@@ -19,7 +19,7 @@ import org.eclipse.paho.client.mqttv3.MqttAsyncClient
 import org.eclipse.paho.client.mqttv3.MqttCallbackExtended
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions
 import org.eclipse.paho.client.mqttv3.MqttMessage
-import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
+import org.eclipse.paho.client.mqttv3.persist.MqttDefaultFilePersistence
 import org.json.JSONObject
 import java.util.UUID
 import java.util.concurrent.Executors
@@ -189,7 +189,7 @@ class MqttChatService : Service() {
         emitState("reconnecting", "جارٍ الاتصال بخادم الدردشة…")
         worker.execute {
             try {
-                val mqtt = MqttAsyncClient("tcp://$host:$port", deviceId, MemoryPersistence())
+                val persistenceDir = java.io.File(filesDir, "mqtt-persistence").apply { mkdirs() }\n                val mqtt = MqttAsyncClient("tcp://$host:$port", deviceId, MqttDefaultFilePersistence(persistenceDir.absolutePath))
                 client = mqtt
                 mqtt.setCallback(object : MqttCallbackExtended {
                     override fun connectComplete(reconnect: Boolean, serverURI: String?) {
@@ -209,6 +209,10 @@ class MqttChatService : Service() {
                             if (topic == "alkamel/chat/private/$deviceId" && obj.optString("to") != deviceId) return
                             val type = obj.optString("type")
                             if (type in setOf("presence", "message", "voice_message", "gift", "profile_photo", "voice_seat", "voice_signal", "private_request", "private_response", "private_message")) {
+                                if (type == "message" && topic == GROUP_TOPIC) {
+                                    // Persist before broadcasting: the Activity/WebView may be paused or destroyed.
+                                    ChatMessageStore.saveIncoming(this@MqttChatService, raw)
+                                }
                                 if (type == "message" || type == "private_message" || type == "private_request" || type == "gift") notifyIncoming(obj)
                                 emitPacket(raw)
                             }
@@ -220,7 +224,7 @@ class MqttChatService : Service() {
                     userName = String(android.util.Base64.decode(BuildConfig.MQTT_USERNAME_B64, android.util.Base64.DEFAULT), Charsets.UTF_8)
                     password = String(android.util.Base64.decode(BuildConfig.MQTT_PASSWORD_B64, android.util.Base64.DEFAULT), Charsets.UTF_8).toCharArray()
                     isAutomaticReconnect = true
-                    isCleanSession = true
+                    isCleanSession = false
                     connectionTimeout = 10
                     keepAliveInterval = 30
                     setMaxInflight(50)
