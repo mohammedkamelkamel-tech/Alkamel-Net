@@ -5,6 +5,9 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.media.AudioAttributes
+import android.media.RingtoneManager
+import android.graphics.Color
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
@@ -40,6 +43,7 @@ class MqttChatService : Service() {
         const val EXTRA_OPEN_CHAT = "open_chat"
         const val EXTRA_CHAT_KIND = "chat_kind"
         private const val CHANNEL_ID = "alkamel_mqtt_service"
+        private const val CHAT_NOTIFICATION_CHANNEL = "alkamel_chat_messages_v3"
         private const val NOTIFICATION_ID = 39128
         private const val GROUP_TOPIC = "alkamel/chat/room"
     }
@@ -314,22 +318,51 @@ class MqttChatService : Service() {
         sendBroadcast(Intent(ACTION_EVENT).setPackage(packageName).putExtra(EXTRA_RAW, raw))
     }
 
+    private fun ensureChatNotificationChannel(): String {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val manager = getSystemService(NotificationManager::class.java)
+            if (manager.getNotificationChannel(CHAT_NOTIFICATION_CHANNEL) == null) {
+                val sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+                val audio = AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION_COMMUNICATION_INSTANT)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+                val channel = NotificationChannel(
+                    CHAT_NOTIFICATION_CHANNEL,
+                    "رسائل شبكة الكامل",
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "رسائل الدردشة مع تنبيه صوتي واهتزاز مميز"
+                    enableVibration(true)
+                    vibrationPattern = longArrayOf(0, 180, 90, 180)
+                    enableLights(true)
+                    lightColor = Color.rgb(42, 205, 184)
+                    setSound(sound, audio)
+                    setShowBadge(true)
+                }
+                manager.createNotificationChannel(channel)
+            }
+        }
+        return CHAT_NOTIFICATION_CHANNEL
+    }
+
     private fun notifyIncoming(obj: JSONObject) {
         if (getSharedPreferences("alkamel_app_state", MODE_PRIVATE).getBoolean("foreground", false)) return
         val type = obj.optString("type")
-        val sender = obj.optString("name", "عضو")
+        val sender = obj.optString("name", "عضو").ifBlank { "عضو" }
         val message = obj.optString("text").trim()
         val privateMessage = type == "private_message" && obj.optString("to") == deviceId
         val privateRequest = type == "private_request" && obj.optString("to") == deviceId
         val groupMessage = type == "message" && obj.optString("id") != deviceId
         if (!groupMessage && !privateMessage && !privateRequest) return
         if (message.isBlank() && !privateRequest) return
+
         val title = when {
-            privateRequest -> "طلب محادثة خاصة جديد"
-            privateMessage -> "رسالة خاصة من $sender"
-            else -> sender
+            privateRequest -> "شبكة الكامل • طلب محادثة خاصة"
+            privateMessage -> "شبكة الكامل • رسالة خاصة"
+            else -> "شبكة الكامل"
         }
-        val body = if (privateRequest) "يريد $sender بدء محادثة خاصة معك." else message
+        val body = if (privateRequest) "يريد $sender بدء محادثة خاصة معك" else message
         val notificationId = (System.currentTimeMillis() % 2000000000L).toInt()
         val notificationIntent = Intent(this, MainActivity::class.java).apply {
             action = "com.alkamel.network.OPEN_CHAT_NOTIFICATION"
@@ -342,15 +375,31 @@ class MqttChatService : Service() {
         }
         val open = PendingIntent.getActivity(this, notificationId, notificationIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+
         val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-            Notification.Builder(this, "alkamel_events")
+            Notification.Builder(this, ensureChatNotificationChannel())
         else @Suppress("DEPRECATION") Notification.Builder(this)
-        val notification = builder.setSmallIcon(android.R.drawable.stat_notify_chat)
-            .setContentTitle(title).setContentText(body.take(180))
-            .setStyle(Notification.BigTextStyle().bigText(body.take(500)))
+
+        val notification = builder
+            .setSmallIcon(R.drawable.ic_notification_chat)
+            .setColor(Color.rgb(27, 117, 230))
+            .setContentTitle(title)
+            .setContentText("$sender: $body".take(180))
+            .setStyle(Notification.BigTextStyle()
+                .setBigContentTitle(title)
+                .bigText("$sender: $body".take(500)))
             .setCategory(Notification.CATEGORY_MESSAGE)
-            .setPriority(Notification.PRIORITY_HIGH)
-            .setAutoCancel(true).setContentIntent(open)
+            .setPriority(Notification.PRIORITY_MAX)
+            .setVisibility(Notification.VISIBILITY_PRIVATE)
+            .setAutoCancel(true)
+            .setOnlyAlertOnce(false)
+            .setContentIntent(open)
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            notification.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION))
+            notification.setVibrate(longArrayOf(0, 180, 90, 180))
+        }
+
         if (!privateRequest) {
             val replyIntent = Intent(this, ChatReplyReceiver::class.java).apply {
                 action = ChatReplyReceiver.ACTION_REPLY
