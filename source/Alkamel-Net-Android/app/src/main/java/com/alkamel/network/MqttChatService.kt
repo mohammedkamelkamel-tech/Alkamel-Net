@@ -315,6 +315,7 @@ class MqttChatService : Service() {
     }
 
     private fun notifyIncoming(obj: JSONObject) {
+        if (getSharedPreferences("alkamel_app_state", MODE_PRIVATE).getBoolean("foreground", false)) return
         val type = obj.optString("type")
         val sender = obj.optString("name", "عضو")
         val message = obj.optString("text").trim()
