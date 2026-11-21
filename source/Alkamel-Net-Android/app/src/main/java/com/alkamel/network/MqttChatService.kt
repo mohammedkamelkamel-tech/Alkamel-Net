@@ -52,12 +52,7 @@ class MqttChatService : Service() {
     private var nickname = ""
     private data class PendingPublish(val type: String, val text: String, val targetId: String?, val requestId: String?)
     private val pendingPublishes = ArrayDeque<PendingPublish>()
-    private val deviceId by lazy {
-        getSharedPreferences("alkamel_mqtt", MODE_PRIVATE).getString("device_id", null)
-            ?: UUID.randomUUID().toString().also {
-                getSharedPreferences("alkamel_mqtt", MODE_PRIVATE).edit().putString("device_id", it).apply()
-            }
-    }
+    private val deviceId by lazy { ChatDeviceIdentity.get(this) }
     private val presence = object : Runnable {
         override fun run() {
             if (requested && client?.isConnected == true) {
