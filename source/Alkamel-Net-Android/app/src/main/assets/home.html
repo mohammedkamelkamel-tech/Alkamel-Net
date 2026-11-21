@@ -584,6 +584,7 @@ function toggleVoiceMute(){
 function leaveVoiceRoom(){stopWebRtcVoice();if(window.AndroidBridge)AndroidBridge.leaveVoiceRoom();onVoiceState('left','');$('voiceSpeakers').textContent='لا يوجد متحدثون الآن';}
 function onVoiceActivity(sender){$('voiceSpeakers').textContent='يوجد متحدث في الغرفة الآن: '+(sender||'عضو');}
 function stopChat(){
+ try{localStorage.removeItem(CHAT_SESSION_KEY);}catch(e){}
  chatPending=false;
  if(window.AndroidBridge)AndroidBridge.stopChat();
  chatJoined=false;setChatJoinPending(false,'');leaveVoiceRoom();
