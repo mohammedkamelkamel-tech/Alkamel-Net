@@ -1909,6 +1909,7 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         appInForeground = true
+        getSharedPreferences("alkamel_app_state", MODE_PRIVATE).edit().putBoolean("foreground", true).apply()
         if (::web.isInitialized) {
             web.onResume()
             web.resumeTimers()
@@ -1994,6 +1995,7 @@ class MainActivity : Activity() {
 
     override fun onPause() {
         appInForeground = false
+        getSharedPreferences("alkamel_app_state", MODE_PRIVATE).edit().putBoolean("foreground", false).apply()
         backgroundedAtMs = System.currentTimeMillis()
         if (::web.isInitialized) web.onPause()
         commandWeb?.onPause()
