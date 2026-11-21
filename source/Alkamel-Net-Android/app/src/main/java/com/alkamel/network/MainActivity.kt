@@ -1915,19 +1915,15 @@ class MainActivity : Activity() {
             val pausedFor = if (backgroundedAtMs > 0L) System.currentTimeMillis() - backgroundedAtMs else 0L
             val current = web.url.orEmpty()
             if (pausedFor >= 2500L) {
-                // Always return to the main menu after the app has been backgrounded.
-                // Reusing a previously opened service page can leave WebView with stale
-                // sockets and broken click handlers, so do not reload or restore that page.
-                Log.i("AlkamelNet", "Returning to main menu after background pause (${pausedFor}ms)")
-                pendingPageAfterHome = null
-                verifyPrivateNetworkAccess {
-                    if (isExternalServiceUrl(current) || (!current.startsWith(homeUrl) && !current.startsWith("data:"))) {
-                        loadHome()
-                    } else {
-                        recoverHomeAfterResume()
-                    }
-                }
-                // The hidden portal WebView can also keep stale sockets/cookies after resume.
+                // Preserve the exact page and WebView state when returning from Android Home.
+                // Do not force navigation to the portal home page: external services and
+                // in-app sections must remain where the user left them.
+                Log.i("AlkamelNet", "Resuming current page after background pause (${pausedFor}ms)")
+                web.evaluateJavascript(
+                    "window.dispatchEvent(new Event('focus'));if(typeof window.appOnResume==='function')window.appOnResume();",
+                    null
+                )
+                // Refresh only the hidden portal WebView; it must not navigate the visible WebView.
                 commandWeb?.let { hidden ->
                     commandPageReady = false
                     commandAttemptInProgress = false
