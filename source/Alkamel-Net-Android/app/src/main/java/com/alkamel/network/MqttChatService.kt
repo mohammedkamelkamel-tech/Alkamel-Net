@@ -189,7 +189,8 @@ class MqttChatService : Service() {
         emitState("reconnecting", "جارٍ الاتصال بخادم الدردشة…")
         worker.execute {
             try {
-                val persistenceDir = java.io.File(filesDir, "mqtt-persistence").apply { mkdirs() }\n                val mqtt = MqttAsyncClient("tcp://$host:$port", deviceId, MqttDefaultFilePersistence(persistenceDir.absolutePath))
+                val persistenceDir = java.io.File(filesDir, "mqtt-persistence").apply { mkdirs() }
+                val mqtt = MqttAsyncClient("tcp://$host:$port", deviceId, MqttDefaultFilePersistence(persistenceDir.absolutePath))
                 client = mqtt
                 mqtt.setCallback(object : MqttCallbackExtended {
                     override fun connectComplete(reconnect: Boolean, serverURI: String?) {
