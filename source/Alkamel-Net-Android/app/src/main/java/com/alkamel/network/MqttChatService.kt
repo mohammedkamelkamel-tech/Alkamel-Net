@@ -102,6 +102,7 @@ class MqttChatService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_PUBLISH -> {
+                runCatching { foreground() }
                 val type = intent.getStringExtra(EXTRA_TYPE).orEmpty()
                 if (type in setOf("message", "voice_message", "gift", "profile_photo", "private_request", "private_response", "private_message", "voice_seat", "voice_signal")) {
                     publish(type, intent.getStringExtra(EXTRA_TEXT).orEmpty(),
@@ -317,19 +318,18 @@ class MqttChatService : Service() {
         val type = obj.optString("type")
         val sender = obj.optString("name", "عضو")
         val message = obj.optString("text").trim()
-        val private = type == "private_message" && obj.optString("to") == deviceId
-        val request = type == "private_request" && obj.optString("to") == deviceId
-        val mentioned = nickname.isNotBlank() && message.contains(nickname, ignoreCase = true)
-        if (!private && !request && !(type == "message" && mentioned)) return
+        val privateMessage = type == "private_message" && obj.optString("to") == deviceId
+        val privateRequest = type == "private_request" && obj.optString("to") == deviceId
+        val groupMessage = type == "message" && obj.optString("id") != deviceId
+        if (!groupMessage && !privateMessage && !privateRequest) return
+        if (message.isBlank() && !privateRequest) return
         val title = when {
-            request -> "طلب محادثة خاصة جديد"
-            private -> "رسالة خاصة جديدة من $sender"
-            else -> "تم ذكرك في دردشة شبكة الكامل"
+            privateRequest -> "طلب محادثة خاصة جديد"
+            privateMessage -> "رسالة خاصة من $sender"
+            else -> sender
         }
-        val body = if (request) "يريد $sender بدء محادثة خاصة معك." else "$sender: $message"
-        val manager = getSystemService(NotificationManager::class.java)
-        val notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) Notification.Builder(this, "alkamel_events")
-            else @Suppress("DEPRECATION") Notification.Builder(this)
+        val body = if (privateRequest) "يريد $sender بدء محادثة خاصة معك." else message
+        val notificationId = (System.currentTimeMillis() % 2000000000L).toInt()
         val notificationIntent = Intent(this, MainActivity::class.java).apply {
             action = "com.alkamel.network.OPEN_CHAT_NOTIFICATION"
             putExtra(EXTRA_OPEN_CHAT, true)
@@ -339,12 +339,32 @@ class MqttChatService : Service() {
             putExtra(EXTRA_REQUEST_ID, obj.optString("requestId"))
             addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         }
-        val open = PendingIntent.getActivity(this, (System.currentTimeMillis() % 2000000000L).toInt(),
-            notificationIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or if (Build.VERSION.SDK_INT >= 23) PendingIntent.FLAG_IMMUTABLE else 0)
-        manager.notify((System.currentTimeMillis() % 2000000000L).toInt(),
-            notification.setSmallIcon(android.R.drawable.stat_notify_chat).setContentTitle(title)
-                .setContentText(body).setAutoCancel(true).setContentIntent(open).build())
+        val open = PendingIntent.getActivity(this, notificationId, notificationIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+            Notification.Builder(this, "alkamel_events")
+        else @Suppress("DEPRECATION") Notification.Builder(this)
+        val notification = builder.setSmallIcon(android.R.drawable.stat_notify_chat)
+            .setContentTitle(title).setContentText(body.take(180))
+            .setStyle(Notification.BigTextStyle().bigText(body.take(500)))
+            .setCategory(Notification.CATEGORY_MESSAGE)
+            .setPriority(Notification.PRIORITY_HIGH)
+            .setAutoCancel(true).setContentIntent(open)
+        if (!privateRequest) {
+            val replyIntent = Intent(this, ChatReplyReceiver::class.java).apply {
+                action = ChatReplyReceiver.ACTION_REPLY
+                putExtra(ChatReplyReceiver.EXTRA_REPLY_KIND, if (privateMessage) "private_message" else "message")
+                putExtra(ChatReplyReceiver.EXTRA_REPLY_TARGET, if (privateMessage) obj.optString("id") else "")
+            }
+            val replyPending = PendingIntent.getBroadcast(this, notificationId, replyIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE)
+            val remoteInput = android.app.RemoteInput.Builder(ChatReplyReceiver.KEY_TEXT)
+                .setLabel("اكتب ردك…").build()
+            notification.addAction(Notification.Action.Builder(
+                android.R.drawable.ic_menu_send, "رد", replyPending
+            ).addRemoteInput(remoteInput).setAllowGeneratedReplies(true).build())
+        }
+        getSystemService(NotificationManager::class.java).notify(notificationId, notification.build())
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
