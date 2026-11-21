@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - release/2.0.0-from-1.9.9
+      - fix/chat-resume-and-multi-member
 
 permissions:
   contents: read
