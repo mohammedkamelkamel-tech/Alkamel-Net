@@ -1941,6 +1941,11 @@ class MainActivity : Activity() {
             }
             backgroundedAtMs = 0L
         }
+        // Re-announce the existing chat session when returning from the Android Home screen.
+        // This reuses the saved identity and leaves the foreground MQTT service running.
+        if (chatRequested.get() && chatNickname.isNotBlank()) {
+            mainHandler.post { if (!isFinishing && !isDestroyed) startLanChat(chatNickname, ensureService = false) }
+        }
         commandWeb?.onResume()
         if (requestNotificationsOnResume) {
             requestNotificationsOnResume = false
