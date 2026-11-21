@@ -50,6 +50,13 @@ class MqttChatService : Service() {
     @Volatile private var connecting = false
     @Volatile private var requested = false
     private var nickname = ""
+    @Volatile private var retryAttempt = 0
+    @Volatile private var subscribing = false
+    private val retryConnect = object : Runnable {
+        override fun run() {
+            if (requested && client?.isConnected != true && !connecting) connect()
+        }
+    }
     private data class PendingPublish(val type: String, val text: String, val targetId: String?, val requestId: String?)
     private val pendingPublishes = ArrayDeque<PendingPublish>()
     private val deviceId by lazy { ChatDeviceIdentity.get(this) }
@@ -126,21 +133,47 @@ class MqttChatService : Service() {
     }
 
     private fun subscribeAndAnnounce(mqtt: MqttAsyncClient) {
-        if (!requested || !mqtt.isConnected) return
+        if (!requested || !mqtt.isConnected || subscribing) return
+        subscribing = true
         try {
-            mqtt.subscribe(arrayOf(GROUP_TOPIC, "alkamel/chat/private/$deviceId"), intArrayOf(1, 1), null, null)
-            publish("presence", "")
-            while (pendingPublishes.isNotEmpty() && mqtt.isConnected) {
-                val pending = pendingPublishes.removeFirst()
-                publishNow(mqtt, pending.type, pending.text, pending.targetId, pending.requestId)
-            }
-            handler.removeCallbacks(presence)
-            handler.postDelayed(presence, 5000L)
-            emitState("joined", "")
+            mqtt.subscribe(arrayOf(GROUP_TOPIC, "alkamel/chat/private/$deviceId"), intArrayOf(1, 1), null,
+                object : IMqttActionListener {
+                    override fun onSuccess(asyncActionToken: IMqttToken?) {
+                        subscribing = false
+                        if (!requested || client !== mqtt || !mqtt.isConnected) return
+                        retryAttempt = 0
+                        publish("presence", "")
+                        synchronized(pendingPublishes) {
+                            while (pendingPublishes.isNotEmpty() && mqtt.isConnected) {
+                                val pending = pendingPublishes.removeFirst()
+                                publishNow(mqtt, pending.type, pending.text, pending.targetId, pending.requestId)
+                            }
+                        }
+                        handler.removeCallbacks(presence)
+                        handler.postDelayed(presence, 5000L)
+                        emitState("joined", "")
+                    }
+                    override fun onFailure(asyncActionToken: IMqttToken?, exception: Throwable?) {
+                        subscribing = false
+                        Log.e("AlkamelNet-MQTT", "Subscribe failed; clientId=$deviceId; reason=${exception?.message}", exception)
+                        emitState("reconnecting", "اتصل الخادم لكن تعذر الاشتراك؛ ستتم إعادة المحاولة…")
+                        scheduleReconnect()
+                    }
+                })
         } catch (e: Exception) {
-            Log.e("AlkamelNet-MQTT", "Subscribe failed", e)
-            emitState("error", "اتصل الخادم لكن تعذر الاشتراك في غرفة الدردشة.")
+            subscribing = false
+            Log.e("AlkamelNet-MQTT", "Subscribe request failed", e)
+            emitState("reconnecting", "تعذر الاشتراك في غرفة الدردشة؛ ستتم إعادة المحاولة…")
+            scheduleReconnect()
         }
+    }
+
+    private fun scheduleReconnect() {
+        if (!requested) return
+        handler.removeCallbacks(retryConnect)
+        val delay = (3000L shl retryAttempt.coerceAtMost(4)).coerceAtMost(45000L)
+        retryAttempt = (retryAttempt + 1).coerceAtMost(5)
+        handler.postDelayed(retryConnect, delay)
     }
 
     private fun connect() {
@@ -166,7 +199,10 @@ class MqttChatService : Service() {
                     }
                     override fun connectionLost(cause: Throwable?) {
                         Log.e("AlkamelNet-MQTT", "MQTT connection lost; clientId=$deviceId; reason=${cause?.javaClass?.simpleName}: ${cause?.message}", cause)
-                        if (requested) emitState("reconnecting", "انقطع اتصال الخادم مؤقتاً، جارٍ إعادة الاتصال…")
+                        if (requested) {
+                            emitState("reconnecting", "انقطع اتصال الخادم مؤقتاً، جارٍ إعادة الاتصال…")
+                            scheduleReconnect()
+                        }
                     }
                     override fun messageArrived(topic: String?, message: MqttMessage?) {
                         val raw = message?.payload?.toString(Charsets.UTF_8) ?: return
@@ -196,9 +232,10 @@ class MqttChatService : Service() {
                     override fun onSuccess(asyncActionToken: IMqttToken?) { connecting = false }
                     override fun onFailure(asyncActionToken: IMqttToken?, exception: Throwable?) {
                         connecting = false
-                        Log.e("AlkamelNet-MQTT", "Connection failed", exception)
-                        val reason = exception?.message?.take(140).orEmpty()
-                        emitState("error", if (reason.isBlank()) "تعذر الاتصال بخادم الدردشة. تحقق من بيانات الدخول وتشغيل Mosquitto." else "فشل اتصال MQTT: $reason")
+                        Log.e("AlkamelNet-MQTT", "Connection failed; clientId=$deviceId; reason=${exception?.javaClass?.simpleName}: ${exception?.message}", exception)
+                        val reason = exception?.message?.take(100).orEmpty()
+                        emitState("reconnecting", if (reason.isBlank()) "تعذر الاتصال بخادم الدردشة؛ ستتم إعادة المحاولة تلقائياً." else "فشل اتصال MQTT مؤقتاً: $reason — جارٍ إعادة المحاولة.")
+                        scheduleReconnect()
                     }
                 })
             } catch (e: Exception) {
@@ -313,6 +350,8 @@ class MqttChatService : Service() {
     override fun onDestroy() {
         requested = false
         handler.removeCallbacks(presence)
+        handler.removeCallbacks(retryConnect)
+        subscribing = false
         runCatching { client?.let { if (it.isConnected) it.disconnect(); it.close() } }
         client = null
         worker.shutdownNow()
