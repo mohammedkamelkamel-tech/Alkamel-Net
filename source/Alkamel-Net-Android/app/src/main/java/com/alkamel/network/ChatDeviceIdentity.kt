@@ -1,36 +1,43 @@
 package com.alkamel.network
 
 import android.content.Context
-import android.provider.Settings
-import java.security.MessageDigest
+import java.io.File
 import java.util.UUID
 
 /**
- * Stable per-device chat identity shared by MainActivity and MqttChatService.
- * The raw Android ID is never transmitted; only a short SHA-256-derived ID is used.
+ * Per-installation MQTT identity.
+ *
+ * The identifier is stored under noBackupFilesDir rather than SharedPreferences:
+ * Android backup/restore and device-to-device transfer must not copy an MQTT
+ * Client ID to another phone. MainActivity and MqttChatService share this helper.
  */
 internal object ChatDeviceIdentity {
+    @Synchronized
     fun get(context: Context): String {
         val app = context.applicationContext
-        val prefs = app.getSharedPreferences("alkamel_mqtt", Context.MODE_PRIVATE)
-        val androidId = runCatching {
-            Settings.Secure.getString(app.contentResolver, Settings.Secure.ANDROID_ID)
-        }.getOrNull()?.takeIf { it.isNotBlank() && it != "9774d56d682e549c" }
+        val idFile = File(app.noBackupFilesDir, "alkamel_chat_installation_id")
 
-        val stableId = if (androidId != null) {
-            val source = "${app.packageName}|$androidId"
-            val digest = MessageDigest.getInstance("SHA-256")
-                .digest(source.toByteArray(Charsets.UTF_8))
-            "alk-" + digest.take(16).joinToString("") { "%02x".format(it.toInt() and 0xff) }
-        } else {
-            "alk-" + UUID.randomUUID().toString().replace("-", "")
+        val existing = runCatching {
+            if (idFile.isFile) idFile.readText(Charsets.UTF_8).trim() else ""
+        }.getOrDefault("")
+
+        if (existing.matches(Regex("alk-[0-9a-f]{32}"))) return existing
+
+        val freshId = "alk-" + UUID.randomUUID().toString().replace("-", "")
+        runCatching {
+            idFile.parentFile?.mkdirs()
+            idFile.writeText(freshId, Charsets.UTF_8)
+        }.getOrElse {
+            // Last-resort stable-in-process ID if storage is unexpectedly unavailable.
+            return freshId
         }
 
-        // Migrate older random IDs. Both the Activity and service call this same helper.
-        val saved = prefs.getString("device_id", null)
-        if (saved != stableId) {
-            prefs.edit().putString("device_id", stableId).apply()
+        // Keep a compatibility copy for diagnostics only. It is never read as
+        // the authoritative MQTT Client ID, so restored preferences cannot collide.
+        runCatching {
+            app.getSharedPreferences("alkamel_mqtt", Context.MODE_PRIVATE)
+                .edit().putString("device_id", freshId).apply()
         }
-        return stableId
+        return freshId
     }
 }
