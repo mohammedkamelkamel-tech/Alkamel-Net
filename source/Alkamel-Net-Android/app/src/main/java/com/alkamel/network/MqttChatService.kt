@@ -36,6 +36,8 @@ class MqttChatService : Service() {
         const val EXTRA_NAME = "name"
         const val EXTRA_TYPE = "type"
         const val EXTRA_TEXT = "text"
+        const val EXTRA_MENTION_ID = "mention_id"
+        const val EXTRA_MENTION_NAME = "mention_name"
         const val EXTRA_TARGET = "target"
         const val EXTRA_REQUEST_ID = "request_id"
         const val EXTRA_STATE = "state"
@@ -62,7 +64,7 @@ class MqttChatService : Service() {
             if (requested && client?.isConnected != true && !connecting) connect()
         }
     }
-    private data class PendingPublish(val type: String, val text: String, val targetId: String?, val requestId: String?)
+    private data class PendingPublish(val type: String, val text: String, val targetId: String?, val requestId: String?, val mentionId: String?, val mentionName: String?)
     private val pendingPublishes = ArrayDeque<PendingPublish>()
     private val deviceId by lazy { ChatDeviceIdentity.get(this) }
     private val presence = object : Runnable {
@@ -111,7 +113,7 @@ class MqttChatService : Service() {
                 val type = intent.getStringExtra(EXTRA_TYPE).orEmpty()
                 if (type in setOf("message", "voice_message", "gift", "profile_photo", "private_request", "private_response", "private_message", "voice_seat", "voice_signal")) {
                     publish(type, intent.getStringExtra(EXTRA_TEXT).orEmpty(),
-                        intent.getStringExtra(EXTRA_TARGET), intent.getStringExtra(EXTRA_REQUEST_ID))
+                        intent.getStringExtra(EXTRA_TARGET), intent.getStringExtra(EXTRA_REQUEST_ID), intent.getStringExtra(EXTRA_MENTION_ID), intent.getStringExtra(EXTRA_MENTION_NAME))
                 }
             }
             ACTION_CONNECT -> {
@@ -152,7 +154,7 @@ class MqttChatService : Service() {
                         synchronized(pendingPublishes) {
                             while (pendingPublishes.isNotEmpty() && mqtt.isConnected) {
                                 val pending = pendingPublishes.removeFirst()
-                                publishNow(mqtt, pending.type, pending.text, pending.targetId, pending.requestId)
+                                publishNow(mqtt, pending.type, pending.text, pending.targetId, pending.requestId, pending.mentionId, pending.mentionName)
                             }
                         }
                         handler.removeCallbacks(presence)
@@ -256,7 +258,7 @@ class MqttChatService : Service() {
         }
     }
 
-    private fun publish(type: String, text: String, targetId: String? = null, requestId: String? = null) {
+    private fun publish(type: String, text: String, targetId: String? = null, requestId: String? = null, mentionId: String? = null, mentionName: String? = null) {
         val maxPayloadChars = when (type) { "voice_message" -> 1_200_000; "profile_photo" -> 78_000; "voice_signal" -> 24_000; else -> 1000 }
         if (text.length > maxPayloadChars) {
             Log.w("AlkamelNet-MQTT", "Rejected oversized $type payload")
@@ -265,7 +267,7 @@ class MqttChatService : Service() {
         val mqtt = client
         if (mqtt == null || !mqtt.isConnected) {
             if (pendingPublishes.size >= 30) pendingPublishes.removeFirst()
-            pendingPublishes.addLast(PendingPublish(type, text, targetId, requestId))
+            pendingPublishes.addLast(PendingPublish(type, text, targetId, requestId, mentionId, mentionName))
             Log.i("AlkamelNet-MQTT", "Queued $type until broker connection is ready")
             if (!requested) {
                 nickname = getSharedPreferences("alkamel_mqtt", MODE_PRIVATE).getString("nickname", "").orEmpty()
@@ -277,19 +279,22 @@ class MqttChatService : Service() {
             }
             return
         }
-        publishNow(mqtt, type, text, targetId, requestId)
+        publishNow(mqtt, type, text, targetId, requestId, mentionId, mentionName)
     }
 
-    private fun publishNow(mqtt: MqttAsyncClient, type: String, text: String, targetId: String?, requestId: String?) {
+    private fun publishNow(mqtt: MqttAsyncClient, type: String, text: String, targetId: String?, requestId: String?, mentionId: String?, mentionName: String?) {
         if (!mqtt.isConnected) {
             if (pendingPublishes.size >= 30) pendingPublishes.removeFirst()
-            pendingPublishes.addLast(PendingPublish(type, text, targetId, requestId))
+            pendingPublishes.addLast(PendingPublish(type, text, targetId, requestId, mentionId, mentionName))
             return
         }
         val packet = JSONObject().put("type", type).put("id", deviceId).put("name", nickname).put("text", text)
         if (!targetId.isNullOrBlank()) packet.put("to", targetId)
         if (!requestId.isNullOrBlank()) packet.put("requestId", requestId)
         if (type == "message") packet.put("messageId", UUID.randomUUID().toString())
+        if (type == "message" && !mentionId.isNullOrBlank() && !mentionName.isNullOrBlank()) {
+            packet.put("mentionId", mentionId.take(64)).put("mentionName", mentionName.take(24))
+        }
         val topic = if ((type.startsWith("private_") || type == "voice_signal") && !targetId.isNullOrBlank()) "alkamel/chat/private/$targetId" else GROUP_TOPIC
         runCatching {
             val message = MqttMessage(packet.toString().toByteArray(Charsets.UTF_8)).apply {
