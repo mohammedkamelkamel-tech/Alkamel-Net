@@ -81,11 +81,12 @@ class ChatKeepAliveService : Service() {
             if (reachable) {
                 networkFailureCount = 0
             } else {
+                // A failed HTTP probe does not prove that MQTT or the LAN is offline.
+                // Never terminate this foreground service because a portal hostname
+                // is temporarily unreachable while the user is using another app.
                 networkFailureCount++
-                if (networkFailureCount >= 2) {
-                    Log.w("AlkamelNet-Service", "Private network lost; stopping background service")
-                    stopForegroundCompat()
-                    stopSelf()
+                if (networkFailureCount == 2 || networkFailureCount % 12 == 0) {
+                    Log.w("AlkamelNet-Service", "Portal reachability probe failed $networkFailureCount times; keeping background service alive")
                 }
             }
         }, 5, 5, TimeUnit.SECONDS)
