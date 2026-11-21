@@ -716,13 +716,15 @@ class MainActivity : Activity() {
         return routes.values.toList()
     }
 
-    private fun sendLanPacket(type: String, message: String) {
+    private fun sendLanPacket(type: String, message: String, mentionId: String? = null, mentionName: String? = null) {
         if (!chatRequested.get()) return
         if (type in setOf("presence", "message", "voice_message", "gift", "profile_photo", "voice_seat")) {
             val mqttIntent = Intent(this, MqttChatService::class.java).apply {
                 action = MqttChatService.ACTION_PUBLISH
                 putExtra(MqttChatService.EXTRA_TYPE, type)
                 putExtra(MqttChatService.EXTRA_TEXT, message)
+                putExtra(MqttChatService.EXTRA_MENTION_ID, mentionId)
+                putExtra(MqttChatService.EXTRA_MENTION_NAME, mentionName)
             }
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(mqttIntent) else startService(mqttIntent)
@@ -1629,7 +1631,7 @@ class MainActivity : Activity() {
         }
         @JavascriptInterface fun startChat(name: String) { startLanChat(name) }
         @JavascriptInterface fun getChatHistory(): String = ChatMessageStore.read(this@MainActivity)
-        @JavascriptInterface fun sendChatMessage(message: String) { if (message.length <= 1000) sendLanPacket("message", message.trim()) }
+        @JavascriptInterface fun sendChatMessage(message: String, mentionId: String, mentionName: String) { if (message.length <= 1000 && mentionId.length <= 64 && mentionName.length <= 24) sendLanPacket("message", message.trim(), mentionId.trim(), mentionName.trim()) }
         @JavascriptInterface
         fun sendPrivateChatPacket(type: String, targetId: String, requestId: String, message: String) {
             if (type in setOf("private_request", "private_response", "private_message") && targetId.length <= 64 && requestId.length <= 64 && message.length <= 1000) {
