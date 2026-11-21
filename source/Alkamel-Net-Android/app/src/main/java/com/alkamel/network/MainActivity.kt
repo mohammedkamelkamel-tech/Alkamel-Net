@@ -1631,7 +1631,8 @@ class MainActivity : Activity() {
         }
         @JavascriptInterface fun startChat(name: String) { startLanChat(name) }
         @JavascriptInterface fun getChatHistory(): String = ChatMessageStore.read(this@MainActivity)
-        @JavascriptInterface fun sendChatMessage(message: String, mentionId: String, mentionName: String) { if (message.length <= 1000 && mentionId.length <= 64 && mentionName.length <= 24) sendLanPacket("message", message.trim(), mentionId.trim(), mentionName.trim()) }
+        @JavascriptInterface fun sendChatMessage(message: String) { if (message.length <= 1000) sendLanPacket("message", message.trim()) }
+        @JavascriptInterface fun sendDirectedChatMessage(message: String, mentionId: String, mentionName: String) { if (message.length <= 1000 && mentionId.length <= 64 && mentionName.length <= 24) sendLanPacket("message", message.trim(), mentionId.trim(), mentionName.trim()) }
         @JavascriptInterface
         fun sendPrivateChatPacket(type: String, targetId: String, requestId: String, message: String) {
             if (type in setOf("private_request", "private_response", "private_message") && targetId.length <= 64 && requestId.length <= 64 && message.length <= 1000) {
