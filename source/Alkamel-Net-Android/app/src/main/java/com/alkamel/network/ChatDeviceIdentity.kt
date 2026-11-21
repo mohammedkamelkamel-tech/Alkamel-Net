@@ -21,7 +21,7 @@ internal object ChatDeviceIdentity {
             val source = "${app.packageName}|$androidId"
             val digest = MessageDigest.getInstance("SHA-256")
                 .digest(source.toByteArray(Charsets.UTF_8))
-            "alk-" + digest.take(16).joinToString("") { "%02x".format(it) }
+            "alk-" + digest.take(16).joinToString("") { "%02x".format(it.toInt() and 0xff) }
         } else {
             "alk-" + UUID.randomUUID().toString().replace("-", "")
         }
