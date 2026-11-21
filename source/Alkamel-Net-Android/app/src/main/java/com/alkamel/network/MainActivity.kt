@@ -1628,6 +1628,7 @@ class MainActivity : Activity() {
             return servers.toString()
         }
         @JavascriptInterface fun startChat(name: String) { startLanChat(name) }
+        @JavascriptInterface fun getChatHistory(): String = ChatMessageStore.read(this@MainActivity)
         @JavascriptInterface fun sendChatMessage(message: String) { if (message.length <= 1000) sendLanPacket("message", message.trim()) }
         @JavascriptInterface
         fun sendPrivateChatPacket(type: String, targetId: String, requestId: String, message: String) {
@@ -2006,8 +2007,9 @@ class MainActivity : Activity() {
     override fun onDestroy() {
         // Keep LAN workers alive when Android backgrounds/recreates the Activity.
         if (isFinishing) {
+            // The foreground MQTT service owns group presence and inbox delivery.
+            // Finishing the Activity must not disconnect the member from the room.
             stopVoiceRoom()
-            stopLanChat()
             io.shutdownNow()
             voiceExecutor.shutdownNow()
             voiceReceiveExecutor.shutdownNow()
