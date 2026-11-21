@@ -349,7 +349,7 @@ class MqttChatService : Service() {
     private fun notifyIncoming(obj: JSONObject) {
         if (getSharedPreferences("alkamel_app_state", MODE_PRIVATE).getBoolean("foreground", false)) return
         val type = obj.optString("type")
-        val sender = obj.optString("name", "عضو").ifBlank { "عضو" }
+        val senderName = obj.optString("name", "عضو").ifBlank { "عضو" }
         val message = obj.optString("text").trim()
         val privateMessage = type == "private_message" && obj.optString("to") == deviceId
         val privateRequest = type == "private_request" && obj.optString("to") == deviceId
@@ -357,19 +357,23 @@ class MqttChatService : Service() {
         if (!groupMessage && !privateMessage && !privateRequest) return
         if (message.isBlank() && !privateRequest) return
 
-        val title = when {
-            privateRequest -> "شبكة الكامل • طلب محادثة خاصة"
-            privateMessage -> "شبكة الكامل • رسالة خاصة"
-            else -> "شبكة الكامل"
+        val conversationTitle = when {
+            privateRequest -> "طلب محادثة خاصة"
+            privateMessage -> "محادثة خاصة"
+            else -> "الدردشة الجماعية"
         }
-        val body = if (privateRequest) "يريد $sender بدء محادثة خاصة معك" else message
-        val notificationId = (System.currentTimeMillis() % 2000000000L).toInt()
+        val displayMessage = if (privateRequest) "يريدك $senderName لبدء محادثة خاصة" else message
+        val notificationId = when {
+            privateRequest -> 7103
+            privateMessage -> 7102
+            else -> 7101
+        }
         val notificationIntent = Intent(this, MainActivity::class.java).apply {
             action = "com.alkamel.network.OPEN_CHAT_NOTIFICATION"
             putExtra(EXTRA_OPEN_CHAT, true)
             putExtra(EXTRA_CHAT_KIND, type)
             putExtra(EXTRA_TARGET, obj.optString("id"))
-            putExtra(EXTRA_NAME, sender)
+            putExtra(EXTRA_NAME, senderName)
             putExtra(EXTRA_REQUEST_ID, obj.optString("requestId"))
             addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         }
@@ -383,17 +387,37 @@ class MqttChatService : Service() {
         val notification = builder
             .setSmallIcon(R.drawable.ic_notification_chat)
             .setColor(Color.rgb(27, 117, 230))
-            .setContentTitle(title)
-            .setContentText("$sender: $body".take(180))
-            .setStyle(Notification.BigTextStyle()
-                .setBigContentTitle(title)
-                .bigText("$sender: $body".take(500)))
+            .setContentTitle(senderName)
+            .setContentText(displayMessage.take(180))
+            .setSubText("شبكة الكامل • $conversationTitle")
             .setCategory(Notification.CATEGORY_MESSAGE)
             .setPriority(Notification.PRIORITY_MAX)
             .setVisibility(Notification.VISIBILITY_PRIVATE)
             .setAutoCancel(true)
             .setOnlyAlertOnce(false)
             .setContentIntent(open)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            val appPerson = android.app.Person.Builder()
+                .setName("شبكة الكامل")
+                .setKey("alkamel_network")
+                .build()
+            val senderPerson = android.app.Person.Builder()
+                .setName(senderName)
+                .setKey(if (privateMessage) "private_${obj.optString("id")}" else "member_${obj.optString("id")}")
+                .build()
+            val style = Notification.MessagingStyle(appPerson)
+                .setConversationTitle("شبكة الكامل • $conversationTitle")
+                .addMessage(displayMessage.take(500), System.currentTimeMillis(), senderPerson)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                style.setGroupConversation(!privateMessage)
+            }
+            notification.setStyle(style)
+        } else {
+            notification.setStyle(Notification.BigTextStyle()
+                .setBigContentTitle(senderName)
+                .bigText(displayMessage.take(500)))
+        }
 
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
             notification.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION))
