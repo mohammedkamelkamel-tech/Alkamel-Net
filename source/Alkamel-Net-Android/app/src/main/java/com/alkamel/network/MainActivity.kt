@@ -102,13 +102,7 @@ class MainActivity : Activity() {
     @Volatile private var chatSocket: DatagramSocket? = null
     @Volatile private var chatMulticastLock: WifiManager.MulticastLock? = null
     @Volatile private var chatNickname = ""
-    private val chatId: String by lazy {
-        getSharedPreferences("alkamel_mqtt", MODE_PRIVATE).let { prefs ->
-            prefs.getString("device_id", null) ?: java.util.UUID.randomUUID().toString().also {
-                prefs.edit().putString("device_id", it).apply()
-            }
-        }
-    }
+    private val chatId: String by lazy { ChatDeviceIdentity.get(this) }
     private val mqttEventsReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: android.content.Context?, intent: Intent?) {
             if (intent?.action != MqttChatService.ACTION_EVENT) return
