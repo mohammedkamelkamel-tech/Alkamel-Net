@@ -565,7 +565,11 @@ class MainActivity : Activity() {
         }
         }
         if (!chatRunning.compareAndSet(false, true)) {
+            // The LAN receiver may have survived while the Activity/WebView was paused.
+            // Re-announce presence and restore the WebView's joined state instead of
+            // leaving the join screen stuck in "connecting".
             sendLanPacket("presence", "")
+            if (chatSocket?.isClosed == false) notifyChatState("joined", "")
             return
         }
         val sessionId = chatSessionGeneration.incrementAndGet()
