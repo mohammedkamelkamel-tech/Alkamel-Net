@@ -199,10 +199,7 @@ class MqttChatService : Service() {
                     }
                     override fun connectionLost(cause: Throwable?) {
                         Log.e("AlkamelNet-MQTT", "MQTT connection lost; clientId=$deviceId; reason=${cause?.javaClass?.simpleName}: ${cause?.message}", cause)
-                        if (requested) {
-                            emitState("reconnecting", "انقطع اتصال الخادم مؤقتاً، جارٍ إعادة الاتصال…")
-                            scheduleReconnect()
-                        }
+                        if (requested) emitState("reconnecting", "انقطع اتصال الخادم مؤقتاً، جارٍ إعادة الاتصال…")
                     }
                     override fun messageArrived(topic: String?, message: MqttMessage?) {
                         val raw = message?.payload?.toString(Charsets.UTF_8) ?: return
@@ -235,6 +232,8 @@ class MqttChatService : Service() {
                         Log.e("AlkamelNet-MQTT", "Connection failed; clientId=$deviceId; reason=${exception?.javaClass?.simpleName}: ${exception?.message}", exception)
                         val reason = exception?.message?.take(100).orEmpty()
                         emitState("reconnecting", if (reason.isBlank()) "تعذر الاتصال بخادم الدردشة؛ ستتم إعادة المحاولة تلقائياً." else "فشل اتصال MQTT مؤقتاً: $reason — جارٍ إعادة المحاولة.")
+                        runCatching { mqtt.close() }
+                        if (client === mqtt) client = null
                         scheduleReconnect()
                     }
                 })
