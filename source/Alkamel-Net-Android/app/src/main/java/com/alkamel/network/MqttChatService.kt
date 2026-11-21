@@ -8,6 +8,7 @@ import android.app.Service
 import android.media.AudioAttributes
 import android.media.RingtoneManager
 import android.graphics.Color
+import android.graphics.BitmapFactory
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
@@ -386,6 +387,7 @@ class MqttChatService : Service() {
 
         val notification = builder
             .setSmallIcon(R.drawable.ic_notification_chat)
+            .setLargeIcon(BitmapFactory.decodeResource(resources, R.drawable.ic_launcher))
             .setColor(Color.rgb(27, 117, 230))
             .setContentTitle(senderName)
             .setContentText(displayMessage.take(180))
