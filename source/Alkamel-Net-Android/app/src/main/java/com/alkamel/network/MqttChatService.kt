@@ -165,7 +165,8 @@ class MqttChatService : Service() {
                         subscribeAndAnnounce(mqtt)
                     }
                     override fun connectionLost(cause: Throwable?) {
-                        if (requested) emitState("reconnecting", "انقطع اتصال الخادم، جارٍ إعادة الاتصال…")
+                        Log.e("AlkamelNet-MQTT", "MQTT connection lost; clientId=$deviceId; reason=${cause?.javaClass?.simpleName}: ${cause?.message}", cause)
+                        if (requested) emitState("reconnecting", "انقطع اتصال الخادم مؤقتاً، جارٍ إعادة الاتصال…")
                     }
                     override fun messageArrived(topic: String?, message: MqttMessage?) {
                         val raw = message?.payload?.toString(Charsets.UTF_8) ?: return
@@ -196,7 +197,8 @@ class MqttChatService : Service() {
                     override fun onFailure(asyncActionToken: IMqttToken?, exception: Throwable?) {
                         connecting = false
                         Log.e("AlkamelNet-MQTT", "Connection failed", exception)
-                        emitState("error", "تعذر الاتصال بخادم الدردشة. تحقق من بيانات الدخول وتشغيل Mosquitto.")
+                        val reason = exception?.message?.take(140).orEmpty()
+                        emitState("error", if (reason.isBlank()) "تعذر الاتصال بخادم الدردشة. تحقق من بيانات الدخول وتشغيل Mosquitto." else "فشل اتصال MQTT: $reason")
                     }
                 })
             } catch (e: Exception) {
@@ -243,8 +245,23 @@ class MqttChatService : Service() {
         if (type == "message") packet.put("messageId", UUID.randomUUID().toString())
         val topic = if ((type.startsWith("private_") || type == "voice_signal") && !targetId.isNullOrBlank()) "alkamel/chat/private/$targetId" else GROUP_TOPIC
         runCatching {
-            mqtt.publish(topic, MqttMessage(packet.toString().toByteArray(Charsets.UTF_8)).apply { qos = 1; isRetained = false })
-        }.onFailure { Log.w("AlkamelNet-MQTT", "$type publish failed", it) }
+            val message = MqttMessage(packet.toString().toByteArray(Charsets.UTF_8)).apply {
+                qos = 1
+                isRetained = false
+            }
+            mqtt.publish(topic, message, null, object : IMqttActionListener {
+                override fun onSuccess(asyncActionToken: IMqttToken?) {
+                    Log.d("AlkamelNet-MQTT", "$type publish accepted; clientId=$deviceId")
+                }
+                override fun onFailure(asyncActionToken: IMqttToken?, exception: Throwable?) {
+                    Log.e("AlkamelNet-MQTT", "$type publish failed; clientId=$deviceId; reason=${exception?.message}", exception)
+                    if (requested) emitState("reconnecting", "تعذر إرسال رسالة مؤقتاً؛ جارٍ استعادة الاتصال…")
+                }
+            })
+        }.onFailure {
+            Log.e("AlkamelNet-MQTT", "$type publish could not be queued; clientId=$deviceId", it)
+            if (requested) emitState("reconnecting", "تعذر إرسال رسالة مؤقتاً؛ جارٍ استعادة الاتصال…")
+        }
     }
 
     private fun emitState(state: String, detail: String) {
