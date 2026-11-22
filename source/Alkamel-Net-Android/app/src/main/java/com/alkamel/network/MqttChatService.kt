@@ -110,13 +110,16 @@ class MqttChatService : Service() {
         when (intent?.action) {
             ACTION_PUBLISH -> {
                 // Notification actions can recreate this Service in a fresh process.
-                // Restore the saved sender identity before accepting an inline reply.
+                // Restore identity and establish MQTT before queuing the reply.
                 if (nickname.isBlank()) {
                     nickname = getSharedPreferences("alkamel_mqtt", MODE_PRIVATE)
                         .getString("nickname", "").orEmpty()
                 }
-                if (nickname.isNotBlank()) requested = true
-                runCatching { foreground() }
+                if (nickname.isNotBlank()) {
+                    requested = true
+                    runCatching { foreground() }
+                    if (client?.isConnected != true) connect()
+                }
                 val type = intent.getStringExtra(EXTRA_TYPE).orEmpty()
                 val target = intent.getStringExtra(EXTRA_TARGET).orEmpty()
                 if (type in setOf("message", "voice_message", "gift", "profile_photo", "private_request", "private_response", "private_message", "voice_seat", "voice_signal")) {
@@ -286,9 +289,9 @@ class MqttChatService : Service() {
                 if (nickname.isNotBlank()) {
                     requested = true
                     foreground()
-                    connect()
                 }
             }
+            if (requested && client?.isConnected != true && !connecting) connect()
             return
         }
         publishNow(mqtt, type, text, targetId, requestId, mentionId, mentionName)
@@ -448,6 +451,7 @@ class MqttChatService : Service() {
                 action = ChatReplyReceiver.ACTION_REPLY
                 putExtra(ChatReplyReceiver.EXTRA_REPLY_KIND, if (privateMessage) "private_message" else "message")
                 putExtra(ChatReplyReceiver.EXTRA_REPLY_TARGET, if (privateMessage) obj.optString("id") else "")
+                putExtra(ChatReplyReceiver.EXTRA_REQUEST_ID, obj.optString("requestId"))
             }
             val replyPending = PendingIntent.getBroadcast(this, notificationId, replyIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE)
