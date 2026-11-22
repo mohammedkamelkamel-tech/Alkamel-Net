@@ -97,7 +97,13 @@ class MainActivity : Activity() {
     @Volatile private var chatSocket: DatagramSocket? = null
     @Volatile private var chatMulticastLock: WifiManager.MulticastLock? = null
     @Volatile private var chatNickname = ""
-    private val chatId = java.util.UUID.randomUUID().toString()
+    private val chatId: String by lazy {
+        getSharedPreferences("alkamel_private_chat", MODE_PRIVATE).let { prefs ->
+            prefs.getString("chat_id", null) ?: java.util.UUID.randomUUID().toString().also {
+                prefs.edit().putString("chat_id", it).apply()
+            }
+        }
+    }
     private val chatPeerAddresses = ConcurrentHashMap<String, InetAddress>()
     private val chatExecutor = Executors.newSingleThreadExecutor()
     private val chatSendExecutor = Executors.newSingleThreadExecutor()
@@ -473,7 +479,7 @@ class MainActivity : Activity() {
         getSystemService(NotificationManager::class.java).notify(notificationId, notification)
     }
 
-    private fun notifyIncomingChat(obj: JSONObject) {
+    private fun notifyIncomingChat(obj: JSONObject, senderAddress: InetAddress) {
         if (appInForeground) return
         val type = obj.optString("type")
         val sender = obj.optString("name", "عضو")
@@ -493,13 +499,63 @@ class MainActivity : Activity() {
             privateRequest -> "يريد $sender بدء محادثة خاصة معك."
             else -> "$sender: $message"
         }
-        postEventNotification(title, body, (System.currentTimeMillis() % 2000000000L).toInt())
+        if (privateMessage) {
+            val requestId = obj.optString("requestId")
+            val peerId = obj.optString("id")
+            val notificationId = (requestId.hashCode() and 0x7fffffff).coerceAtLeast(1)
+            getSharedPreferences("alkamel_private_chat", MODE_PRIVATE).edit()
+                .putString("chat_id", chatId)
+                .putString("chat_nickname", chatNickname)
+                .putString("peer_id_$notificationId", peerId)
+                .putString("peer_request_$notificationId", requestId)
+                .putString("peer_host_$notificationId", senderAddress.hostAddress ?: "")
+                .apply()
+            postPrivateChatNotification(title, body, notificationId, peerId, requestId, senderAddress.hostAddress ?: "")
+        } else {
+            postEventNotification(title, body, (System.currentTimeMillis() % 2000000000L).toInt())
+        }
+    }
+
+    private fun postPrivateChatNotification(title: String, message: String, notificationId: Int, peerId: String, requestId: String, peerHost: String) {
+        val openApp = PendingIntent.getActivity(
+            this, notificationId,
+            Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val replyIntent = Intent(this, PrivateChatReplyReceiver::class.java).apply {
+            action = PrivateChatReplyReceiver.ACTION_REPLY
+            putExtra(PrivateChatReplyReceiver.EXTRA_NOTIFICATION_ID, notificationId)
+            putExtra(PrivateChatReplyReceiver.EXTRA_PEER_ID, peerId)
+            putExtra(PrivateChatReplyReceiver.EXTRA_REQUEST_ID, requestId)
+            putExtra(PrivateChatReplyReceiver.EXTRA_PEER_HOST, peerHost)
+        }
+        val replyPendingIntent = PendingIntent.getBroadcast(
+            this, notificationId, replyIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+        )
+        val remoteInput = android.app.RemoteInput.Builder(PrivateChatReplyReceiver.KEY_TEXT)
+            .setLabel("اكتب ردك...")
+            .build()
+        val action = Notification.Action.Builder(
+            android.R.drawable.ic_menu_send, "رد", replyPendingIntent
+        ).addRemoteInput(remoteInput).setAllowGeneratedReplies(true).build()
+        val builder = Notification.Builder(this, notificationChannelId)
+            .setSmallIcon(android.R.drawable.stat_notify_chat)
+            .setContentTitle(title)
+            .setContentText(message.take(180))
+            .setStyle(Notification.BigTextStyle().bigText(message.take(500)))
+            .setAutoCancel(true)
+            .setContentIntent(openApp)
+            .addAction(action)
+        getSystemService(NotificationManager::class.java).notify(notificationId, builder.build())
     }
 
     private fun startLanChat(name: String, ensureService: Boolean = true) {
         val clean = name.trim().take(24)
         if (clean.isEmpty()) return
         chatNickname = clean
+        getSharedPreferences("alkamel_private_chat", MODE_PRIVATE).edit()
+            .putString("chat_nickname", clean).putString("chat_id", chatId).apply()
         chatRequested.set(true)
         if (ensureService && getSharedPreferences("alkamel_app_setup", MODE_PRIVATE).getBoolean("background_enabled", false)) {
         val keepAlive = Intent(this, ChatKeepAliveService::class.java).apply { action = ChatKeepAliveService.ACTION_START }
@@ -568,7 +624,7 @@ class MainActivity : Activity() {
                             val isPrivatePacket = packetType in setOf("private_request", "private_response", "private_message") && obj.optString("to") == chatId
                             if (isPublicPacket || isPrivatePacket) {
                                 if (packetType == "message" || packetType == "private_message" || packetType == "private_request") {
-                                    try { notifyIncomingChat(obj) } catch (notificationError: Exception) { Log.w("AlkamelNet", "Unable to show chat notification", notificationError) }
+                                    try { notifyIncomingChat(obj, packet.address) } catch (notificationError: Exception) { Log.w("AlkamelNet", "Unable to show chat notification", notificationError) }
                                 }
                                 runOnUiThread { if (::web.isInitialized && !isFinishing && !isDestroyed) web.evaluateJavascript("if(window.onLanChatPacket)window.onLanChatPacket(${JSONObject.quote(raw)});", null) }
                             }
@@ -1717,30 +1773,15 @@ class MainActivity : Activity() {
             val pausedFor = if (backgroundedAtMs > 0L) System.currentTimeMillis() - backgroundedAtMs else 0L
             val current = web.url.orEmpty()
             if (pausedFor >= 2500L) {
-                // LAN players often retain dead HTTP sockets after Android suspends WebView.
                 if (isExternalServiceUrl(current)) {
-                    Log.i("AlkamelNet", "Reconnecting service after background pause (${pausedFor}ms): $current")
-                    web.post { if (!isFinishing && !isDestroyed) web.loadUrl(current) }
+                    // External LAN player sessions can expire while Android suspends WebView.
+                    val returnPage = if (current.contains("/tv/") || current.contains(":88/") || current.contains("/assets/hd/")) "live" else "rest"
+                    pendingPageAfterHome = returnPage
+                    verifyPrivateNetworkAccess { loadHome() }
                 } else {
-                    // A LAN service page may retain a dead HTTP/WebView session after
-                    // Android backgrounds the app. Return to the bundled home page and
-                    // restore the relevant section, so every service can be opened again.
-                    val returnPage = when {
-                        current.startsWith("http://30.30.30.30:8080/tv/") ||
-                            current.startsWith("http://30.10.10.10:88/") ||
-                            current.startsWith("https://appassets.androidplatform.net/assets/hd/") -> "live"
-                        current.startsWith("http://30.30.30.30:8096/") ||
-                            current.startsWith("http://30.10.10.10/") -> "rest"
-                        else -> null
-                    }
-                    if (returnPage != null) pendingPageAfterHome = returnPage
-                    verifyPrivateNetworkAccess {
-                        if (returnPage != null || (!current.startsWith(homeUrl) && !current.startsWith("data:"))) {
-                            loadHome()
-                        } else recoverHomeAfterResume()
-                    }
+                    // Keep the bundled document alive. Rebuild it only when its JS health check fails.
+                    verifyPrivateNetworkAccess { recoverHomeAfterResume() }
                 }
-                // The hidden portal WebView can also keep stale sockets/cookies after resume.
                 commandWeb?.let { hidden ->
                     commandPageReady = false
                     commandAttemptInProgress = false
@@ -1778,7 +1819,7 @@ class MainActivity : Activity() {
                 showLoading(false)
                 hideError()
                 web.evaluateJavascript(
-                    "window.dispatchEvent(new Event('focus'));if(typeof window.appOnResume==='function')window.appOnResume();",
+                    "window.dispatchEvent(new Event('focus'));if(typeof window.restoreLastPage==='function')window.restoreLastPage();if(typeof window.appOnResume==='function')window.appOnResume();",
                     null
                 )
                 Log.i("AlkamelNet", "Home WebView passed resume health check")
