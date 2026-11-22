@@ -109,11 +109,23 @@ class MqttChatService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_PUBLISH -> {
+                // Notification actions can recreate this Service in a fresh process.
+                // Restore the saved sender identity before accepting an inline reply.
+                if (nickname.isBlank()) {
+                    nickname = getSharedPreferences("alkamel_mqtt", MODE_PRIVATE)
+                        .getString("nickname", "").orEmpty()
+                }
+                if (nickname.isNotBlank()) requested = true
                 runCatching { foreground() }
                 val type = intent.getStringExtra(EXTRA_TYPE).orEmpty()
+                val target = intent.getStringExtra(EXTRA_TARGET).orEmpty()
                 if (type in setOf("message", "voice_message", "gift", "profile_photo", "private_request", "private_response", "private_message", "voice_seat", "voice_signal")) {
+                    if (type == "private_message" && target.isBlank()) {
+                        Log.w("AlkamelNet-MQTT", "Dropped private notification reply without a target")
+                        return START_STICKY
+                    }
                     publish(type, intent.getStringExtra(EXTRA_TEXT).orEmpty(),
-                        intent.getStringExtra(EXTRA_TARGET), intent.getStringExtra(EXTRA_REQUEST_ID), intent.getStringExtra(EXTRA_MENTION_ID), intent.getStringExtra(EXTRA_MENTION_NAME))
+                        target, intent.getStringExtra(EXTRA_REQUEST_ID), intent.getStringExtra(EXTRA_MENTION_ID), intent.getStringExtra(EXTRA_MENTION_NAME))
                 }
             }
             ACTION_CONNECT -> {
