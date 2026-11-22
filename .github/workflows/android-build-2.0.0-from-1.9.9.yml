@@ -6,6 +6,7 @@ on:
     branches:
       - release/2.0.0-from-1.9.9
       - fix/chat-resume-and-multi-member
+      - fix/2.0.0-private-reply-resume-services
 
 permissions:
   contents: read
