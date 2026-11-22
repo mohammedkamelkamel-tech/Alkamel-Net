@@ -6,6 +6,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import android.os.Build
 import org.json.JSONObject
 import java.net.DatagramPacket
 import java.net.DatagramSocket
@@ -45,8 +46,18 @@ class PrivateChatReplyReceiver : BroadcastReceiver() {
                     .put("requestId", requestId)
                     .put("text", reply)
                     .toString().toByteArray(Charsets.UTF_8)
-                DatagramSocket().use { socket ->
+                DatagramSocket(null).use { socket ->
                     socket.soTimeout = 3000
+                    val connectivity = context.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+                    val wifi = connectivity.allNetworks.firstOrNull { network ->
+                        connectivity.getNetworkCapabilities(network)
+                            ?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) == true
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && wifi != null) {
+                        runCatching { wifi.bindSocket(socket) }
+                            .onFailure { Log.w("AlkamelNet", "Could not bind notification reply to Wi-Fi", it) }
+                    }
+                    socket.bind(java.net.InetSocketAddress(0))
                     val address = InetAddress.getByName(host)
                     socket.send(DatagramPacket(payload, payload.size, address, 39127))
                 }
