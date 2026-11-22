@@ -13,6 +13,7 @@ class ChatReplyReceiver : BroadcastReceiver() {
         const val KEY_TEXT = "chat_reply_text"
         const val EXTRA_REPLY_KIND = "reply_kind"
         const val EXTRA_REPLY_TARGET = "reply_target"
+        const val EXTRA_REQUEST_ID = "reply_request_id"
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -21,6 +22,7 @@ class ChatReplyReceiver : BroadcastReceiver() {
         if (reply.isBlank()) return
         val kind = intent.getStringExtra(EXTRA_REPLY_KIND).orEmpty()
         val target = intent.getStringExtra(EXTRA_REPLY_TARGET).orEmpty()
+        val requestId = intent.getStringExtra(EXTRA_REQUEST_ID).orEmpty()
         if (kind != "message" && kind != "private_message") return
         if (kind == "private_message" && target.isBlank()) return
 
@@ -28,7 +30,10 @@ class ChatReplyReceiver : BroadcastReceiver() {
             action = MqttChatService.ACTION_PUBLISH
             putExtra(MqttChatService.EXTRA_TYPE, kind)
             putExtra(MqttChatService.EXTRA_TEXT, reply.take(1000))
-            if (kind == "private_message") putExtra(MqttChatService.EXTRA_TARGET, target)
+            if (kind == "private_message") {
+                putExtra(MqttChatService.EXTRA_TARGET, target)
+                putExtra(MqttChatService.EXTRA_REQUEST_ID, requestId)
+            }
         }
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(serviceIntent)
