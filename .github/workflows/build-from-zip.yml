@@ -40,6 +40,18 @@ jobs:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
           echo "Building extracted 2.0.0 source: $PROJECT_DIR"
           find "$PROJECT_DIR" -maxdepth 3 -type f -name '*gradle*' -print
+      - name: Overlay approved unified UI from repository source
+        shell: bash
+        run: |
+          set -euxo pipefail
+          SOURCE_HOME="$GITHUB_WORKSPACE/source/Alkamel-Net-Android/app/src/main/assets/home.html"
+          TARGET_HOME="$PROJECT_DIR/app/src/main/assets/home.html"
+          test -s "$SOURCE_HOME"
+          test -s "$TARGET_HOME"
+          cp "$SOURCE_HOME" "$TARGET_HOME"
+          grep -q 'class="home-hero"' "$TARGET_HOME"
+          grep -q 'id="bottomNav"' "$TARGET_HOME"
+          echo "PASS - latest approved Alkamel Network UI applied to the 2.0.0 build source"
       - name: Restore approved launcher artwork
         shell: bash
         run: |
