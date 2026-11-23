@@ -40,18 +40,46 @@ jobs:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
           echo "Building extracted 2.0.0 source: $PROJECT_DIR"
           find "$PROJECT_DIR" -maxdepth 3 -type f -name '*gradle*' -print
-      - name: Overlay approved unified UI from repository source
+      - name: Merge approved home design into the original 2.0.0 project
         shell: bash
         run: |
           set -euxo pipefail
-          SOURCE_HOME="$GITHUB_WORKSPACE/source/Alkamel-Net-Android/app/src/main/assets/home.html"
-          TARGET_HOME="$PROJECT_DIR/app/src/main/assets/home.html"
-          test -s "$SOURCE_HOME"
-          test -s "$TARGET_HOME"
-          cp "$SOURCE_HOME" "$TARGET_HOME"
-          grep -q 'class="home-hero"' "$TARGET_HOME"
-          grep -q 'id="bottomNav"' "$TARGET_HOME"
-          echo "PASS - latest approved Alkamel Network UI applied to the 2.0.0 build source"
+          python3 - "$GITHUB_WORKSPACE/source/Alkamel-Net-Android/app/src/main/assets/home.html" "$PROJECT_DIR/app/src/main/assets/home.html" <<'PY'
+          import pathlib,re,sys
+          source=pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+          target_path=pathlib.Path(sys.argv[2])
+          target=target_path.read_text(encoding="utf-8")
+          def extract(pattern,text,label):
+              m=re.search(pattern,text,re.S)
+              if not m: raise SystemExit(f"Missing {label} in approved UI source")
+              return m.group(0)
+          source_style=extract(r"<style\\b[^>]*>.*?</style>",source,"style block")
+          target_style=re.search(r"<style\\b[^>]*>.*?</style>",target,re.S)
+          if not target_style: raise SystemExit("Original project has no style block")
+          target=target[:target_style.start()]+source_style+target[target_style.end():]
+          source_header=extract(r"<header\\s+class=[\"']top[\"']>.*?</header>",source,"top header")
+          target_header=re.search(r"<header\\s+class=[\"']top[\"']>.*?</header>",target,re.S)
+          if not target_header: raise SystemExit("Original project header not found")
+          target=target[:target_header.start()]+source_header+target[target_header.end():]
+          source_home_start=source.find('<section id="home"')
+          source_home_end=source.find('<section id="support"',source_home_start)
+          target_home_start=target.find('<section id="home"')
+          target_home_end=target.find('<section id="support"',target_home_start)
+          if min(source_home_start,source_home_end,target_home_start,target_home_end)<0:
+              raise SystemExit("Could not isolate complete home page sections")
+          source_home=source[source_home_start:source_home_end].rstrip()
+          target=target[:target_home_start]+source_home+"\\n"+target[target_home_end:]
+          source_extra=extract(r"<script id=[\"']home-ui-enhancements[\"']>.*?</script>",source,"home enhancement script")
+          if "id='home-ui-enhancements'" not in target and 'id="home-ui-enhancements"' not in target:
+              close=target.rfind("</body>")
+              if close<0: raise SystemExit("Original project body closing tag missing")
+              target=target[:close]+source_extra+"\\n"+target[close:]
+          target_path.write_text(target,encoding="utf-8")
+          checks=('id="homeCurrentSpeed"','id="homeTimeLeft"','id="homeRemain"','id="homeChatFeed"','id="homeBottomNav"','home-ui-enhancements')
+          for item in checks:
+              if item not in target: raise SystemExit(f"Home design merge check failed: {item}")
+          print("PASS - reference home layout merged; original application scripts and native integration preserved")
+          PY
       - name: Restore approved launcher artwork
         shell: bash
         run: |
