@@ -45,39 +45,36 @@ jobs:
         run: |
           set -euxo pipefail
           python3 - "$GITHUB_WORKSPACE/source/Alkamel-Net-Android/app/src/main/assets/home.html" "$PROJECT_DIR/app/src/main/assets/home.html" <<'PY'
-          import pathlib,re,sys
+          import pathlib,sys
           source=pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
           target_path=pathlib.Path(sys.argv[2])
           target=target_path.read_text(encoding="utf-8")
-          def extract(pattern,text,label):
-              m=re.search(pattern,text,re.S)
-              if not m: raise SystemExit(f"Missing {label} in approved UI source")
-              return m.group(0)
-          source_style=extract(r"<style\\b[^>]*>.*?</style>",source,"style block")
-          target_style=re.search(r"<style\\b[^>]*>.*?</style>",target,re.S)
-          if not target_style: raise SystemExit("Original project has no style block")
-          target=target[:target_style.start()]+source_style+target[target_style.end():]
-          source_header=extract(r"<header\\s+class=[\"']top[\"']>.*?</header>",source,"top header")
-          target_header=re.search(r"<header\\s+class=[\"']top[\"']>.*?</header>",target,re.S)
-          if not target_header: raise SystemExit("Original project header not found")
-          target=target[:target_header.start()]+source_header+target[target_header.end():]
-          source_home_start=source.find('<section id="home"')
-          source_home_end=source.find('<section id="support"',source_home_start)
-          target_home_start=target.find('<section id="home"')
-          target_home_end=target.find('<section id="support"',target_home_start)
-          if min(source_home_start,source_home_end,target_home_start,target_home_end)<0:
-              raise SystemExit("Could not isolate complete home page sections")
-          source_home=source[source_home_start:source_home_end].rstrip()
-          target=target[:target_home_start]+source_home+"\\n"+target[target_home_end:]
-          source_extra=extract(r"<script id=[\"']home-ui-enhancements[\"']>.*?</script>",source,"home enhancement script")
-          if "id='home-ui-enhancements'" not in target and 'id="home-ui-enhancements"' not in target:
+          def region(text,start_marker,end_marker,label):
+              start=text.find(start_marker)
+              if start<0: raise SystemExit("Missing "+label+" start")
+              end=text.find(end_marker,start)
+              if end<0: raise SystemExit("Missing "+label+" end")
+              return start,end+len(end_marker),text[start:end+len(end_marker)]
+          ss,se,style=region(source,"<style>","</style>","approved styles")
+          ts,te,_=region(target,"<style>","</style>","original styles")
+          target=target[:ts]+style+target[te:]
+          hs,he,header=region(source,'<header class="top">',"</header>","approved header")
+          th,th_end,_=region(target,'<header class="top">',"</header>","original header")
+          target=target[:th]+header+target[th_end:]
+          sh=source.find('<section id="home"')
+          she=source.find('<section id="support"',sh)
+          th=target.find('<section id="home"')
+          the=target.find('<section id="support"',th)
+          if min(sh,she,th,the)<0: raise SystemExit("Could not isolate complete home sections")
+          target=target[:th]+source[sh:she]+target[the:]
+          xs,xe,extra=region(source,'<script id="home-ui-enhancements">',"</script>","home enhancement script")
+          if 'id="home-ui-enhancements"' not in target:
               close=target.rfind("</body>")
               if close<0: raise SystemExit("Original project body closing tag missing")
-              target=target[:close]+source_extra+"\\n"+target[close:]
+              target=target[:close]+extra+target[close:]
           target_path.write_text(target,encoding="utf-8")
-          checks=('id="homeCurrentSpeed"','id="homeTimeLeft"','id="homeRemain"','id="homeChatFeed"','id="homeBottomNav"','home-ui-enhancements')
-          for item in checks:
-              if item not in target: raise SystemExit(f"Home design merge check failed: {item}")
+          for marker in ('id="homeCurrentSpeed"','id="homeTimeLeft"','id="homeRemain"','id="homeChatFeed"','id="homeBottomNav"','home-ui-enhancements'):
+              if marker not in target: raise SystemExit("Home merge check failed: "+marker)
           print("PASS - reference home layout merged; original application scripts and native integration preserved")
           PY
       - name: Restore approved launcher artwork
