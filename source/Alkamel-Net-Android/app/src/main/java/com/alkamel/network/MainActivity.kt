@@ -160,9 +160,7 @@ class MainActivity : Activity() {
             settings.blockNetworkImage = false
             settings.cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
             settings.setRenderPriority(android.webkit.WebSettings.RenderPriority.HIGH)
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-                settings.offscreenPreRaster = true
-            }
+            // Avoid offscreen pre-raster memory overhead on long-running sessions.
             webChromeClient = object : WebChromeClient() {
                 override fun onPermissionRequest(request: android.webkit.PermissionRequest) {
                     runOnUiThread {
