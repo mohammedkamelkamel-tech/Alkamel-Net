@@ -31,6 +31,7 @@ import java.util.concurrent.Executors
 class MqttChatService : Service() {
     companion object {
         const val ACTION_CONNECT = "com.alkamel.network.mqtt.CONNECT"
+        const val ACTION_LISTEN = "com.alkamel.network.mqtt.LISTEN"
         const val ACTION_PUBLISH = "com.alkamel.network.mqtt.PUBLISH"
         const val ACTION_EVENT = "com.alkamel.network.mqtt.EVENT"
         const val EXTRA_NAME = "name"
@@ -56,6 +57,7 @@ class MqttChatService : Service() {
     private var client: MqttAsyncClient? = null
     @Volatile private var connecting = false
     @Volatile private var requested = false
+    @Volatile private var announcePresence = true
     private var nickname = ""
     @Volatile private var retryAttempt = 0
     @Volatile private var subscribing = false
@@ -69,7 +71,7 @@ class MqttChatService : Service() {
     private val deviceId by lazy { ChatDeviceIdentity.get(this) }
     private val presence = object : Runnable {
         override fun run() {
-            if (requested && client?.isConnected == true) {
+            if (requested && announcePresence && client?.isConnected == true) {
                 publish("presence", "")
                 handler.postDelayed(this, 5000L)
             }
@@ -128,7 +130,15 @@ class MqttChatService : Service() {
                         target, intent.getStringExtra(EXTRA_REQUEST_ID), intent.getStringExtra(EXTRA_MENTION_ID), intent.getStringExtra(EXTRA_MENTION_NAME))
                 }
             }
+            ACTION_LISTEN -> {
+                nickname = getSharedPreferences("alkamel_mqtt", MODE_PRIVATE).getString("nickname", "مستمع").orEmpty().ifBlank { "مستمع" }
+                requested = true
+                announcePresence = false
+                runCatching { foreground() }
+                if (client?.isConnected == true) subscribeAndAnnounce(client!!) else connect()
+            }
             ACTION_CONNECT -> {
+                announcePresence = true
                 nickname = intent.getStringExtra(EXTRA_NAME).orEmpty().take(24)
                 getSharedPreferences("alkamel_mqtt", MODE_PRIVATE).edit().putString("nickname", nickname).apply()
                 requested = true
@@ -162,7 +172,7 @@ class MqttChatService : Service() {
                         subscribing = false
                         if (!requested || client !== mqtt || !mqtt.isConnected) return
                         retryAttempt = 0
-                        publish("presence", "")
+                        if (announcePresence) publish("presence", "")
                         synchronized(pendingPublishes) {
                             while (pendingPublishes.isNotEmpty() && mqtt.isConnected) {
                                 val pending = pendingPublishes.removeFirst()
@@ -170,8 +180,10 @@ class MqttChatService : Service() {
                             }
                         }
                         handler.removeCallbacks(presence)
-                        handler.postDelayed(presence, 5000L)
-                        emitState("joined", "")
+                        if (announcePresence) {
+                            handler.postDelayed(presence, 5000L)
+                            emitState("joined", "")
+                        }
                     }
                     override fun onFailure(asyncActionToken: IMqttToken?, exception: Throwable?) {
                         subscribing = false
