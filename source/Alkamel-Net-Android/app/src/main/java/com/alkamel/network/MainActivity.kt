@@ -129,7 +129,7 @@ class MainActivity : Activity() {
     private var localFallbackAttempted = false
     private var pendingPageAfterHome: String? = null
     @Volatile private var backgroundedAtMs: Long = 0L
-    private val allowedHosts = setOf("k.com", "30.30.30.30", "30.10.10.10", "10.10.10.10")
+    private val allowedHosts = setOf("k.com", "30.30.30.30", "30.10.10.10", "10.10.10.10", "yalla4foot.com", "www.yalla4foot.com")
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -160,9 +160,7 @@ class MainActivity : Activity() {
             settings.blockNetworkImage = false
             settings.cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
             settings.setRenderPriority(android.webkit.WebSettings.RenderPriority.HIGH)
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-                settings.offscreenPreRaster = true
-            }
+            // Avoid offscreen pre-raster memory overhead on long-running sessions.
             webChromeClient = object : WebChromeClient() {
                 override fun onPermissionRequest(request: android.webkit.PermissionRequest) {
                     runOnUiThread {
@@ -559,12 +557,24 @@ class MainActivity : Activity() {
         }
         }
         if (!chatRunning.compareAndSet(false, true)) {
-            // The LAN receiver may have survived while the Activity/WebView was paused.
-            // Re-announce presence and restore the WebView's joined state instead of
-            // leaving the join screen stuck in "connecting".
-            sendLanPacket("presence", "")
-            if (chatSocket?.isClosed == false) notifyChatState("joined", "")
-            return
+            // A stale running flag with a closed/missing UDP socket used to trap the
+            // join screen forever. Reuse only a genuinely bound receiver; otherwise
+            // invalidate the old generation and start a fresh socket session.
+            val existingSocket = chatSocket
+            if (existingSocket != null && !existingSocket.isClosed && existingSocket.isBound) {
+                sendLanPacket("presence", "")
+                notifyChatState("joined", "")
+                return
+            }
+            Log.w("AlkamelNet", "Detected stale LAN chat state; restarting receiver")
+            chatSessionGeneration.incrementAndGet()
+            chatRunning.set(false)
+            runCatching { existingSocket?.close() }
+            chatSocket = null
+            if (!chatRunning.compareAndSet(false, true)) {
+                notifyChatState("reconnecting", "جارٍ استعادة اتصال الدردشة…")
+                return
+            }
         }
         val sessionId = chatSessionGeneration.incrementAndGet()
         chatExecutor.execute {
@@ -1630,6 +1640,11 @@ class MainActivity : Activity() {
             return servers.toString()
         }
         @JavascriptInterface fun startChat(name: String) { startLanChat(name) }
+        @JavascriptInterface fun listenChatPresence() {
+            val intent = Intent(this@MainActivity, MqttChatService::class.java).apply { action = MqttChatService.ACTION_LISTEN }
+            try { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent) else startService(intent) }
+            catch (e: Exception) { Log.w("AlkamelNet", "Unable to start lobby presence listener", e) }
+        }
         @JavascriptInterface fun getChatHistory(): String = ChatMessageStore.read(this@MainActivity)
         @JavascriptInterface fun sendChatMessage(message: String) { if (message.length <= 1000) sendLanPacket("message", message.trim()) }
         @JavascriptInterface fun sendDirectedChatMessage(message: String, mentionId: String, mentionName: String) { if (message.length <= 1000 && mentionId.length <= 64 && mentionName.length <= 24) sendLanPacket("message", message.trim(), mentionId.trim(), mentionName.trim()) }
@@ -1685,7 +1700,7 @@ class MainActivity : Activity() {
         fun openUrl(url: String) {
             runOnUiThread {
                 val uri = runCatching { Uri.parse(url) }.getOrNull() ?: return@runOnUiThread
-                if (uri.scheme == "http" && uri.host in allowedHosts) {
+                if (uri.scheme in setOf("http", "https") && uri.host?.lowercase() in allowedHosts) {
                     pendingPageAfterHome = when {
                         url.startsWith("http://30.30.30.30:8080/tv/") ||
                             url.startsWith("http://30.10.10.10:88/") -> "live"
@@ -1698,7 +1713,7 @@ class MainActivity : Activity() {
             }
         }
 
-        @JavascriptInterface fun openHd() { runOnUiThread { pendingPageAfterHome = "live"; web.loadUrl("https://appassets.androidplatform.net/assets/hd/index.html") } }
+        @JavascriptInterface fun openHd() { runOnUiThread { startActivity(Intent(this@MainActivity, HdPlayerActivity::class.java)) } }
         @JavascriptInterface fun home() { runOnUiThread { if (web.url != homeUrl) loadHome() } }
 
         @JavascriptInterface
@@ -1882,24 +1897,39 @@ class MainActivity : Activity() {
             super.onBackPressed()
             return
         }
+
         val currentUrl = web.url.orEmpty()
-        val returnPage = when {
-            currentUrl.startsWith("http://30.30.30.30:8080/tv/") ||
-                currentUrl.startsWith("http://30.10.10.10:88/") ||
-                currentUrl.startsWith("https://appassets.androidplatform.net/assets/hd/") -> "live"
-            currentUrl.startsWith("http://30.30.30.30:8096/") ||
-                currentUrl.startsWith("http://30.10.10.10/") -> "rest"
-            else -> null
-        }
-        if (returnPage != null) {
-            pendingPageAfterHome = returnPage
-            loadHome()
+        val isRestPage = currentUrl.startsWith("http://30.30.30.30:8096/") ||
+            currentUrl.startsWith("http://30.10.10.10/")
+        val isLivePage = currentUrl.startsWith("http://30.30.30.30:8080/tv/") ||
+            currentUrl.startsWith("http://30.10.10.10:88/") ||
+            currentUrl.startsWith("https://appassets.androidplatform.net/assets/hd/")
+
+        if (isRestPage || isLivePage) {
+            val history = web.copyBackForwardList()
+            val previousUrl = if (history.currentIndex > 0) {
+                history.getItemAtIndex(history.currentIndex - 1).url.orEmpty()
+            } else ""
+            val sameServiceHistory = if (isRestPage) {
+                previousUrl.startsWith("http://30.30.30.30:8096/") ||
+                    previousUrl.startsWith("http://30.10.10.10/")
+            } else {
+                previousUrl.startsWith("http://30.30.30.30:8080/tv/") ||
+                    previousUrl.startsWith("http://30.10.10.10:88/") ||
+                    previousUrl.startsWith("https://appassets.androidplatform.net/assets/hd/")
+            }
+
+            // Navigate within the external service first. Only leave it when
+            // its own history is exhausted; never jump to the lounge on each Back.
+            if (sameServiceHistory && web.canGoBack()) {
+                web.goBack()
+            } else {
+                pendingPageAfterHome = if (isRestPage) "rest" else "live"
+                loadHome()
+            }
             return
         }
 
-        // Always delegate portal navigation to the page-level back handler.
-        // This keeps support sub-pages inside the support menu even when the
-        // WebView is serving the bundled page through its data/local fallback URL.
         web.evaluateJavascript(
             "if(typeof window.appBack==='function'){window.appBack();'handled';}else{'reload';}"
         ) { result ->
