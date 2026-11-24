@@ -791,10 +791,10 @@ body{background:radial-gradient(ellipse at 50% -8%,#123d6c 0,transparent 42%),li
 <div class="subscription-strip">
 <div><small>سرعة الباقة</small><b id="homePlanSpeed">—</b></div>
 <div><small>الوقت المتبقي</small><b id="homeTimeLeft">—</b></div>
-<div><small>مدة الاتصال</small><b id="homeUptime">—</b></div>
+<div><small>الرصيد المتبقي</small><b id="homeUptime">—</b></div>
 </div></section>
 <div class="shortcut-grid" aria-label="الخدمات الرئيسية">
-<button class="shortcut tile-query" onclick="showPage('query')"><span>◎</span><b>تصفح الإنترنت</b></button>
+<button class="shortcut tile-query" onclick="showPage('query')"><span>◎</span><b>بيانات الكرت</b></button>
 <button class="tile tile-live" onclick="showPage('rest')"><span>▣</span><b>الاستراحة</b></button>
 <button class="tile tile-leisure" onclick="showPage('live')"><span>⚽</span><b>المباريات</b></button>
 <button class="shortcut tile-ads" onclick="openAds()"><span>⇩</span><b>التحميلات</b></button>
@@ -844,7 +844,7 @@ function setQueryNotice(message,state){const notice=$('queryNotice');if(!notice)
 function bytes(v){if(v===null||v===undefined||String(v).trim()==='')return 'غير متاح';let n=Number(v);if(!Number.isFinite(n)||n<0)return 'غير متاح';if(n>=1073741824)return(n/1073741824).toFixed(2)+' جيجابايت';if(n>=1048576)return Math.round(n/1048576)+' ميجابايت';if(n>=1024)return Math.round(n/1024)+' كيلوبايت';return Math.round(n)+' بايت'}
 function duration(v,emptyLabel='—'){if(v===null||v===undefined||String(v).trim()==='')return emptyLabel;return String(v).replace(/([0-9]+)d/g,'$1 يوم ').replace(/([0-9]+)h/g,'$1 ساعة ').replace(/([0-9]+)m/g,'$1 دقيقة ').replace(/([0-9]+)s/g,'$1 ثانية')}
 function maskCardNumber(raw){const value=String(raw??'').trim();if(!value||value==='—')return '—';return value.length>5?'*'.repeat(value.length-5)+value.slice(-5):value;}
-function update(d){if(!d||typeof d!=='object'||Array.isArray(d)){const n=$('queryNotice');if(n)n.textContent='وصلت بيانات غير صالحة من بوابة الشبكة.';return;}lastData=d;let logged=['yes','true','1'].includes(String(d.logged_in).toLowerCase())||d.logged_in===true;$('connection').textContent=logged?'● متصل الآن':'● غير متصل';$('connection').classList.toggle('connected',logged);$('connection').classList.toggle('disconnected',!logged);$('homePlanSpeed').textContent=speedLabel(String(d.spes||'').split('|')[0]);$('homeTimeLeft').textContent=duration(d.session_time_left,'مفتوح');$('homeUptime').textContent=duration(d.uptime,'—');$('username').textContent=maskCardNumber(d.username);$('status').textContent=logged?'متصل بنجاح':'غير متصل';$('spes').textContent=speedLabel(String(d.spes||'').split('|')[0]);const spesParts=String(d.spes||'').split('|');
+function update(d){if(!d||typeof d!=='object'||Array.isArray(d)){const n=$('queryNotice');if(n)n.textContent='وصلت بيانات غير صالحة من بوابة الشبكة.';return;}lastData=d;let logged=['yes','true','1'].includes(String(d.logged_in).toLowerCase())||d.logged_in===true;$('connection').textContent=logged?'● متصل الآن':'● غير متصل';$('connection').classList.toggle('connected',logged);$('connection').classList.toggle('disconnected',!logged);$('homePlanSpeed').textContent=speedLabel(String(d.spes||'').split('|')[0]);$('homeTimeLeft').textContent=duration(d.session_time_left,'مفتوح');$('homeUptime').textContent='—';$('username').textContent=maskCardNumber(d.username);$('status').textContent=logged?'متصل بنجاح':'غير متصل';$('spes').textContent=speedLabel(String(d.spes||'').split('|')[0]);const spesParts=String(d.spes||'').split('|');
 $('currentSpeed').textContent=speedLabel(spesParts[0]);$('homeCurrentSpeed').textContent=speedLabel(spesParts[0]);if($('networkPlanSpeed'))$('networkPlanSpeed').textContent=speedLabel(spesParts[0]);
 if(spesParts.length>1){
  const enabled=spesParts[1]!=='*yes**';
@@ -861,7 +861,7 @@ if(spesParts.length>1){
  $('googleStatus').textContent='غير محددة';
  $('homeGoogleStatus').textContent='الحالة غير محددة';
  $('homeGoogleStatus').classList.remove('status-on','status-off');
-}$('timeleft').textContent=duration(d.session_time_left,'مفتوح');$('uptime').textContent=duration(d.uptime,'—');const remainRaw=d.remain_bytes_total;const remainNumber=Number(remainRaw);$('remain').textContent=(remainRaw===null||remainRaw===undefined||String(remainRaw).trim()===''||String(remainRaw).trim()==='مفتوح'||String(remainRaw).trim().toLowerCase()==='open'||remainNumber===0)?'مفتوح':(Number.isFinite(remainNumber)&&remainNumber>0?bytes(remainNumber*1.11):'غير متاح');$('download').textContent=bytes(d.bytes_out);$('upload').textContent=bytes(d.bytes_in);const refreshedAt=new Date().toLocaleDateString('ar-YE')+' '+new Date().toLocaleTimeString('ar-YE',{hour:'2-digit',minute:'2-digit',second:'2-digit'});setQueryNotice('تم تحديث بيانات الحساب بنجاح من بوابة شبكة الكامل. آخر تحديث: '+refreshedAt,'success');}
+}$('timeleft').textContent=duration(d.session_time_left,'مفتوح');$('uptime').textContent=duration(d.uptime,'—');const remainRaw=d.remain_bytes_total;const remainNumber=Number(remainRaw);const remainDisplay=(remainRaw===null||remainRaw===undefined||String(remainRaw).trim()===''||String(remainRaw).trim()==='مفتوح'||String(remainRaw).trim().toLowerCase()==='open'||remainNumber===0)?'مفتوح':(Number.isFinite(remainNumber)&&remainNumber>0?bytes(remainNumber*1.11):'غير متاح');$('remain').textContent=remainDisplay;$('homeUptime').textContent=remainDisplay;$('download').textContent=bytes(d.bytes_out);$('upload').textContent=bytes(d.bytes_in);const refreshedAt=new Date().toLocaleDateString('ar-YE')+' '+new Date().toLocaleTimeString('ar-YE',{hour:'2-digit',minute:'2-digit',second:'2-digit'});setQueryNotice('تم تحديث بيانات الحساب بنجاح من بوابة شبكة الكامل. آخر تحديث: '+refreshedAt,'success');}
 window.onStatusData=update;window.refreshStatus=refreshStatus;
 let siteConfig=null,selectedSpeed=null;
 let adsImages=[],adsIndex=0,adsTimer=null,adsLoaded=false,adsLoading=false,adsTouchStartX=0;
