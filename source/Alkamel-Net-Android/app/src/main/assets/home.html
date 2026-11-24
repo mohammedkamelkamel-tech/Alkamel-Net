@@ -1813,3 +1813,35 @@ $('adsPrev')?.addEventListener('click',()=>showAd(adsIndex-1));$('adsNext')?.add
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stopAdsTimer();else if($('ads')?.classList.contains('active'))startAdsTimer();});
 </script><!-- Group chat shared timeline polish: build retry -->
 </body></html>
+
+/* Member-name visibility fix only: preserve the existing chat transcript sizing */
+#chatRoom .room-members-panel{
+  height:74px!important;min-height:74px!important;max-height:74px!important;
+  box-sizing:border-box!important;overflow:hidden!important;
+}
+#chatRoom .room-members-heading{display:flex!important;visibility:visible!important}
+#chatRoom .room-member-grid{
+  display:flex!important;align-items:flex-start!important;flex-wrap:nowrap!important;
+  height:43px!important;min-height:43px!important;max-height:43px!important;
+  overflow-x:auto!important;overflow-y:hidden!important;padding:0 1px!important;
+}
+#chatRoom .room-member-grid .member-card{
+  display:flex!important;flex:0 0 62px!important;width:62px!important;min-width:62px!important;
+  height:42px!important;min-height:42px!important;max-height:42px!important;
+  flex-direction:column!important;align-items:center!important;justify-content:flex-start!important;
+  gap:2px!important;padding:0 2px!important;overflow:visible!important;
+}
+#chatRoom .room-member-grid .member-avatar{
+  display:grid!important;flex:0 0 24px!important;width:24px!important;height:24px!important;
+  min-width:24px!important;min-height:24px!important;max-height:24px!important;
+  place-items:center!important;border-radius:50%!important;font-size:11px!important;
+  line-height:1!important;overflow:hidden!important;
+}
+#chatRoom .room-member-grid .member-name{
+  display:block!important;visibility:visible!important;opacity:1!important;
+  flex:0 0 auto!important;width:100%!important;max-width:60px!important;
+  height:13px!important;line-height:13px!important;margin:0!important;padding:0!important;
+  color:#f4fbff!important;font-size:9px!important;font-weight:700!important;
+  text-align:center!important;white-space:nowrap!important;text-overflow:ellipsis!important;overflow:hidden!important;
+}
+#chatRoom .room-member-grid .member-role{display:none!important}
