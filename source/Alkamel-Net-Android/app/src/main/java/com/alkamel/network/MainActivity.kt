@@ -1698,7 +1698,7 @@ class MainActivity : Activity() {
             }
         }
 
-        @JavascriptInterface fun openHd() { runOnUiThread { pendingPageAfterHome = "live"; web.loadUrl("https://appassets.androidplatform.net/assets/hd/index.html") } }
+        @JavascriptInterface fun openHd() { runOnUiThread { startActivity(Intent(this@MainActivity, HdPlayerActivity::class.java)) } }
         @JavascriptInterface fun home() { runOnUiThread { if (web.url != homeUrl) loadHome() } }
 
         @JavascriptInterface
