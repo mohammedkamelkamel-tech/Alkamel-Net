@@ -1630,6 +1630,11 @@ class MainActivity : Activity() {
             return servers.toString()
         }
         @JavascriptInterface fun startChat(name: String) { startLanChat(name) }
+        @JavascriptInterface fun listenChatPresence() {
+            val intent = Intent(this@MainActivity, MqttChatService::class.java).apply { action = MqttChatService.ACTION_LISTEN }
+            try { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent) else startService(intent) }
+            catch (e: Exception) { Log.w("AlkamelNet", "Unable to start lobby presence listener", e) }
+        }
         @JavascriptInterface fun getChatHistory(): String = ChatMessageStore.read(this@MainActivity)
         @JavascriptInterface fun sendChatMessage(message: String) { if (message.length <= 1000) sendLanPacket("message", message.trim()) }
         @JavascriptInterface fun sendDirectedChatMessage(message: String, mentionId: String, mentionName: String) { if (message.length <= 1000 && mentionId.length <= 64 && mentionName.length <= 24) sendLanPacket("message", message.trim(), mentionId.trim(), mentionName.trim()) }
