@@ -252,6 +252,9 @@
 .ads-image{position:relative!important;inset:auto!important;display:block;width:100%!important;height:auto!important;max-width:100%!important;max-height:82vh!important;object-fit:contain!important;margin:0 auto!important}
 .ads-image[hidden]{display:none!important}
 @media(max-width:480px){.ads-slider{padding:8px 6px!important;min-height:240px!important}.ads-image{width:100%!important;max-height:82vh!important}}
+
+.shortcut-grid>.tile{min-width:0;min-height:87px;padding:8px 3px;border-radius:17px;border:1px solid #24648e;background:linear-gradient(145deg,#12375a,#08182d);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;color:#fff;box-shadow:0 5px 12px #0004;font:inherit;text-align:center}
+.shortcut-grid>.tile:active{transform:scale(.97)}.home-tools>.tile{display:grid;grid-template-columns:30px minmax(0,1fr) auto 16px;align-items:center;gap:7px;padding:10px;border:1px solid #1b5378;border-radius:13px;background:#091e35;color:#fff;text-align:right;font:inherit;min-height:48px}
 /* Unified professional visual system for every application section */
 :root{--surface:#10243d;--surface-raised:#142d49;--surface-soft:#0a1b30;--accent:#29c6e8;--accent-2:#24d2a0;--text-main:#f4f8ff;--text-muted:#a6b8cc;--stroke:#8fb5d51f;--shadow:0 14px 34px #0004}
 html{scroll-behavior:smooth;-webkit-tap-highlight-color:transparent}
@@ -404,8 +407,8 @@ body{background:radial-gradient(ellipse at 50% -8%,#123d6c 0,transparent 42%),li
 </div></section>
 <div class="shortcut-grid" aria-label="الخدمات الرئيسية">
 <button class="shortcut tile-query" onclick="showPage('query')"><span>◎</span><b>تصفح الإنترنت</b></button>
-<button class="tile tile-live shortcut" onclick="showPage('live')"><span>▣</span><b>الأفلام</b></button>
-<button class="tile tile-leisure shortcut" onclick="showPage('rest')"><span>⚽</span><b>المباريات</b></button>
+<button class="tile tile-live" onclick="showPage('live')"><span>▣</span><b>الأفلام</b></button>
+<button class="tile tile-leisure" onclick="showPage('rest')"><span>⚽</span><b>المباريات</b></button>
 <button class="shortcut tile-ads" onclick="openAds()"><span>⇩</span><b>التحميلات</b></button>
 <button class="shortcut shortcut-extra" onclick="showPage('support')"><span>▦</span><b>خدمات أخرى</b></button>
 <button class="shortcut tile-google" onclick="showPage('google')"><span>G</span><b>تحديثات جوجل</b><small id="homeGoogleStatus" class="status-blink">جارٍ التحقق</small></button>
@@ -420,9 +423,9 @@ body{background:radial-gradient(ellipse at 50% -8%,#123d6c 0,transparent 42%),li
 </div>
 </section>
 <div class="home-tools">
-<button class="tile tile-network-test tool-row" onclick="showPage('networkTest')"><span>📶</span><b>اختبار اتصالك بالشبكة</b><small>السرعة والبنق وقوة الواي فاي</small>›</button>
+<button class="tile tile-network-test" onclick="showPage('networkTest')"><span>📶</span><b>اختبار اتصالك بالشبكة</b><small>السرعة والبنق وقوة الواي فاي</small>›</button>
 <button class="tool-row" onclick="showPage('speed')"><span>ϟ</span><b>سرعة الكرت الحالية</b><small id="homeCurrentSpeed">يتم جلب السرعة…</small>›</button>
-<button class="tile tile-support tool-row" onclick="showPage('support4')"><span>🛡️</span><b>حظر التطبيقات</b><small>إدارة التطبيقات المسموح لها بالإنترنت</small>›</button>
+<button class="tile tile-support" onclick="showPage('support4')"><span>🛡️</span><b>حظر التطبيقات</b><small>إدارة التطبيقات المسموح لها بالإنترنت</small>›</button>
 </div>
 <div class="notice" id="homeNotice"></div>
 <nav class="bottom-nav" aria-label="التنقل الرئيسي">
