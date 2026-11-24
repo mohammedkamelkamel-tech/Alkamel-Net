@@ -8,6 +8,8 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.media.audiofx.LoudnessEnhancer
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
@@ -46,6 +48,9 @@ class HdPlayerActivity : Activity() {
     private lateinit var volumeValue: TextView
     private lateinit var volumeBar: SeekBar
     private lateinit var playPause: TextView
+    private lateinit var controls: LinearLayout
+    private val controlHandler = Handler(Looper.getMainLooper())
+    private val hideControlsTask = Runnable { if (fullscreen && ::controls.isInitialized) controls.animate().alpha(0f).setDuration(180).withEndAction { controls.visibility = View.GONE }.start() }
     private var previousOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
     private var fullscreen = false
     private var muted = false
@@ -86,7 +91,7 @@ class HdPlayerActivity : Activity() {
             setTypeface(typeface, Typeface.BOLD)
             background = shape(18f, fill, stroke)
             setPadding(dp(10), dp(8), dp(10), dp(8))
-            setOnClickListener { onClick() }
+            setOnClickListener { onClick(); if (fullscreen) showControlsTemporarily() }
         }
 
     private fun buildInterface() {
@@ -173,7 +178,7 @@ class HdPlayerActivity : Activity() {
             FrameLayout.LayoutParams.WRAP_CONTENT, dp(34), Gravity.TOP or Gravity.START
         ).apply { setMargins(dp(12), dp(12), 0, 0) })
 
-        val controls = LinearLayout(this).apply {
+        controls = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(8), dp(7), dp(8), dp(7))
@@ -215,6 +220,8 @@ class HdPlayerActivity : Activity() {
             LinearLayout.LayoutParams(dp(46), dp(44)).apply { marginStart = dp(6) })
         controls.addView(button("↻", 0xAA152638.toInt(), 0x885C819B.toInt()) { restartStream() },
             LinearLayout.LayoutParams(dp(46), dp(44)).apply { marginStart = dp(6) })
+        videoFrame.setOnClickListener { if (fullscreen) showControlsTemporarily() }
+        playerView.setOnClickListener { if (fullscreen) showControlsTemporarily() }
         videoFrame.addView(controls, FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT, dp(68), Gravity.BOTTOM
         ))
@@ -351,6 +358,9 @@ class HdPlayerActivity : Activity() {
                 FrameLayout.LayoutParams.MATCH_PARENT
             )
             setContentView(videoFrame)
+            controls.visibility = View.VISIBLE
+            controls.alpha = 1f
+            showControlsTemporarily()
             @Suppress("DEPRECATION")
             window.decorView.systemUiVisibility = (
                 View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
@@ -359,6 +369,9 @@ class HdPlayerActivity : Activity() {
         } else {
             fullscreen = false
             requestedOrientation = previousOrientation
+            controlHandler.removeCallbacks(hideControlsTask)
+            controls.visibility = View.VISIBLE
+            controls.alpha = 1f
             status.visibility = View.VISIBLE
             setContentView(pageScroll)
             videoCard.addView(videoFrame, 0, LinearLayout.LayoutParams(
@@ -377,6 +390,15 @@ class HdPlayerActivity : Activity() {
                 FrameLayout.LayoutParams.MATCH_PARENT
             )
         }
+    }
+
+    private fun showControlsTemporarily() {
+        if (!fullscreen || !::controls.isInitialized) return
+        controlHandler.removeCallbacks(hideControlsTask)
+        controls.visibility = View.VISIBLE
+        controls.animate().cancel()
+        controls.alpha = 1f
+        controlHandler.postDelayed(hideControlsTask, 1000L)
     }
 
     private fun releasePlayer() {
@@ -398,6 +420,7 @@ class HdPlayerActivity : Activity() {
     }
 
     override fun onDestroy() {
+        controlHandler.removeCallbacks(hideControlsTask)
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         super.onDestroy()
     }
