@@ -2,6 +2,7 @@ package com.alkamel.network
 
 import android.app.Activity
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -10,7 +11,6 @@ import android.os.Bundle
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
-import android.content.pm.ActivityInfo
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.SeekBar
@@ -26,13 +26,14 @@ import androidx.media3.ui.PlayerView
 class HdPlayerActivity : Activity() {
     companion object {
         private const val STREAM_URL = "http://10.10.10.10:8888/live/index.m3u8"
-        private const val BG = 0xFF050D1B.toInt()
-        private const val PANEL = 0xFF0A1B32.toInt()
-        private const val PANEL_TOP = 0xFF0D3049.toInt()
-        private const val CYAN = 0xFF00C5E8.toInt()
+        private const val BG = 0xFF030B1B.toInt()
+        private const val PANEL = 0xFF081B35.toInt()
+        private const val PANEL_LIGHT = 0xFF102B50.toInt()
+        private const val BLUE = 0xFF087DFF.toInt()
+        private const val CYAN = 0xFF10C8F2.toInt()
         private const val GOLD = 0xFFFFC84A.toInt()
-        private const val GREEN = 0xFF00B88A.toInt()
-        private const val MUTED = 0xFF9FB0C5.toInt()
+        private const val GREEN = 0xFF00B98B.toInt()
+        private const val MUTED = 0xFF9FB2CC.toInt()
     }
 
     private var player: ExoPlayer? = null
@@ -40,12 +41,14 @@ class HdPlayerActivity : Activity() {
     private lateinit var playerView: PlayerView
     private lateinit var pageScroll: android.widget.ScrollView
     private lateinit var videoFrame: FrameLayout
-    private var previousOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+    private lateinit var videoCard: LinearLayout
     private lateinit var status: TextView
     private lateinit var volumeValue: TextView
     private lateinit var volumeBar: SeekBar
     private lateinit var playPause: TextView
+    private var previousOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
     private var fullscreen = false
+    private var muted = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -57,11 +60,12 @@ class HdPlayerActivity : Activity() {
     }
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
-    private fun shape(radius: Float, fill: Int, stroke: Int = 0xFF164B70.toInt()) =
+
+    private fun shape(radius: Float, fill: Int, stroke: Int = 0xFF164B70.toInt(), width: Int = 1) =
         GradientDrawable().apply {
             setColor(fill)
             cornerRadius = dp(radius.toInt()).toFloat()
-            setStroke(dp(1), stroke)
+            setStroke(dp(width).coerceAtLeast(1), stroke)
         }
 
     private fun text(value: String, size: Float, color: Int, bold: Boolean = false) =
@@ -73,71 +77,84 @@ class HdPlayerActivity : Activity() {
             if (bold) setTypeface(typeface, Typeface.BOLD)
         }
 
-    private fun pill(value: String, fill: Int, stroke: Int, onClick: () -> Unit) =
+    private fun button(value: String, fill: Int, stroke: Int, onClick: () -> Unit) =
         TextView(this).apply {
             text = value
-            textSize = 14f
+            textSize = 18f
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
             setTypeface(typeface, Typeface.BOLD)
-            background = shape(22f, fill, stroke)
-            setPadding(dp(14), dp(9), dp(14), dp(9))
+            background = shape(18f, fill, stroke)
+            setPadding(dp(10), dp(8), dp(10), dp(8))
             setOnClickListener { onClick() }
         }
 
     private fun buildInterface() {
         pageScroll = android.widget.ScrollView(this).apply {
             setFillViewport(true)
+            isFillViewport = true
             setBackgroundColor(BG)
         }
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(12), dp(18), dp(22))
+            setPadding(dp(16), dp(12), dp(16), dp(24))
             setBackgroundColor(BG)
         }
 
-        // App-style top bar, close to the approved website reference.
-        val top = LinearLayout(this).apply {
+        // Compact brand header
+        val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            background = shape(24f, PANEL)
+            background = shape(24f, PANEL, 0xFF174F8A.toInt(), 2)
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+        }
+        val logo = text("K", 28f, GOLD, true).apply {
+            background = shape(16f, PANEL_LIGHT, GOLD, 2)
+        }
+        header.addView(logo, LinearLayout.LayoutParams(dp(54), dp(54)))
+        val brand = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+        }
+        brand.addView(text("شبكة الكامل", 21f, Color.WHITE, true))
+        brand.addView(text("Alkamel Network", 12f, CYAN, true))
+        header.addView(brand, LinearLayout.LayoutParams(0, dp(58), 1f))
+        header.addView(text("● متصل", 13f, GREEN, true).apply {
+            background = shape(18f, PANEL_LIGHT, 0xFF176C83.toInt())
+            setPadding(dp(12), dp(8), dp(12), dp(8))
+        })
+        val headerParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(78))
+        headerParams.bottomMargin = dp(16)
+        root.addView(header, headerParams)
+
+        // HD title strip
+        val titleRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            background = shape(20f, PANEL, 0xFF1763A2.toInt(), 2)
+            setPadding(dp(14), dp(10), dp(14), dp(10))
+        }
+        titleRow.addView(text("HD", 22f, GOLD, true).apply {
+            background = shape(10f, 0xFF172A48.toInt(), GOLD, 2)
+            setPadding(dp(12), dp(5), dp(12), dp(5))
+        })
+        titleRow.addView(text("بث مباشر HD", 20f, Color.WHITE, true),
+            LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginStart = dp(12) })
+        titleRow.addView(text("◇ جودة عالية", 12f, CYAN, true).apply {
+            background = shape(16f, PANEL_LIGHT, 0xFF1763A2.toInt())
             setPadding(dp(10), dp(8), dp(10), dp(8))
-        }
-        top.addView(pill("‹", PANEL_TOP, 0xFF17618A.toInt()) { finish() },
-            LinearLayout.LayoutParams(dp(48), dp(48)))
-        val appTitle = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-        }
-        appTitle.addView(text("الكامل-نت", 21f, Color.WHITE, true))
-        appTitle.addView(text("Alkamel Network", 11f, MUTED))
-        top.addView(appTitle, LinearLayout.LayoutParams(0, dp(52), 1f))
-        top.addView(pill("بث HD  ◉", 0xFF087EBD.toInt(), CYAN) {})
-        val topParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(70))
-        topParams.bottomMargin = dp(18)
-        root.addView(top, topParams)
+        })
+        val titleParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(68))
+        titleParams.bottomMargin = dp(12)
+        root.addView(titleRow, titleParams)
 
-        val intro = LinearLayout(this).apply {
+        // Video frame with live badge and custom control rail
+        videoCard = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            background = shape(24f, PANEL, 0xFF174C70.toInt())
-            setPadding(dp(12), dp(16), dp(12), dp(16))
+            background = shape(24f, Color.BLACK, 0xFF087DCE.toInt(), 2)
+            setPadding(dp(5), dp(5), dp(5), dp(8))
         }
-        intro.addView(text("✦  أهلاً وسهلاً بكم", 16f, Color.WHITE, true))
-        intro.addView(text("بث مباشر الكامل HD", 25f, Color.WHITE, true))
-        intro.addView(text("تدفق البث التلفزيوني عالي الدقة", 14f, MUTED))
-        val introParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(142))
-        introParams.bottomMargin = dp(18)
-        root.addView(intro, introParams)
-
-        val playerCard = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            background = shape(24f, Color.BLACK, 0xFF087DBB.toInt())
-            setPadding(dp(5), dp(5), dp(5), dp(5))
-        }
-        videoFrame = FrameLayout(this).apply {
-            setBackgroundColor(Color.BLACK)
-        }
+        videoFrame = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
         playerView = PlayerView(this).apply {
             useController = false
             resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
@@ -148,96 +165,104 @@ class HdPlayerActivity : Activity() {
             FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT
         ))
 
-        // Custom overlay controls are always visible over the lower edge of the video.
-        val overlay = LinearLayout(this).apply {
+        val liveBadge = text("● مباشر الآن", 12f, Color.WHITE, true).apply {
+            background = shape(18f, 0xDD9D1020.toInt(), 0xFFFF4256.toInt())
+            setPadding(dp(10), dp(6), dp(10), dp(6))
+        }
+        videoFrame.addView(liveBadge, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT, dp(34), Gravity.TOP or Gravity.START
+        ).apply { setMargins(dp(12), dp(12), 0, 0) })
+
+        val controls = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(8), dp(8), dp(8), dp(8))
+            setPadding(dp(8), dp(7), dp(8), dp(7))
             background = GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(0x00101820, 0xD9000000.toInt())
+                intArrayOf(0x00101820, 0xE8000000.toInt())
             )
         }
-        val expand = pill("⛶", 0x88334444.toInt(), 0x886A8799.toInt()) { toggleFullscreen() }
-        overlay.addView(expand, LinearLayout.LayoutParams(dp(48), dp(44)))
-        val replay = pill("↻", 0x88334444.toInt(), 0x886A8799.toInt()) { restartStream() }
-        overlay.addView(replay, LinearLayout.LayoutParams(dp(48), dp(44)).apply { marginStart = dp(8) })
-        val quality = text("1080p Full HD", 13f, CYAN, true).apply {
-            background = shape(8f, 0xDD06263B.toInt(), 0xFF087DBB.toInt())
-            setPadding(dp(9), dp(7), dp(9), dp(7))
+        playPause = button("Ⅱ", 0xAA152638.toInt(), 0x885C819B.toInt()) { togglePlayback() }
+        controls.addView(playPause, LinearLayout.LayoutParams(dp(46), dp(44)))
+        val muteButton = button("◖))", 0xAA152638.toInt(), 0x885C819B.toInt()) {
+            muted = !muted
+            player?.volume = if (muted) 0f else 1f
         }
-        overlay.addView(quality, LinearLayout.LayoutParams(0, dp(38), 1f).apply {
-            marginStart = dp(6); marginEnd = dp(6)
-        })
-        val mute = pill("◖))", 0x88334444.toInt(), 0x886A8799.toInt()) {
-            val p = player ?: return@pill
-            p.volume = if (p.volume > 0f) 0f else 1f
-        }
-        overlay.addView(mute, LinearLayout.LayoutParams(dp(48), dp(44)))
-        playPause = pill("Ⅱ", 0x88334444.toInt(), 0x886A8799.toInt()) { togglePlayback() }
-        overlay.addView(playPause, LinearLayout.LayoutParams(dp(48), dp(44)).apply { marginStart = dp(8) })
-
-        val overlayParams = FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT, dp(62), Gravity.BOTTOM
-        )
-        videoFrame.addView(overlay, overlayParams)
-        playerCard.addView(videoFrame, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, dp(285)
-        ))
-        status = text("جارٍ تحميل البث...", 14f, CYAN, true)
-        status.setPadding(dp(8), dp(14), dp(8), dp(14))
-        playerCard.addView(status)
-        val playerParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-        playerParams.bottomMargin = dp(16)
-        root.addView(playerCard, playerParams)
-
-        val volumeCard = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            background = shape(22f, PANEL, 0xFF174C70.toInt())
-            setPadding(dp(16), dp(12), dp(16), dp(14))
-        }
-        val volumeHead = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        volumeHead.addView(text("مستوى الصوت", 17f, Color.WHITE, true),
-            LinearLayout.LayoutParams(0, dp(34), 1f))
-        volumeValue = text("100%", 19f, CYAN, true)
-        volumeHead.addView(volumeValue, LinearLayout.LayoutParams(dp(80), dp(34)))
-        volumeCard.addView(volumeHead)
+        controls.addView(muteButton, LinearLayout.LayoutParams(dp(46), dp(44)).apply { marginStart = dp(6) })
         volumeBar = SeekBar(this).apply {
             max = 200
             progress = 100
             progressTintList = android.content.res.ColorStateList.valueOf(CYAN)
-            thumbTintList = android.content.res.ColorStateList.valueOf(CYAN)
+            thumbTintList = android.content.res.ColorStateList.valueOf(Color.WHITE)
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) { applyVolume(progress) }
                 override fun onStartTrackingTouch(seekBar: SeekBar?) {}
                 override fun onStopTrackingTouch(seekBar: SeekBar?) {}
             })
         }
-        volumeCard.addView(volumeBar)
-        val volumeParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(94))
-        volumeParams.bottomMargin = dp(16)
-        root.addView(volumeCard, volumeParams)
+        val volumeColumn = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            addView(text("100%", 11f, CYAN, true).also { volumeValue = it })
+            addView(volumeBar, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(28)))
+        }
+        controls.addView(volumeColumn, LinearLayout.LayoutParams(0, dp(48), 1f).apply {
+            marginStart = dp(5); marginEnd = dp(5)
+        })
+        controls.addView(button("▣", 0xAA102D4A.toInt(), CYAN) { openScreenCast() },
+            LinearLayout.LayoutParams(dp(46), dp(44)))
+        controls.addView(button("⛶", 0xAA152638.toInt(), 0x885C819B.toInt()) { toggleFullscreen() },
+            LinearLayout.LayoutParams(dp(46), dp(44)).apply { marginStart = dp(6) })
+        controls.addView(button("↻", 0xAA152638.toInt(), 0x885C819B.toInt()) { restartStream() },
+            LinearLayout.LayoutParams(dp(46), dp(44)).apply { marginStart = dp(6) })
+        videoFrame.addView(controls, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT, dp(68), Gravity.BOTTOM
+        ))
 
-        val cast = pill("إرسال للشاشة   ▣", GREEN, 0xFF20E4B5.toInt()) { openScreenCast() }
-        cast.textSize = 20f
-        root.addView(cast, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(70)).apply {
+        videoCard.addView(videoFrame, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, dp(300)
+        ))
+        status = text("جارٍ الاتصال بالبث...", 14f, CYAN, true).apply {
+            setPadding(dp(8), dp(12), dp(8), dp(8))
+        }
+        videoCard.addView(status)
+        val videoParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        videoParams.bottomMargin = dp(14)
+        root.addView(videoCard, videoParams)
+
+        // Cast action is retained; third-party VLC/MX launch buttons are intentionally omitted.
+        val cast = button("▣   إرسال للشاشة   Cast", 0xFF075EAD.toInt(), CYAN) { openScreenCast() }
+        cast.textSize = 19f
+        root.addView(cast, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(64)).apply {
             bottomMargin = dp(14)
         })
 
-        val bottom = LinearLayout(this).apply {
+        val info = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            background = shape(22f, PANEL, 0xFF174F8A.toInt(), 2)
+            setPadding(dp(14), dp(14), dp(14), dp(14))
+        }
+        val infoText = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
         }
-        bottom.addView(pill("إعادة الاتصال", 0xFF075EB8.toInt(), CYAN) { restartStream() },
-            LinearLayout.LayoutParams(0, dp(54), 1f).apply { marginEnd = dp(6) })
-        bottom.addView(pill("ملء الشاشة", 0xFF102C50.toInt(), 0xFF1B5C8B.toInt()) { toggleFullscreen() },
-            LinearLayout.LayoutParams(0, dp(54), 1f).apply { marginStart = dp(6) })
-        root.addView(bottom, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(58)))
+        infoText.addView(text("استمتع بمشاهدة البث بجودة عالية", 16f, Color.WHITE, true))
+        infoText.addView(text("على جميع أجهزتك", 15f, MUTED))
+        info.addView(infoText, LinearLayout.LayoutParams(0, dp(70), 1f))
+        val benefits = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
+            background = shape(16f, 0xFF0C2746.toInt(), 0xFF1C5B91.toInt())
+            setPadding(dp(10), dp(8), dp(10), dp(8))
+        }
+        benefits.addView(text("✓ جودة HD", 13f, GREEN, true))
+        benefits.addView(text("✓ صوت حتى 200%", 13f, GREEN, true))
+        benefits.addView(text("✓ إرسال للشاشة", 13f, GREEN, true))
+        info.addView(benefits, LinearLayout.LayoutParams(dp(142), dp(92)))
+        root.addView(info)
 
-        root.addView(text("بوابة الخدمات الرقمية المتكاملة • شبكة الكامل", 12f, MUTED).apply {
+        root.addView(text("شبكة الكامل • Alkamel Network", 12f, MUTED).apply {
             setPadding(0, dp(20), 0, dp(6))
         })
         pageScroll.addView(root)
@@ -281,7 +306,7 @@ class HdPlayerActivity : Activity() {
     private fun applyVolume(value: Int) {
         val level = value.coerceIn(0, 200)
         volumeValue.text = "$level%"
-        player?.volume = level.coerceAtMost(100) / 100f
+        if (!muted) player?.volume = level.coerceAtMost(100) / 100f
         val extraGain = ((level - 100).coerceAtLeast(0) * 60).toInt()
         try {
             val sessionId = player?.audioSessionId ?: 0
@@ -328,10 +353,8 @@ class HdPlayerActivity : Activity() {
             setContentView(videoFrame)
             @Suppress("DEPRECATION")
             window.decorView.systemUiVisibility = (
-                View.SYSTEM_UI_FLAG_FULLSCREEN or
-                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
-                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
                 )
         } else {
             fullscreen = false
@@ -339,11 +362,20 @@ class HdPlayerActivity : Activity() {
             status.visibility = View.VISIBLE
             setContentView(pageScroll)
             videoCard.addView(videoFrame, 0, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(285)
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(300)
             ))
             @Suppress("DEPRECATION")
             window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+        }
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (fullscreen) {
+            videoFrame.layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
         }
     }
 
