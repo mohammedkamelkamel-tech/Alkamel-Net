@@ -626,6 +626,59 @@ body{background:radial-gradient(ellipse at 50% -8%,#123d6c 0,transparent 42%),li
 
 
 /* Chat UI repair: layout-only overrides; keep all existing controls and handlers */
+
+/* Chat message flow correction: one message per row, never side-by-side */
+#chatRoom #chatMessages,#privateChat #privateMessages{
+ flex-direction:column!important;align-items:stretch!important;justify-content:flex-start!important;
+ direction:rtl!important;writing-mode:horizontal-tb!important
+}
+#chatRoom #chatMessages>.chat-message,#privateChat #privateMessages>.chat-message{
+ display:flex!important;flex:0 0 auto!important;flex-direction:column!important;
+ align-items:flex-start!important;justify-content:flex-start!important;
+ width:fit-content!important;min-width:0!important;max-width:min(88%,520px)!important;
+ height:auto!important;min-height:0!important;max-height:none!important;
+ margin:0 0 10px 0!important;padding:10px 12px!important;gap:6px!important;
+ white-space:normal!important;overflow:visible!important;
+ border:1px solid #286887!important;border-radius:15px 15px 5px 15px!important;
+ background:linear-gradient(145deg,#123b58,#0b2942)!important;
+ box-shadow:0 4px 12px #0003!important
+}
+#chatRoom #chatMessages>.chat-message.mine,#privateChat #privateMessages>.chat-message.mine{
+ align-self:flex-start!important;align-items:flex-start!important;
+ border-color:#1684a5!important;border-radius:15px 15px 15px 5px!important;
+ background:linear-gradient(145deg,#07516c,#08344e)!important
+}
+#chatRoom #chatMessages .chat-meta,#privateChat #privateMessages .chat-meta{
+ display:flex!important;flex:0 0 auto!important;flex-direction:row!important;
+ align-items:center!important;justify-content:flex-start!important;gap:8px!important;
+ width:100%!important;margin:0!important
+}
+#chatRoom #chatMessages .chat-name,#privateChat #privateMessages .chat-name{
+ display:inline-flex!important;align-items:center!important;max-width:65%!important;
+ padding:3px 9px!important;border-radius:9px!important;font-size:11px!important;
+ line-height:1.5!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important
+}
+#chatRoom #chatMessages .chat-time,#privateChat #privateMessages .chat-time{
+ display:inline-block!important;flex:0 0 auto!important;font-size:10px!important;
+ line-height:1.4!important;white-space:nowrap!important;color:#9bb8cd!important
+}
+#chatRoom #chatMessages .chat-bubble,#privateChat #privateMessages .chat-bubble{
+ display:block!important;order:initial!important;align-self:flex-start!important;
+ width:auto!important;max-width:100%!important;min-width:0!important;
+ margin:0!important;padding:8px 11px!important;border-radius:12px!important;
+ font-size:14px!important;line-height:1.75!important;text-align:right!important;
+ white-space:pre-wrap!important;overflow-wrap:anywhere!important;word-break:normal!important
+}
+#chatRoom #chatMessages .chat-directed-to{align-self:flex-start!important;max-width:100%!important}
+#chatRoom .room-members-panel{max-height:180px!important;min-height:130px!important;overflow-x:hidden!important;overflow-y:auto!important}
+#chatRoom .room-member-grid{align-items:flex-start!important;min-height:76px!important;padding:4px 2px!important}
+#chatRoom .room-member-grid .member-card{height:auto!important;min-height:76px!important;overflow:visible!important}
+@media(max-width:380px){
+ #chatRoom #chatMessages>.chat-message,#privateChat #privateMessages>.chat-message{max-width:94%!important;padding:9px 10px!important}
+ #chatRoom #chatMessages .chat-bubble,#privateChat #privateMessages .chat-bubble{font-size:13px!important}
+ #chatRoom .room-members-panel{max-height:170px!important}
+}
+
 #chatRoom,#privateChat{height:calc(100dvh - 92px)!important;min-height:0!important;max-height:none!important;overflow:hidden!important}
 #chatRoom.active,#privateChat.active{display:flex!important;flex-direction:column!important}
 #chatRoom .chat-room-shell,#privateChat .private-chat-shell{
