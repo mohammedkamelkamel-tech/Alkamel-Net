@@ -102,6 +102,17 @@ jobs:
           PY
           mkdir -p "$PROJECT_DIR/app/src/main/assets"
           cp "$ICON" "$PROJECT_DIR/app/src/main/assets/brand-icon.webp"
+          python3 - "$ICON" "$PROJECT_DIR/app/src/main/assets/home.html" <<'PY'
+          import base64,pathlib,sys
+          icon=base64.b64encode(pathlib.Path(sys.argv[1]).read_bytes()).decode("ascii")
+          page=pathlib.Path(sys.argv[2])
+          html=page.read_text(encoding="utf-8")
+          old='src="brand-icon.webp"'
+          new='src="data:image/webp;base64,'+icon+'"'
+          if old not in html: raise SystemExit("Brand image source marker missing")
+          page.write_text(html.replace(old,new,1),encoding="utf-8")
+          print("PASS - approved launcher artwork embedded in home header")
+          PY
           test -s "$PROJECT_DIR/app/src/main/assets/brand-icon.webp"
       - name: Inspect original portal UI source
         shell: bash
