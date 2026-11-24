@@ -1416,6 +1416,39 @@ body{background:radial-gradient(ellipse at 50% -8%,#123d6c 0,transparent 42%),li
  #chatRoom .chat-bottom-dock .dock-btn{width:31px!important;min-width:31px!important;height:31px!important;min-height:31px!important}
 }
 
+/* Fourth live section: external match schedule */
+#live .live-service-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+#live .live-service-schedule{border:1px solid #d7aa3b!important;background:radial-gradient(ellipse at 50% 28%,#514020,#142b43 65%,#081b31)!important}
+#live .live-service-schedule .live-card-art{color:#ffd15a;text-shadow:0 0 18px #ffbf36}
+@media(min-width:600px){#live .live-service-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important}}
+
+
+/* Group chat density + lobby presence visibility fix */
+#chat .member-stage .chat-empty{font-size:12px}
+#chatRoom{height:calc(100dvh - 94px)!important;min-height:520px!important;max-height:none!important}
+#chatRoom .chat-room-shell{height:100%!important;min-height:0!important;gap:5px!important;padding:5px!important}
+#chatRoom .chat-room-top{min-height:42px!important;padding:5px 8px!important}
+#chatRoom .room-members-panel{padding:5px 8px!important;max-height:74px!important;overflow:hidden!important}
+#chatRoom .room-members-heading{font-size:10px!important;margin-bottom:4px!important}
+#chatRoom .room-member-grid{display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;gap:5px!important;overflow-x:auto!important;padding:1px 0 3px!important}
+#chatRoom .room-member-grid .member-card{flex:0 0 48px!important;min-width:48px!important;padding:2px!important;gap:1px!important}
+#chatRoom .room-member-grid .member-avatar{width:27px!important;height:27px!important;font-size:12px!important}
+#chatRoom .room-member-grid .member-name{font-size:8px!important;max-width:46px!important}
+#chatRoom .room-member-grid .member-role{display:none!important}
+#chatRoom .chat-stream{flex:1 1 auto!important;min-height:340px!important;max-height:56dvh!important;padding:6px!important;gap:4px!important;overflow-y:auto!important}
+#chatRoom #chatMessages>.chat-message,#chatRoom #chatMessages>.chat-message.mine{display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;align-items:center!important;gap:5px!important;width:100%!important;max-width:100%!important;min-height:29px!important;margin:0!important;padding:3px 5px!important;border-radius:9px!important;box-sizing:border-box!important}
+#chatRoom #chatMessages .chat-meta{display:contents!important}
+#chatRoom #chatMessages .chat-name,#chatRoom #chatMessages .chat-message.mine .chat-name{order:1!important;flex:0 0 auto!important;max-width:62px!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;font-size:9px!important;line-height:1.2!important;padding:2px 5px!important;border-radius:6px!important}
+#chatRoom #chatMessages .chat-bubble,#chatRoom #chatMessages .chat-message.mine .chat-bubble{order:2!important;flex:1 1 auto!important;min-width:0!important;width:auto!important;max-width:none!important;align-self:center!important;font-size:11px!important;line-height:1.3!important;padding:4px 7px!important;margin:0!important;border-radius:7px!important;overflow-wrap:anywhere!important}
+#chatRoom #chatMessages .chat-time{order:3!important;flex:0 0 auto!important;font-size:8px!important;white-space:nowrap!important}
+#chatRoom .chat-bottom-dock{flex:0 0 auto!important;min-height:46px!important;padding:5px!important;gap:5px!important}
+#chatRoom .chat-bottom-dock .select{min-height:36px!important;font-size:12px!important;padding:6px 9px!important}
+#chatRoom .dock-btn{width:34px!important;height:34px!important;flex:0 0 34px!important;border-radius:10px!important}
+#chatRoom .chat-status{flex:0 0 auto!important;padding:6px 8px!important}
+#chatRoom .chat-status .voice-line{font-size:10px!important;gap:4px!important}
+#chatRoom .chat-status .notice{font-size:9px!important;padding:3px 0!important;margin:3px 0!important}
+#chatRoom .chat-status .btn{min-height:30px!important;padding:4px 7px!important;font-size:10px!important}
+@media(max-height:760px){#chatRoom{height:calc(100dvh - 82px)!important;min-height:470px!important}#chatRoom .chat-stream{min-height:310px!important;max-height:53dvh!important}#chatRoom .room-members-panel{max-height:62px!important}#chatRoom #chatMessages>.chat-message{min-height:26px!important;padding:2px 4px!important}#chatRoom #chatMessages .chat-bubble{font-size:10px!important;padding:3px 6px!important}}
 </style></head><body><main class="wrap">
 <header class="top redesign-top">
 <button class="top-icon" type="button" onclick="showPage('support')" aria-label="القائمة">☰</button>
@@ -1780,36 +1813,3 @@ $('adsPrev')?.addEventListener('click',()=>showAd(adsIndex-1));$('adsNext')?.add
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stopAdsTimer();else if($('ads')?.classList.contains('active'))startAdsTimer();});
 </script><!-- Group chat shared timeline polish: build retry -->
 </body></html>
-/* Fourth live section: external match schedule */
-#live .live-service-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
-#live .live-service-schedule{border:1px solid #d7aa3b!important;background:radial-gradient(ellipse at 50% 28%,#514020,#142b43 65%,#081b31)!important}
-#live .live-service-schedule .live-card-art{color:#ffd15a;text-shadow:0 0 18px #ffbf36}
-@media(min-width:600px){#live .live-service-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important}}
-
-
-/* Group chat density + lobby presence visibility fix */
-#chat .member-stage .chat-empty{font-size:12px}
-#chatRoom{height:calc(100dvh - 94px)!important;min-height:520px!important;max-height:none!important}
-#chatRoom .chat-room-shell{height:100%!important;min-height:0!important;gap:5px!important;padding:5px!important}
-#chatRoom .chat-room-top{min-height:42px!important;padding:5px 8px!important}
-#chatRoom .room-members-panel{padding:5px 8px!important;max-height:74px!important;overflow:hidden!important}
-#chatRoom .room-members-heading{font-size:10px!important;margin-bottom:4px!important}
-#chatRoom .room-member-grid{display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;gap:5px!important;overflow-x:auto!important;padding:1px 0 3px!important}
-#chatRoom .room-member-grid .member-card{flex:0 0 48px!important;min-width:48px!important;padding:2px!important;gap:1px!important}
-#chatRoom .room-member-grid .member-avatar{width:27px!important;height:27px!important;font-size:12px!important}
-#chatRoom .room-member-grid .member-name{font-size:8px!important;max-width:46px!important}
-#chatRoom .room-member-grid .member-role{display:none!important}
-#chatRoom .chat-stream{flex:1 1 auto!important;min-height:340px!important;max-height:56dvh!important;padding:6px!important;gap:4px!important;overflow-y:auto!important}
-#chatRoom #chatMessages>.chat-message,#chatRoom #chatMessages>.chat-message.mine{display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;align-items:center!important;gap:5px!important;width:100%!important;max-width:100%!important;min-height:29px!important;margin:0!important;padding:3px 5px!important;border-radius:9px!important;box-sizing:border-box!important}
-#chatRoom #chatMessages .chat-meta{display:contents!important}
-#chatRoom #chatMessages .chat-name,#chatRoom #chatMessages .chat-message.mine .chat-name{order:1!important;flex:0 0 auto!important;max-width:62px!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;font-size:9px!important;line-height:1.2!important;padding:2px 5px!important;border-radius:6px!important}
-#chatRoom #chatMessages .chat-bubble,#chatRoom #chatMessages .chat-message.mine .chat-bubble{order:2!important;flex:1 1 auto!important;min-width:0!important;width:auto!important;max-width:none!important;align-self:center!important;font-size:11px!important;line-height:1.3!important;padding:4px 7px!important;margin:0!important;border-radius:7px!important;overflow-wrap:anywhere!important}
-#chatRoom #chatMessages .chat-time{order:3!important;flex:0 0 auto!important;font-size:8px!important;white-space:nowrap!important}
-#chatRoom .chat-bottom-dock{flex:0 0 auto!important;min-height:46px!important;padding:5px!important;gap:5px!important}
-#chatRoom .chat-bottom-dock .select{min-height:36px!important;font-size:12px!important;padding:6px 9px!important}
-#chatRoom .dock-btn{width:34px!important;height:34px!important;flex:0 0 34px!important;border-radius:10px!important}
-#chatRoom .chat-status{flex:0 0 auto!important;padding:6px 8px!important}
-#chatRoom .chat-status .voice-line{font-size:10px!important;gap:4px!important}
-#chatRoom .chat-status .notice{font-size:9px!important;padding:3px 0!important;margin:3px 0!important}
-#chatRoom .chat-status .btn{min-height:30px!important;padding:4px 7px!important;font-size:10px!important}
-@media(max-height:760px){#chatRoom{height:calc(100dvh - 82px)!important;min-height:470px!important}#chatRoom .chat-stream{min-height:310px!important;max-height:53dvh!important}#chatRoom .room-members-panel{max-height:62px!important}#chatRoom #chatMessages>.chat-message{min-height:26px!important;padding:2px 4px!important}#chatRoom #chatMessages .chat-bubble{font-size:10px!important;padding:3px 6px!important}}
