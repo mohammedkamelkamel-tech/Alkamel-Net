@@ -1528,6 +1528,7 @@ body{background:radial-gradient(ellipse at 50% -8%,#123d6c 0,transparent 42%),li
 <button type="button" class="live-service-card live-service-one" onclick="goService('live1')"><span class="live-card-art">⚽</span><strong>البث المباشر 1</strong><span class="live-card-play">▶</span></button>
 <button type="button" class="live-service-card live-service-two" onclick="goService('live2')"><span class="live-card-art">🏟️</span><strong>البث المباشر 2</strong><span class="live-card-play">▶</span></button>
 <button type="button" class="live-service-card live-service-hd" onclick="openHd()"><span class="live-card-art live-hd-art">HD</span><strong>بث HD</strong><span class="live-card-play">▶</span></button>
+<button type="button" class="live-service-card live-service-schedule" onclick="go('https://yalla4foot.com/')"><span class="live-card-art">📅</span><strong>جدول المباريات</strong><span class="live-card-play">▶</span></button>
 </div><div class="notice" id="liveNotice"></div></div>
 <div class="live-notes panel service-notes"><div class="live-notes-heading"><span class="live-info-icon">ⓘ</span><h3>ملاحظات مهمة للبث المباشر</h3></div><ol>
 <li><span class="live-note-icon">⌕</span><span>إذا لم تجد المباراة التي تريدها، تنقّل بين القنوات حتى تجد المباراة؛ فكلٌّ من البث المباشر 1 والبث المباشر 2 يحتوي على أكثر من قناة.</span><b>1</b></li>
@@ -1779,3 +1780,8 @@ $('adsPrev')?.addEventListener('click',()=>showAd(adsIndex-1));$('adsNext')?.add
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stopAdsTimer();else if($('ads')?.classList.contains('active'))startAdsTimer();});
 </script><!-- Group chat shared timeline polish: build retry -->
 </body></html>
+/* Fourth live section: external match schedule */
+#live .live-service-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+#live .live-service-schedule{border:1px solid #d7aa3b!important;background:radial-gradient(ellipse at 50% 28%,#514020,#142b43 65%,#081b31)!important}
+#live .live-service-schedule .live-card-art{color:#ffd15a;text-shadow:0 0 18px #ffbf36}
+@media(min-width:600px){#live .live-service-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important}}
