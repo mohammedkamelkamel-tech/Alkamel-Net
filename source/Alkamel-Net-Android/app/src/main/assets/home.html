@@ -627,6 +627,46 @@ body{background:radial-gradient(ellipse at 50% -8%,#123d6c 0,transparent 42%),li
 
 /* Chat UI repair: layout-only overrides; keep all existing controls and handlers */
 
+
+/* Requested final polish: red purchase warning and compact chat messages */
+.page:not(#home) .purchase-warning{
+ border:2px solid #ef4855!important;
+ background:linear-gradient(145deg,#511b2b 0%,#351927 55%,#14253b 100%)!important;
+ color:#fff!important;box-shadow:0 8px 24px #0005,0 0 14px #ef485522!important
+}
+.page:not(#home) .purchase-warning-title{color:#ff737d!important}
+.page:not(#home) .purchase-warning p{color:#fff0f0!important}
+#chatRoom #chatMessages,#privateChat #privateMessages{
+ padding:8px!important;gap:6px!important
+}
+#chatRoom #chatMessages>.chat-message,#privateChat #privateMessages>.chat-message{
+ max-width:min(78%,430px)!important;
+ margin-bottom:5px!important;padding:6px 8px!important;gap:3px!important;
+ border-radius:11px 11px 4px 11px!important;box-shadow:0 2px 7px #0002!important
+}
+#chatRoom #chatMessages>.chat-message.mine,#privateChat #privateMessages>.chat-message.mine{
+ border-radius:11px 11px 11px 4px!important
+}
+#chatRoom #chatMessages .chat-meta,#privateChat #privateMessages .chat-meta{gap:5px!important}
+#chatRoom #chatMessages .chat-name,#privateChat #privateMessages .chat-name{
+ font-size:9px!important;padding:2px 6px!important;line-height:1.3!important
+}
+#chatRoom #chatMessages .chat-time,#privateChat #privateMessages .chat-time{font-size:8px!important}
+#chatRoom #chatMessages .chat-bubble,#privateChat #privateMessages .chat-bubble{
+ font-size:12px!important;line-height:1.5!important;padding:5px 8px!important;border-radius:9px!important
+}
+#chatRoom #chatMessages .chat-directed-to{font-size:9px!important;padding:2px 6px!important;margin:0 3px 2px!important}
+#chatRoom .room-members-panel{max-height:132px!important;min-height:0!important;padding:7px 9px!important}
+#chatRoom .room-member-grid{min-height:0!important;gap:7px!important;padding:2px!important}
+#chatRoom .room-member-grid .member-card{min-height:58px!important}
+#chatRoom .room-member-grid .member-avatar{width:34px!important;height:34px!important}
+#chatRoom .chat-room-shell,#privateChat .private-chat-shell{gap:7px!important;padding:8px!important}
+@media(max-width:380px){
+ #chatRoom #chatMessages>.chat-message,#privateChat #privateMessages>.chat-message{max-width:86%!important;padding:5px 7px!important}
+ #chatRoom #chatMessages .chat-bubble,#privateChat #privateMessages .chat-bubble{font-size:11px!important}
+ #chatRoom .room-members-panel{max-height:118px!important}
+}
+
 /* Chat message flow correction: one message per row, never side-by-side */
 #chatRoom #chatMessages,#privateChat #privateMessages{
  flex-direction:column!important;align-items:stretch!important;justify-content:flex-start!important;
@@ -794,7 +834,7 @@ body{background:radial-gradient(ellipse at 50% -8%,#123d6c 0,transparent 42%),li
 <div><small>الرصيد المتبقي</small><b id="homeUptime">—</b></div>
 </div></section>
 <div class="shortcut-grid" aria-label="الخدمات الرئيسية">
-<button class="shortcut tile-query" onclick="showPage('query')"><span>◎</span><b>بيانات الكرت</b></button>
+<button class="shortcut tile-query" onclick="showPage('query')"><span>◎</span><b>بيانات المشترك</b></button>
 <button class="tile tile-live" onclick="showPage('rest')"><span>▣</span><b>الاستراحة</b></button>
 <button class="tile tile-leisure" onclick="showPage('live')"><span>⚽</span><b>المباريات</b></button>
 <button class="shortcut tile-ads" onclick="openAds()"><span>⇩</span><b>التحميلات</b></button>
