@@ -10,6 +10,7 @@ import android.os.Bundle
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
+import android.content.pm.ActivityInfo
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.SeekBar
@@ -37,6 +38,9 @@ class HdPlayerActivity : Activity() {
     private var player: ExoPlayer? = null
     private var loudness: LoudnessEnhancer? = null
     private lateinit var playerView: PlayerView
+    private lateinit var pageScroll: android.widget.ScrollView
+    private lateinit var videoFrame: FrameLayout
+    private var previousOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
     private lateinit var status: TextView
     private lateinit var volumeValue: TextView
     private lateinit var volumeBar: SeekBar
@@ -82,7 +86,7 @@ class HdPlayerActivity : Activity() {
         }
 
     private fun buildInterface() {
-        val scroll = android.widget.ScrollView(this).apply {
+        pageScroll = android.widget.ScrollView(this).apply {
             setFillViewport(true)
             setBackgroundColor(BG)
         }
@@ -131,7 +135,7 @@ class HdPlayerActivity : Activity() {
             background = shape(24f, Color.BLACK, 0xFF087DBB.toInt())
             setPadding(dp(5), dp(5), dp(5), dp(5))
         }
-        val videoFrame = FrameLayout(this).apply {
+        videoFrame = FrameLayout(this).apply {
             setBackgroundColor(Color.BLACK)
         }
         playerView = PlayerView(this).apply {
@@ -236,8 +240,8 @@ class HdPlayerActivity : Activity() {
         root.addView(text("بوابة الخدمات الرقمية المتكاملة • شبكة الكامل", 12f, MUTED).apply {
             setPadding(0, dp(20), 0, dp(6))
         })
-        scroll.addView(root)
-        setContentView(scroll)
+        pageScroll.addView(root)
+        setContentView(pageScroll)
     }
 
     private fun initializePlayer() {
@@ -311,12 +315,35 @@ class HdPlayerActivity : Activity() {
     }
 
     private fun toggleFullscreen() {
-        fullscreen = !fullscreen
-        @Suppress("DEPRECATION")
-        window.decorView.systemUiVisibility = if (fullscreen) {
-            View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-        } else View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+        if (!fullscreen) {
+            previousOrientation = requestedOrientation
+            fullscreen = true
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            status.visibility = View.GONE
+            videoFrame.layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+            setContentView(videoFrame)
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility = (
+                View.SYSTEM_UI_FLAG_FULLSCREEN or
+                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                )
+        } else {
+            fullscreen = false
+            requestedOrientation = previousOrientation
+            status.visibility = View.VISIBLE
+            videoFrame.layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(285)
+            )
+            setContentView(pageScroll)
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+        }
     }
 
     private fun releasePlayer() {
