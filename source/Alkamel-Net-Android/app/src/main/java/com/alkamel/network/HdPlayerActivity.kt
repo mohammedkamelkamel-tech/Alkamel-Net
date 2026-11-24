@@ -213,6 +213,11 @@ class HdPlayerActivity : Activity() {
         player = null
     }
 
+    override fun onStart() {
+        super.onStart()
+        if (player == null) initializePlayer()
+    }
+
     override fun onStop() {
         releasePlayer()
         super.onStop()
