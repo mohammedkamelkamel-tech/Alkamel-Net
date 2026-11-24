@@ -320,6 +320,7 @@ class HdPlayerActivity : Activity() {
             fullscreen = true
             requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
             status.visibility = View.GONE
+            (videoFrame.parent as? android.view.ViewGroup)?.removeView(videoFrame)
             videoFrame.layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
@@ -336,11 +337,11 @@ class HdPlayerActivity : Activity() {
             fullscreen = false
             requestedOrientation = previousOrientation
             status.visibility = View.VISIBLE
-            videoFrame.layoutParams = LinearLayout.LayoutParams(
+            setContentView(pageScroll)
+            videoCard.addView(videoFrame, 0, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 dp(285)
-            )
-            setContentView(pageScroll)
+            ))
             @Suppress("DEPRECATION")
             window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
         }
