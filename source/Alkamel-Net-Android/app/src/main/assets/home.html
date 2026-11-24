@@ -1208,6 +1208,19 @@ body{background:radial-gradient(ellipse at 50% -8%,#123d6c 0,transparent 42%),li
 #support4 .app-block-footnote{display:flex!important;align-items:flex-start!important;gap:8px!important;margin:14px 0 0!important;padding:11px!important;border:1px solid #315a77!important;border-radius:14px!important;background:#071a2e!important;color:#b9cede!important;font-size:10px!important;line-height:1.7!important}
 #support4 .app-block-footnote span{color:#29d9ef!important;font-weight:900!important}
 @media(max-width:380px){#support4 .app-block-hero h2{font-size:18px!important}#support4 .app-block-shield{flex-basis:49px!important;width:49px!important;height:49px!important;font-size:28px!important}#support4 .app-block-panel{padding:10px!important}#support4 .app-block-instructions{gap:8px!important;padding:11px 9px!important}#support4 .app-block-art{flex-basis:57px!important;width:57px!important;height:69px!important;font-size:37px!important}#support4 .app-block-instructions p{font-size:11px!important}#support4 #appBlockList>.app-usage-row{min-height:67px!important;padding:8px!important;gap:7px!important}#support4 #appBlockList .app-usage-icon{flex-basis:42px!important;width:42px!important;height:42px!important}#support4 #appBlockList .app-usage-name{font-size:12px!important}#support4 #appBlockList .app-block-check{flex-basis:21px!important;width:21px!important;height:21px!important}}
+
+/* Purchase denominations: distinct, readable card-value colors */
+#support3 .purchase-denominations{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:9px!important;padding:12px 0!important;margin:5px 0!important}
+#support3 .purchase-denominations li{display:flex!important;align-items:center!important;justify-content:center!important;min-height:48px!important;padding:9px 8px!important;border:1px solid var(--denom-color,#2b8bb4)!important;border-radius:16px!important;background:linear-gradient(145deg,var(--denom-bg,#103653),#071d34)!important;color:var(--denom-text,#f3f9ff)!important;font-size:14px!important;font-weight:900!important;letter-spacing:.1px!important;box-shadow:inset 0 0 13px var(--denom-glow,#ffffff0a),0 4px 12px #0003!important;text-align:center!important;white-space:nowrap!important}
+#support3 .purchase-denominations li:nth-child(1){--denom-color:#398df5;--denom-bg:#123d79;--denom-text:#d9eaff;--denom-glow:#398df544}
+#support3 .purchase-denominations li:nth-child(2){--denom-color:#ff555d;--denom-bg:#68242e;--denom-text:#ffe5e7;--denom-glow:#ff555d44}
+#support3 .purchase-denominations li:nth-child(3){--denom-color:#a77bff;--denom-bg:#39245f;--denom-text:#eee4ff;--denom-glow:#a77bff44}
+#support3 .purchase-denominations li:nth-child(4){--denom-color:#f0bd45;--denom-bg:#5a431b;--denom-text:#fff2c9;--denom-glow:#f0bd4544}
+#support3 .purchase-denominations li:nth-child(5){--denom-color:#39d58a;--denom-bg:#124b3b;--denom-text:#dcffed;--denom-glow:#39d58a44}
+#support3 .purchase-denominations li:nth-child(6){--denom-color:#35d8f5;--denom-bg:#104d65;--denom-text:#ddfbff;--denom-glow:#35d8f544}
+#support3 .purchase-denominations li:nth-child(7){--denom-color:#f17bbd;--denom-bg:#5b294a;--denom-text:#ffe6f4;--denom-glow:#f17bbd44}
+@media(max-width:360px){#support3 .purchase-denominations{gap:7px!important}#support3 .purchase-denominations li{font-size:12px!important;min-height:44px!important}}
+
 </style></head><body><main class="wrap">
 <header class="top redesign-top">
 <button class="top-icon" type="button" onclick="showPage('support')" aria-label="القائمة">☰</button>
