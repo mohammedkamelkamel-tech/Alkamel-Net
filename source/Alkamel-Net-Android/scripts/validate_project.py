@@ -48,6 +48,7 @@ checks = {
     "network test page and native bridge": 'id="networkTest"' in HOME.read_text(encoding="utf-8") and "startNetworkTest()" in HOME.read_text(encoding="utf-8") and "runNetworkTest(planValue: String, selectedPlan: String)" in KOTLIN.read_text(encoding="utf-8") and "speed.cloudflare.com/__down?bytes=3000000" in KOTLIN.read_text(encoding="utf-8"),
     "Wi-Fi link state is measured": "networkLink" in HOME.read_text(encoding="utf-8") and "wifiConnected" in KOTLIN.read_text(encoding="utf-8"),
     "fixed Wi-Fi preference labels": "!👑 #::A::5G الكامل(" in HOME.read_text(encoding="utf-8") and "!🌍2Gالكامل نت(" in HOME.read_text(encoding="utf-8"),
+    "HD fullscreen controls auto-hide after one second and reappear on tap": "controlHandler.postDelayed(hideControlsTask, 1000L)" in (APP / "java/com/alkamel/network/HdPlayerActivity.kt").read_text(encoding="utf-8") and "controls.visibility = View.GONE" in (APP / "java/com/alkamel/network/HdPlayerActivity.kt").read_text(encoding="utf-8") and "playerView.setOnClickListener { if (fullscreen) showControlsTemporarily() }" in (APP / "java/com/alkamel/network/HdPlayerActivity.kt").read_text(encoding="utf-8"),
     "home asset": HOME.is_file() and HOME.stat().st_size > 0,
     "HD asset": HD.is_file() and HD.stat().st_size > 0,
     "native activity": KOTLIN.is_file() and "class MainActivity" in KOTLIN.read_text(encoding="utf-8"),
