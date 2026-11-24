@@ -148,7 +148,10 @@ class HdPlayerActivity : Activity() {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 status.text = when (playbackState) {
                     Player.STATE_BUFFERING -> "جارٍ تحميل البث..."
-                    Player.STATE_READY -> if (exo.isPlaying) "البث يعمل الآن" else "تم الاتصال؛ اضغط تشغيل"
+                    Player.STATE_READY -> {
+                        applyVolume(volumeBar.progress)
+                        if (exo.isPlaying) "البث يعمل الآن" else "تم الاتصال؛ اضغط تشغيل"
+                    }
                     Player.STATE_ENDED -> "انتهى البث"
                     else -> "جارٍ الاتصال بالبث..."
                 }
