@@ -559,12 +559,24 @@ class MainActivity : Activity() {
         }
         }
         if (!chatRunning.compareAndSet(false, true)) {
-            // The LAN receiver may have survived while the Activity/WebView was paused.
-            // Re-announce presence and restore the WebView's joined state instead of
-            // leaving the join screen stuck in "connecting".
-            sendLanPacket("presence", "")
-            if (chatSocket?.isClosed == false) notifyChatState("joined", "")
-            return
+            // A stale running flag with a closed/missing UDP socket used to trap the
+            // join screen forever. Reuse only a genuinely bound receiver; otherwise
+            // invalidate the old generation and start a fresh socket session.
+            val existingSocket = chatSocket
+            if (existingSocket != null && !existingSocket.isClosed && existingSocket.isBound) {
+                sendLanPacket("presence", "")
+                notifyChatState("joined", "")
+                return
+            }
+            Log.w("AlkamelNet", "Detected stale LAN chat state; restarting receiver")
+            chatSessionGeneration.incrementAndGet()
+            chatRunning.set(false)
+            runCatching { existingSocket?.close() }
+            chatSocket = null
+            if (!chatRunning.compareAndSet(false, true)) {
+                notifyChatState("reconnecting", "جارٍ استعادة اتصال الدردشة…")
+                return
+            }
         }
         val sessionId = chatSessionGeneration.incrementAndGet()
         chatExecutor.execute {
