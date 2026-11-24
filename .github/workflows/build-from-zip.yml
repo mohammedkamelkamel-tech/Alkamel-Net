@@ -18,14 +18,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Extract and select the 2.0.0 source archive
+      - name: Extract the latest successful project package (build 375)
         shell: bash
         run: |
           set -euxo pipefail
-          SOURCE_ZIP="$GITHUB_WORKSPACE/Alkamel-Net-Android-2.0.0-source.zip"
-          test -s "$SOURCE_ZIP"
-          mkdir -p "$GITHUB_WORKSPACE/extracted-source"
-          unzip -q "$SOURCE_ZIP" -d "$GITHUB_WORKSPACE/extracted-source"
+          BASE_PACKAGE="$GITHUB_WORKSPACE/Alkamel-Net-Full-Package-v2.0.0-code84-build-375.zip"
+          curl -fL --retry 3 --retry-delay 2 \
+            "https://github.com/${{ github.repository }}/releases/download/alkamel-net-v2.0.0-code84-build-375/Alkamel-Net-Full-Package-v2.0.0-code84.zip" \
+            -o "$BASE_PACKAGE"
+          test -s "$BASE_PACKAGE"
+          mkdir -p "$GITHUB_WORKSPACE/base-package" "$GITHUB_WORKSPACE/extracted-source"
+          unzip -q "$BASE_PACKAGE" -d "$GITHUB_WORKSPACE/base-package"
+          mapfile -t PROJECT_ZIPS < <(find "$GITHUB_WORKSPACE/base-package" -type f -name 'Alkamel-Net-Android-Project-*.zip' | sort)
+          if [ "${#PROJECT_ZIPS[@]}" -ne 1 ]; then
+            echo "Expected exactly one Android project ZIP from build 375"
+            find "$GITHUB_WORKSPACE/base-package" -type f -maxdepth 5 -print
+            exit 1
+          fi
+          unzip -q "${PROJECT_ZIPS[0]}" -d "$GITHUB_WORKSPACE/extracted-source"
           mapfile -t GRADLE_FILES < <(find "$GITHUB_WORKSPACE/extracted-source" -type f \( -name settings.gradle.kts -o -name settings.gradle \) | sort)
           PROJECT_DIR=""
           for SETTINGS in "${GRADLE_FILES[@]}"; do
@@ -37,8 +47,10 @@ jobs:
           done
           test -n "$PROJECT_DIR"
           test -s "$PROJECT_DIR/app/src/main/assets/home.html"
+          test -s "$PROJECT_DIR/scripts/validate_project.py"
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-          echo "Building extracted 2.0.0 source: $PROJECT_DIR"
+          echo "Building from the latest successful project package: build 375"
+          grep -nE 'versionName|versionCode' "$PROJECT_DIR/app/build.gradle.kts"
           find "$PROJECT_DIR" -maxdepth 3 -type f -name '*gradle*' -print
       - name: Merge approved home design into the original 2.0.0 project
         shell: bash
