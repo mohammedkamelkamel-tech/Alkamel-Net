@@ -1887,24 +1887,39 @@ class MainActivity : Activity() {
             super.onBackPressed()
             return
         }
+
         val currentUrl = web.url.orEmpty()
-        val returnPage = when {
-            currentUrl.startsWith("http://30.30.30.30:8080/tv/") ||
-                currentUrl.startsWith("http://30.10.10.10:88/") ||
-                currentUrl.startsWith("https://appassets.androidplatform.net/assets/hd/") -> "live"
-            currentUrl.startsWith("http://30.30.30.30:8096/") ||
-                currentUrl.startsWith("http://30.10.10.10/") -> "rest"
-            else -> null
-        }
-        if (returnPage != null) {
-            pendingPageAfterHome = returnPage
-            loadHome()
+        val isRestPage = currentUrl.startsWith("http://30.30.30.30:8096/") ||
+            currentUrl.startsWith("http://30.10.10.10/")
+        val isLivePage = currentUrl.startsWith("http://30.30.30.30:8080/tv/") ||
+            currentUrl.startsWith("http://30.10.10.10:88/") ||
+            currentUrl.startsWith("https://appassets.androidplatform.net/assets/hd/")
+
+        if (isRestPage || isLivePage) {
+            val history = web.copyBackForwardList()
+            val previousUrl = if (history.currentIndex > 0) {
+                history.getItemAtIndex(history.currentIndex - 1).url.orEmpty()
+            } else ""
+            val sameServiceHistory = if (isRestPage) {
+                previousUrl.startsWith("http://30.30.30.30:8096/") ||
+                    previousUrl.startsWith("http://30.10.10.10/")
+            } else {
+                previousUrl.startsWith("http://30.30.30.30:8080/tv/") ||
+                    previousUrl.startsWith("http://30.10.10.10:88/") ||
+                    previousUrl.startsWith("https://appassets.androidplatform.net/assets/hd/")
+            }
+
+            // Navigate within the external service first. Only leave it when
+            // its own history is exhausted; never jump to the lounge on each Back.
+            if (sameServiceHistory && web.canGoBack()) {
+                web.goBack()
+            } else {
+                pendingPageAfterHome = if (isRestPage) "rest" else "live"
+                loadHome()
+            }
             return
         }
 
-        // Always delegate portal navigation to the page-level back handler.
-        // This keeps support sub-pages inside the support menu even when the
-        // WebView is serving the bundled page through its data/local fallback URL.
         web.evaluateJavascript(
             "if(typeof window.appBack==='function'){window.appBack();'handled';}else{'reload';}"
         ) { result ->
