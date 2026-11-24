@@ -428,7 +428,7 @@ body{background:radial-gradient(ellipse at 50% -12%,#0d4a78 0,transparent 39%),l
 .home-feature-row b{font-size:13px}.home-feature-row small{font-size:10px;color:#a9c8df}
 .home-feature-row .tile-leisure{border-color:#514e9c;background:linear-gradient(145deg,#292b58,#13233f)}
 .home-feature-row .tile-leisure .home-feature-icon{color:#b9a0ff}
-</style></head><body><main class="wrap">
+.home-utility-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:0 0 15px}.home-utility-row .tile{min-height:64px;padding:8px 10px;border-radius:14px;display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:9px;background:linear-gradient(145deg,#12375a,#0a203b);border:1px solid #2879a3;color:#fff;font:inherit}.home-utility-row .tile span{font-size:23px;color:#42d9ff}.home-utility-row .tile b{font-size:12px}</style></head><body><main class="wrap">
 <header class="top"><div class="brand"><img class="brand-logo-img" src="brand-icon.webp" alt="شعار شبكة الكامل"><div><h1>شبكة الكامل</h1><div class="sub">Alkamel Network</div></div></div><button class="state" id="homeMenuButton" onclick="toggleHomeMenu()" aria-label="القائمة">القائمة</button><button class="home-notification-button" onclick="openAds()" aria-label="الإشعارات">♧<i></i></button></header>
 <section id="home" class="page active">
 <div class="home-greeting"><div><span>مرحباً بك في</span><strong>شبكة <em>الكامل</em></strong><small>نتمنى لك تصفحاً ممتعاً</small></div><div class="home-user-avatar">●</div></div>
@@ -446,6 +446,10 @@ body{background:radial-gradient(ellipse at 50% -12%,#0d4a78 0,transparent 39%),l
 <div class="home-feature-row">
 <button class="tile tile-live" onclick="showPage('live')"><span class="home-feature-icon">▶</span><b>البث المباشر</b><small>القنوات وبث HD</small></button>
 <button class="tile tile-leisure" onclick="showPage('rest')"><span class="home-feature-icon">☕</span><b>الاستراحات</b><small>الاستراحة الأولى والثانية</small></button>
+</div>
+<div class="home-utility-row">
+<button class="tile tile-network-test" onclick="showPage('networkTest')"><span>📶</span><b>اختبار اتصالك بالشبكة</b></button>
+<button class="tile tile-support" onclick="showPage('support')"><span>🎧</span><b>الدعم الفني</b></button>
 </div>
 <button class="home-ad-banner" onclick="openAds()"><div><strong>عالم من الخدمات والترفيه</strong><small>اكتشف أحدث ما تقدمه شبكة الكامل</small><i>اكتشف المزيد ‹</i></div><div class="home-ad-art"><img id="homeAdsImage" alt="إعلان شبكة الكامل" hidden><b id="homeAdsFallback">▶</b></div></button>
 <section class="home-community"><div class="home-community-head"><div><strong>المجتمع والدردشة</strong><small><i></i> الأعضاء المتصلون الآن: <b id="homeChatPeers">0</b></small></div><button onclick="openChat()">دخول الدردشة　◌</button></div><div id="homeChatFeed" class="home-chat-feed"><div class="home-chat-empty">ستظهر هنا أحدث رسائل المجتمع عند توفرها</div></div></section>
