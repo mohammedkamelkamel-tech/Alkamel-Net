@@ -49,6 +49,8 @@ checks = {
     "Wi-Fi link state is measured": "networkLink" in HOME.read_text(encoding="utf-8") and "wifiConnected" in KOTLIN.read_text(encoding="utf-8"),
     "fixed Wi-Fi preference labels": "!👑 #::A::5G الكامل(" in HOME.read_text(encoding="utf-8") and "!🌍2Gالكامل نت(" in HOME.read_text(encoding="utf-8"),
     "HD fullscreen controls auto-hide after one second and reappear on tap": "controlHandler.postDelayed(hideControlsTask, 1000L)" in (APP / "java/com/alkamel/network/HdPlayerActivity.kt").read_text(encoding="utf-8") and "controls.visibility = View.GONE" in (APP / "java/com/alkamel/network/HdPlayerActivity.kt").read_text(encoding="utf-8") and "playerView.setOnClickListener { if (fullscreen) showControlsTemporarily() }" in (APP / "java/com/alkamel/network/HdPlayerActivity.kt").read_text(encoding="utf-8"),
+    "member name CSS stays inside stylesheet and not rendered as page text": HOME.read_text(encoding="utf-8").rstrip().endswith("</body></html>") and "Member-name visibility fix only" in HOME.read_text(encoding="utf-8").split("</style>", 1)[0],
+    "WebView avoids offscreen pre-raster memory overhead": "offscreenPreRaster = true" not in (APP / "java/com/alkamel/network/MainActivity.kt").read_text(encoding="utf-8"),
     "home asset": HOME.is_file() and HOME.stat().st_size > 0,
     "HD asset": HD.is_file() and HD.stat().st_size > 0,
     "native activity": KOTLIN.is_file() and "class MainActivity" in KOTLIN.read_text(encoding="utf-8"),
