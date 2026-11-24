@@ -405,6 +405,18 @@ body{background:radial-gradient(ellipse at 50% -18%,rgba(27,105,151,.30),transpa
 @media(min-width:600px){.grid{gap:14px}.tile{min-height:145px;padding:19px}.panel{padding:21px}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 
+
+/* Home shortcut accents: match the actual Build 370 tile class names */
+.tile-leisure{--tile-accent:#f4bd70;--tile-glow:#f4bd701b}
+.tile-network-test{--tile-accent:#66b8ff;--tile-glow:#66b8ff1b}
+.tile-chat{--tile-accent:#50d9c0;--tile-glow:#50d9c01b}
+.tile-chat .ico{background:rgba(80,217,192,.15);border-color:rgba(80,217,192,.3);color:#70e8d4}
+.brand-logo-img{display:block;width:49px;height:49px;flex:0 0 49px;object-fit:contain;border-radius:16px;border:1px solid rgba(67,213,242,.35);background:rgba(67,213,242,.08);box-shadow:0 0 22px rgba(67,213,242,.1)}
+.top .brand>div{min-width:0}
+.top .brand h1{line-height:1.35}
+.top .state{max-width:45%;text-align:center;line-height:1.45}
+@media(max-width:360px){.brand-logo-img{width:42px;height:42px;flex-basis:42px}.brand{gap:9px}.brand h1{font-size:18px}.top .state{font-size:10px;padding:6px 8px}}
+
 </style></head><body><main class="wrap">
 <header class="top"><div class="brand"><img class="brand-logo-img" src="brand-icon.webp" alt="شعار شبكة الكامل"><div><h1>شبكة الكامل</h1><div class="sub">خدمات الشبكة في مكان واحد</div></div></div><div class="state" id="connection">● جارٍ التحقق</div></header>
 <section id="home" class="page active"><p class="intro">اختر القسم الذي تريد استخدامه</p><div class="grid">
