@@ -129,7 +129,7 @@ class MainActivity : Activity() {
     private var localFallbackAttempted = false
     private var pendingPageAfterHome: String? = null
     @Volatile private var backgroundedAtMs: Long = 0L
-    private val allowedHosts = setOf("k.com", "30.30.30.30", "30.10.10.10", "10.10.10.10")
+    private val allowedHosts = setOf("k.com", "30.30.30.30", "30.10.10.10", "10.10.10.10", "yalla4foot.com", "www.yalla4foot.com")
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -1685,7 +1685,7 @@ class MainActivity : Activity() {
         fun openUrl(url: String) {
             runOnUiThread {
                 val uri = runCatching { Uri.parse(url) }.getOrNull() ?: return@runOnUiThread
-                if (uri.scheme == "http" && uri.host in allowedHosts) {
+                if (uri.scheme in setOf("http", "https") && uri.host?.lowercase() in allowedHosts) {
                     pendingPageAfterHome = when {
                         url.startsWith("http://30.30.30.30:8080/tv/") ||
                             url.startsWith("http://30.10.10.10:88/") -> "live"
