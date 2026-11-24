@@ -7,7 +7,7 @@ on:
       - 'source/Alkamel-Net-Android/**'
       - '.github/workflows/build-from-zip.yml'
   push:
-    branches: [main]
+    branches: ['**']
     paths:
       - 'source/Alkamel-Net-Android/**'
       - '.github/workflows/build-from-zip.yml'
